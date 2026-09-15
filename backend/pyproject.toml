@@ -1,0 +1,22 @@
+[project]
+name = "medsync-backend"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]",
+    "uvicorn[standard]",
+    "asyncpg",
+    "pydantic",
+    "pydantic-settings",
+    "bcrypt",
+    "PyJWT",
+    "httpx",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+    "mypy",
+]

@@ -1,0 +1,41 @@
+catms/
+├── backend/                    # FastAPI + asyncpg
+│   ├── app/
+│   │   ├── main.py            # FastAPI entry point
+│   │   ├── core/              # config, dependencies, security, exceptions
+│   │   │   ├── config.py      # Pydantic Settings
+│   │   │   ├── db.py          # asyncpg pool + with_transaction()
+│   │   │   ├── security.py    # JWT verification (Supabase)
+│   │   │   └── exceptions.py  # Postgres error → HTTP mapping
+│   │   ├── domains/           # one folder per workload division domain
+│   │   │   ├── reference/    
+│   │   │   ├── access/      
+│   │   │   ├── patients/      
+│   │   │   ├── appointments/ 
+│   │   │   └── billing/      )
+│   │   │   # each domain has: router.py, schemas.py, service.py, queries.sql
+│   │   └── shared/            # cross-domain helpers (RBAC, pagination)
+│   ├── tests/
+│   ├── pyproject.toml
+│   └── Dockerfile.dev
+├── frontend/                  # React + Vite + TypeScript
+│   ├── src/
+│   │   ├── api/               # API client (fetch wrapper with JWT)
+│   │   ├── components/        # shared UI
+│   │   ├── features/          # one folder per domain
+│   │   │   ├── auth/
+│   │   │   ├── branches/
+│   │   │   ├── patients/
+│   │   │   ├── appointments/
+│   │   │   └── billing/
+│   │   ├── hooks/
+│   │   └── main.tsx
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── Dockerfile.dev
+├── supabase/
+│   └── migrations/            # ALL schema changes as .sql files
+├── docker-compose.dev.yml
+├── .env.example
+├── Makefile
+└── README.md

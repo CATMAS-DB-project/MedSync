@@ -1,0 +1,39 @@
+.PHONY: dev down reset logs migrate test lint
+
+setup:
+	cp -n .env.example .env || true
+	npm install
+	cd backend && uv sync
+	npx supabase start
+
+dev:
+	docker compose -f docker-compose.dev.yml up -d --build
+
+down:
+	docker compose -f docker-compose.dev.yml down
+	npx supabase stop
+
+reset:
+	docker compose -f docker-compose.dev.yml down -v
+	npx supabase db reset
+
+logs:
+	docker compose -f docker-compose.dev.yml logs -f
+
+migration:                    ## Create a new empty migration file: make migration name=add_patient_index
+	npx supabase migration new $(name)
+
+migrate:                      ## Apply all pending migrations (destructive, drops DB)
+	npx supabase db reset
+
+migrate-diff:                 ## Apply pending without full reset
+	npx supabase migration up
+
+test:
+	cd backend && uv run pytest
+	cd frontend && npm test
+
+lint:
+	cd backend && uv run ruff check .
+	cd frontend && npm run lint
+
