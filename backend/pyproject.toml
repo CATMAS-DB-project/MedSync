@@ -9,12 +9,13 @@ dependencies = [
     "pydantic",
     "pydantic-settings",
     "bcrypt",
-    "PyJWT",
+    "pyjwt[crypto]",
     "httpx",
+    "python-dotenv",
 ]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest",
     "pytest-asyncio",
     "ruff",

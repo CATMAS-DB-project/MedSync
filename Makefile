@@ -4,12 +4,16 @@ setup:
 	cp -n .env.example .env || true
 	npm install
 	cd backend && uv sync
-	npx supabase start
 
 dev:
+	npx supabase start
 	docker compose -f docker-compose.dev.yml up -d --build
 
 down:
+	docker compose -f docker-compose.dev.yml down
+
+# Stop app containers AND Supabase
+down-all:
 	docker compose -f docker-compose.dev.yml down
 	npx supabase stop
 
@@ -28,6 +32,10 @@ migrate:                      ## Apply all pending migrations (destructive, drop
 
 migrate-diff:                 ## Apply pending without full reset
 	npx supabase migration up
+
+# Push local migrations to the linked cloud Supabase project.
+db-cloud:
+	npx supabase db push
 
 test:
 	cd backend && uv run pytest
