@@ -1,9 +1,12 @@
-.PHONY: dev down reset logs migrate test lint
+.PHONY: setup setup-frontend dev down down-all reset logs migration migrate migrate-diff db-cloud test lint
 
 setup:
 	cp -n .env.example .env || true
 	npm install
 	cd backend && uv sync
+
+setup-frontend:
+	cd frontend && npm ci
 
 dev:
 	npx supabase start
