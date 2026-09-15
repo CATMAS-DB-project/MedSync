@@ -1,0 +1,10 @@
+FROM node:22-slim
+WORKDIR /app
+# Copy lockfile + manifest first — this layer is cached unless deps change
+COPY package.json package-lock.json ./
+# Reproducible install from lockfile
+RUN npm ci
+# Copy source last — only this layer invalidates on code changes
+COPY . .
+EXPOSE 5173
+CMD ["npm", "run", "dev"]
