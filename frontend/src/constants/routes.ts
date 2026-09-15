@@ -1,0 +1,15 @@
+export const ROUTES = {
+  DASHBOARD: '/',
+  APPOINTMENTS: '/appointments',
+  APPOINTMENT_BOOKING: '/appointments/book',
+  PATIENTS: '/patients',
+  PATIENT_REGISTRATION: '/patients/register',
+  STAFF: '/staff',
+  BILLING: '/billing',
+  BILLING_VIEW: '/billing/:invoiceId',
+  CONSULTATION: '/consultation/:appointmentId',
+  WALK_IN: '/walk-in',
+  WALK_IN_CONFIRMATION: '/walk-in/confirmation',
+  REPORTS: '/reports',
+  INVENTORY: '/inventory',
+} as const;
