@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { IconButton } from '../../../components/ui/IconButton';
@@ -5,8 +6,14 @@ import { KpiCard } from '../components/KpiCard';
 import { mockAppointments } from '../../../services/mock/appointments';
 import { formatTime } from '../../../utils/formatters';
 import { APPOINTMENT_STATUS_TONE } from '../../appointments/statusStyles';
+import { ROUTES } from '../../../constants/routes';
 
 export function DashboardPage() {
+  const navigate = useNavigate();
+
+  const openConsultation = (appointmentId: string) => {
+    navigate(ROUTES.CONSULTATION.replace(':appointmentId', appointmentId));
+  };
   return (
     <div className="max-w-7xl mx-auto flex flex-col gap-6">
       <div className="flex justify-between items-end">
@@ -14,7 +21,7 @@ export function DashboardPage() {
           <h2 className="text-display-sm text-on-surface">Admin Dashboard</h2>
           <p className="text-body-sm text-on-surface-variant mt-1">Overview for All Branches</p>
         </div>
-        <Button variant="primary" icon="add">
+        <Button variant="primary" icon="add" onClick={() => navigate(ROUTES.APPOINTMENT_BOOKING)}>
           New Appointment
         </Button>
       </div>
@@ -46,7 +53,10 @@ export function DashboardPage() {
       <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
         <div className="px-5 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
           <h3 className="text-headline-sm text-on-surface">Recent Appointments</h3>
-          <button className="text-primary text-label-md hover:underline flex items-center gap-1">
+          <button
+            onClick={() => navigate(ROUTES.APPOINTMENTS)}
+            className="text-primary text-label-md hover:underline flex items-center gap-1"
+          >
             View All
           </button>
         </div>
@@ -75,6 +85,7 @@ export function DashboardPage() {
               {mockAppointments.map((appointment) => (
                 <tr
                   key={appointment.id}
+                  onClick={() => openConsultation(appointment.id)}
                   className="border-b border-outline-variant hover:bg-[#EDF2F7] cursor-pointer transition-colors group"
                 >
                   <td className="p-table-cell-padding font-medium text-on-surface">
@@ -95,6 +106,10 @@ export function DashboardPage() {
                     <IconButton
                       icon="edit"
                       aria-label={`Edit appointment for ${appointment.patientName}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openConsultation(appointment.id);
+                      }}
                       className="opacity-0 group-hover:opacity-100"
                     />
                   </td>
