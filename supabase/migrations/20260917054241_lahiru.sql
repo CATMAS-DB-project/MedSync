@@ -20,14 +20,20 @@ CREATE TABLE staff_phone (
 
 
 CREATE TABLE doctor (
-    staff_id    INTEGER PRIMARY KEY,
+    staff_id             INTEGER PRIMARY KEY,
+    license_no           VARCHAR(50) NOT NULL,
+    years_of_experience  INTEGER NOT NULL DEFAULT 0
+                         CHECK (years_of_experience >= 0),
+    consultation_fee     NUMERIC(10, 2) NOT NULL DEFAULT 0
+                         CHECK (consultation_fee >= 0),
+    qualifications       TEXT,
+    CONSTRAINT uq_doctor_license_no UNIQUE (license_no),
     CONSTRAINT fk_doctor_staff
         FOREIGN KEY (staff_id) REFERENCES staff(staff_id)
         ON DELETE CASCADE
 );
 
 
--- FK references doctor (not staff) so non-doctors can't get specialties.
 CREATE TABLE doctor_specialty (
     staff_id        INTEGER NOT NULL,
     specialty_id    INTEGER NOT NULL,
@@ -115,10 +121,11 @@ CREATE TRIGGER trg_user_role_doctor_consistency
 COMMENT ON TABLE staff_phone IS
     'Multivalued phone numbers for staff. ON DELETE CASCADE from staff.';
 COMMENT ON TABLE doctor IS
-    'Subtype of staff (class-table inheritance). PK = FK to staff.';
+    'Subtype of staff. PK = FK to staff. Carries license_no, years_of_experience, consultation_fee, qualifications.';
 COMMENT ON TABLE doctor_specialty IS
     'Doctor↔Specialty M:N. FK to doctor (not staff) prevents non-doctors getting specialties.';
 COMMENT ON TABLE user_account IS
-    'Login + role for staff, matching the ERD. password_hash NOT NULL.';
+    'Login + role for staff. password_hash NOT NULL (one-way hash).';
 COMMENT ON TRIGGER trg_user_role_doctor_consistency ON user_account IS
     'A Doctor-role account must map to a real doctor row. Fires on INSERT and role_id UPDATE.';
+    
