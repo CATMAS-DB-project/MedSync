@@ -92,7 +92,8 @@ CREATE TABLE branch (
 CREATE TABLE staff (
     staff_id            INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nic                 VARCHAR(20) NOT NULL,
-    full_name           VARCHAR(100) NOT NULL,
+    first_name          VARCHAR(100) NOT NULL,
+    last_name           VARCHAR(100) NOT NULL,
     date_of_birth       DATE NOT NULL,
     gender              gender_enum NOT NULL,
     address             VARCHAR(255),
@@ -111,7 +112,7 @@ CREATE TABLE staff (
 CREATE INDEX idx_staff_branch_id ON staff (branch_id);
 
 -- Fast staff lookup by name (used by admin search)
-CREATE INDEX idx_staff_full_name ON staff (full_name);
+CREATE INDEX idx_staff_last_first_name ON staff (last_name, first_name);
 
 COMMENT ON TABLE role IS 'System roles for RBAC. Static reference — seeded once.';
 COMMENT ON TABLE specialty IS 'Medical specialties (ENT, Paediatrics, etc.).';
