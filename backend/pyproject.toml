@@ -8,7 +8,7 @@ dependencies = [
     "asyncpg",
     "pydantic",
     "pydantic-settings",
-    "bcrypt",
+    "pwdlib[argon2]",
     "pyjwt[crypto]",
     "httpx",
     "python-dotenv",
@@ -21,3 +21,7 @@ dev = [
     "ruff",
     "mypy",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
