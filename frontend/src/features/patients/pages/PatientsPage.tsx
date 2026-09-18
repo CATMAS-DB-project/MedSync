@@ -7,9 +7,6 @@ import { Pagination } from '../../../components/common/Pagination';
 import { mockPatients } from '../../../services/mock/patients';
 import { calculateAge } from '../../../utils/formatters';
 import { PATIENT_STATUS_TONE } from '../statusStyles';
-import { PatientDetailDrawer } from '../components/PatientDetailDrawer';
-import { PatientRegistrationDrawer } from '../components/PatientRegistrationDrawer';
-import type { Patient } from '../../../types';
 
 const PAGE_SIZE = 10;
 
@@ -24,8 +21,6 @@ export function PatientsPage() {
   const [query, setQuery] = useState('');
   const [branch, setBranch] = useState('all');
   const [page, setPage] = useState(1);
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [isRegistrationOpen, setRegistrationOpen] = useState(false);
 
   const filteredPatients = useMemo(() => {
     return mockPatients.filter((patient) => {
@@ -53,7 +48,7 @@ export function PatientsPage() {
             Search, filter, and manage patient records
           </p>
         </div>
-        <Button variant="primary" icon="person_add" onClick={() => setRegistrationOpen(true)}>
+        <Button variant="primary" icon="person_add">
           Register New Patient
         </Button>
       </div>
@@ -125,11 +120,7 @@ export function PatientsPage() {
             </thead>
             <tbody className="divide-y divide-outline-variant text-table-data text-on-surface bg-surface-container-lowest">
               {paginatedPatients.map((patient) => (
-                <tr
-                  key={patient.id}
-                  onClick={() => setSelectedPatient(patient)}
-                  className="hover:bg-surface-container-high cursor-pointer transition-colors h-8 group"
-                >
+                <tr key={patient.id} className="hover:bg-surface-container-high transition-colors h-8 group">
                   <td className="py-1.5 px-3 font-medium">{patient.fullName}</td>
                   <td className="py-1.5 px-3 font-mono text-xs">{patient.nic}</td>
                   <td className="py-1.5 px-3">{patient.phone}</td>
@@ -143,13 +134,7 @@ export function PatientsPage() {
                     <Badge tone={PATIENT_STATUS_TONE[patient.status]}>{patient.status}</Badge>
                   </td>
                   <td className="py-1.5 px-3 text-right">
-                    <button
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setSelectedPatient(patient);
-                      }}
-                      className="text-primary hover:text-primary-fixed-variant text-label-md px-2 py-1 border border-transparent hover:border-primary rounded transition-all opacity-0 group-hover:opacity-100"
-                    >
+                    <button className="text-primary hover:text-primary-fixed-variant text-label-md px-2 py-1 border border-transparent hover:border-primary rounded transition-all opacity-0 group-hover:opacity-100">
                       Open
                     </button>
                   </td>
@@ -173,12 +158,6 @@ export function PatientsPage() {
           onPageChange={setPage}
         />
       </div>
-
-      <PatientDetailDrawer patient={selectedPatient} onClose={() => setSelectedPatient(null)} />
-      <PatientRegistrationDrawer
-        isOpen={isRegistrationOpen}
-        onClose={() => setRegistrationOpen(false)}
-      />
     </div>
   );
 }
