@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
@@ -8,7 +7,6 @@ import { Pagination } from '../../../components/common/Pagination';
 import { mockAppointments } from '../../../services/mock/appointments';
 import { formatDate, formatTime } from '../../../utils/formatters';
 import { APPOINTMENT_STATUS_TONE } from '../statusStyles';
-import { ROUTES } from '../../../constants/routes';
 import type { AppointmentStatus } from '../../../types';
 
 const PAGE_SIZE = 10;
@@ -25,14 +23,9 @@ const STATUS_OPTIONS: { label: string; value: AppointmentStatus | 'all' }[] = [
 ];
 
 export function AppointmentsPage() {
-  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<AppointmentStatus | 'all'>('all');
   const [page, setPage] = useState(1);
-
-  const openConsultation = (appointmentId: string) => {
-    navigate(ROUTES.CONSULTATION.replace(':appointmentId', appointmentId));
-  };
 
   const filtered = useMemo(() => {
     return mockAppointments.filter((appointment) => {
@@ -56,14 +49,9 @@ export function AppointmentsPage() {
             Today's schedule across all branches
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" icon="how_to_reg" onClick={() => navigate(ROUTES.WALK_IN)}>
-            New Walk-In
-          </Button>
-          <Button variant="primary" icon="add" onClick={() => navigate(ROUTES.APPOINTMENT_BOOKING)}>
-            New Appointment
-          </Button>
-        </div>
+        <Button variant="primary" icon="add">
+          New Appointment
+        </Button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -122,8 +110,7 @@ export function AppointmentsPage() {
               {paginated.map((appointment) => (
                 <tr
                   key={appointment.id}
-                  onClick={() => openConsultation(appointment.id)}
-                  className="hover:bg-surface-container-high cursor-pointer transition-colors h-8 group"
+                  className="hover:bg-surface-container-high transition-colors h-8 group"
                 >
                   <td className="py-1.5 px-3 font-medium">{appointment.patientName}</td>
                   <td className="py-1.5 px-3 text-on-surface-variant">{appointment.doctorName}</td>
@@ -138,10 +125,7 @@ export function AppointmentsPage() {
                     </Badge>
                   </td>
                   <td className="py-1.5 px-3 text-right">
-                    <button
-                      onClick={() => openConsultation(appointment.id)}
-                      className="text-primary hover:text-primary-fixed-variant text-label-md px-2 py-1 border border-transparent hover:border-primary rounded transition-all opacity-0 group-hover:opacity-100"
-                    >
+                    <button className="text-primary hover:text-primary-fixed-variant text-label-md px-2 py-1 border border-transparent hover:border-primary rounded transition-all opacity-0 group-hover:opacity-100">
                       Open
                     </button>
                   </td>
