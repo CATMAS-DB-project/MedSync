@@ -13,9 +13,11 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    database_url: str 
     environment: str = "development"
     log_level: str = "INFO"
+    database_url: str | None = None
+    db_pool_min_size: int = Field(default=2, ge=1)
+    db_pool_max_size: int = Field(default=10, ge=1)
 
     jwt_secret: str = Field(
         default="development-only-change-this-secret",
