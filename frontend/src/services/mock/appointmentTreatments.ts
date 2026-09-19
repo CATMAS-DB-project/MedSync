@@ -1,0 +1,58 @@
+import type { AppointmentTreatment } from '../../types';
+
+export const mockAppointmentTreatments: AppointmentTreatment[] = [
+  {
+    appointmentTreatmentId: 1,
+    appointmentId: 2,
+    serviceCode: 'CONS-STD',
+    treatmentName: 'Standard Consultation',
+    priceAtTime: 125,
+    isAmended: false,
+    recordedAt: '2026-09-17T10:45:00Z',
+  },
+  {
+    appointmentTreatmentId: 2,
+    appointmentId: 2,
+    serviceCode: 'IMG-MRI',
+    treatmentName: 'MRI Review & Analysis',
+    priceAtTime: 85,
+    isAmended: false,
+    recordedAt: '2026-09-17T10:50:00Z',
+  },
+  {
+    appointmentTreatmentId: 3,
+    appointmentId: 6,
+    serviceCode: 'CONS-EXT',
+    treatmentName: 'Extended Consultation',
+    priceAtTime: 175,
+    isAmended: false,
+    recordedAt: '2026-09-10T09:20:00Z',
+  },
+  {
+    appointmentTreatmentId: 4,
+    appointmentId: 7,
+    serviceCode: 'PROC-DRESS',
+    treatmentName: 'Wound Dressing',
+    priceAtTime: 60,
+    isAmended: false,
+    recordedAt: '2026-08-28T11:20:00Z',
+  },
+  {
+    appointmentTreatmentId: 5,
+    appointmentId: 7,
+    serviceCode: 'CONS-STD',
+    treatmentName: 'Standard Consultation',
+    priceAtTime: 125,
+    isAmended: false,
+    recordedAt: '2026-08-28T11:10:00Z',
+  },
+  {
+    appointmentTreatmentId: 6,
+    appointmentId: 8,
+    serviceCode: 'CONS-STD',
+    treatmentName: 'Standard Consultation',
+    priceAtTime: 125,
+    isAmended: false,
+    recordedAt: '2026-09-13T10:15:00Z',
+  },
+];

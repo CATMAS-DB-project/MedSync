@@ -1,8 +1,10 @@
 import type { CurrentUser } from '../../types';
 
 export const mockCurrentUser: CurrentUser = {
-  id: 'staff-001',
-  name: 'Clinical Staff',
+  staffId: 6,
+  firstName: 'Clinical',
+  lastName: 'Staff',
   role: 'Admin',
-  branch: 'Central Branch',
+  branchId: 1,
+  branchName: 'Main Branch',
 };

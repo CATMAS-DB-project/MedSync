@@ -1,5 +1,5 @@
 import { Icon } from '../ui/Icon';
-import { getInitials } from '../../utils/formatters';
+import { getInitials, formatFullName } from '../../utils/formatters';
 import type { CurrentUser, Branch } from '../../types';
 
 export interface TopbarProps {
@@ -31,8 +31,8 @@ export function Topbar({ currentUser, branches, onMenuClick }: TopbarProps) {
           >
             <option value="all">All Branches</option>
             {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
+              <option key={branch.branchId} value={branch.branchId}>
+                {branch.branchName}
               </option>
             ))}
           </select>
@@ -56,7 +56,7 @@ export function Topbar({ currentUser, branches, onMenuClick }: TopbarProps) {
           <Icon name="search" />
         </button>
         <div className="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-label-md font-bold cursor-pointer">
-          {getInitials(currentUser.name)}
+          {getInitials(formatFullName(currentUser.firstName, currentUser.lastName))}
         </div>
       </div>
     </header>

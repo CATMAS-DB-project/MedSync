@@ -5,8 +5,7 @@ import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Pagination } from '../../../components/common/Pagination';
 import { mockPatients } from '../../../services/mock/patients';
-import { calculateAge } from '../../../utils/formatters';
-import { PATIENT_STATUS_TONE } from '../statusStyles';
+import { calculateAge, formatFullName } from '../../../utils/formatters';
 import { PatientDetailDrawer } from '../components/PatientDetailDrawer';
 import { PatientRegistrationDrawer } from '../components/PatientRegistrationDrawer';
 import type { Patient } from '../../../types';
@@ -29,12 +28,14 @@ export function PatientsPage() {
 
   const filteredPatients = useMemo(() => {
     return mockPatients.filter((patient) => {
+      const fullName = formatFullName(patient.firstName, patient.lastName);
+      const primaryPhone = patient.phones?.[0]?.phoneNumber ?? '';
       const matchesQuery =
         query.trim() === '' ||
-        patient.fullName.toLowerCase().includes(query.toLowerCase()) ||
-        patient.nic.toLowerCase().includes(query.toLowerCase()) ||
-        patient.phone.includes(query);
-      const matchesBranch = branch === 'all' || patient.branch === branch;
+        fullName.toLowerCase().includes(query.toLowerCase()) ||
+        patient.nicPassportNo.toLowerCase().includes(query.toLowerCase()) ||
+        primaryPhone.includes(query);
+      const matchesBranch = branch === 'all' || patient.registeredBranchName === branch;
       return matchesQuery && matchesBranch;
     });
   }, [query, branch]);
@@ -115,9 +116,6 @@ export function PatientsPage() {
                 <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold w-16 text-center">
                   Age
                 </th>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">
-                  Status
-                </th>
                 <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold w-24 text-right">
                   Action
                 </th>
@@ -126,21 +124,20 @@ export function PatientsPage() {
             <tbody className="divide-y divide-outline-variant text-table-data text-on-surface bg-surface-container-lowest">
               {paginatedPatients.map((patient) => (
                 <tr
-                  key={patient.id}
+                  key={patient.patientId}
                   onClick={() => setSelectedPatient(patient)}
                   className="hover:bg-surface-container-high cursor-pointer transition-colors h-8 group"
                 >
-                  <td className="py-1.5 px-3 font-medium">{patient.fullName}</td>
-                  <td className="py-1.5 px-3 font-mono text-xs">{patient.nic}</td>
-                  <td className="py-1.5 px-3">{patient.phone}</td>
+                  <td className="py-1.5 px-3 font-medium">
+                    {formatFullName(patient.firstName, patient.lastName)}
+                  </td>
+                  <td className="py-1.5 px-3 font-mono text-xs">{patient.nicPassportNo}</td>
+                  <td className="py-1.5 px-3">{patient.phones?.[0]?.phoneNumber ?? '—'}</td>
                   <td className="py-1.5 px-3">
-                    <Badge tone="primary">{patient.branch}</Badge>
+                    <Badge tone="primary">{patient.registeredBranchName}</Badge>
                   </td>
                   <td className="py-1.5 px-3 text-center text-on-surface-variant">
                     {calculateAge(patient.dateOfBirth) ?? '—'}
-                  </td>
-                  <td className="py-1.5 px-3">
-                    <Badge tone={PATIENT_STATUS_TONE[patient.status]}>{patient.status}</Badge>
                   </td>
                   <td className="py-1.5 px-3 text-right">
                     <button
@@ -157,7 +154,7 @@ export function PatientsPage() {
               ))}
               {paginatedPatients.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-on-surface-variant">
+                  <td colSpan={6} className="py-8 text-center text-on-surface-variant">
                     No patients match your search.
                   </td>
                 </tr>
