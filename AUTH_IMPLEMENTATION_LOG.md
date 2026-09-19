@@ -192,3 +192,68 @@ The following are deliberately deferred:
 ## Next Planned Step
 
 Replace the in-memory credential validator and refresh-token store behind their existing interfaces with PostgreSQL/Supabase adapters after the authentication behavior is stable and the database contract is finalized.
+
+## Database Refresh-Token Implementation
+
+The refresh-token store has now been moved behind a database-backed implementation.
+
+### Added
+
+- `backend/app/core/db.py`
+	- Creates one shared `asyncpg` pool during application startup.
+	- Closes the pool during application shutdown.
+	- Provides the FastAPI database-pool dependency.
+- `backend/app/domains/auth/database_store.py`
+	- Implements `RefreshTokenStore` using PostgreSQL.
+	- Stores only the token hash.
+	- Reconstructs the user identity through `user_account`, `staff`, and `role` joins.
+	- Uses a transaction and `FOR UPDATE` during rotation.
+- `supabase/migrations/20260919140000_refresh_tokens.sql`
+	- Creates the persistent `refresh_token` table and indexes.
+
+### Router changes
+
+- Login, refresh, and logout now receive `RefreshTokenStore` through dependency injection.
+- Production wiring uses `DatabaseRefreshTokenStore`.
+- Unit tests override the dependency with one isolated `InMemoryRefreshTokenStore` per test.
+- The in-memory implementation remains available for fast unit tests, but is no longer the production store.
+
+### Database verification
+
+The migration was applied locally with:
+
+```powershell
+npx supabase migration up
+```
+
+The local database contains the new `refresh_token` table with UUID identity, integer `staff_id`, token hash, family, expiry, revocation, and replacement columns.
+
+Before the development seed was applied, the local database contained zero `user_account` rows. A real database-backed login therefore required a valid seeded `staff` and `user_account` record with an integer `staff_id`. That prerequisite is now covered by the development seed below, and the credential validator has been moved to the database.
+
+## Development Admin Seed
+
+Added `supabase/migrations/20260919143000_seed_dev_admin.sql` for local development.
+
+The migration creates, using database-generated identity values:
+
+- One `Admin` role.
+- One `Development Branch` branch.
+- One active staff member.
+- One active `dev-admin` user account linked to that staff member.
+
+The temporary development login is:
+
+```text
+username: dev-admin
+password: password
+```
+
+The password is stored in the migration only as an Argon2id hash. The local verification produced `staff_id = 1`, but the application does not rely on that value; database login retrieves the generated ID dynamically.
+
+The database credential validator now queries `user_account`, `staff`, and `role` and verifies the stored Argon2id hash. This makes the database-backed refresh-token foreign key usable during login.
+
+The live local database lifecycle was verified:
+
+```text
+login -> refresh row created -> rotation succeeds -> old-token reuse returns 401
+```

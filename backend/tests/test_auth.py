@@ -1,12 +1,30 @@
+from collections.abc import Iterator
+
 import pytest
 from fastapi.testclient import TestClient
+from pwdlib import PasswordHash
 
+from app.domains.auth.models import UserIdentity
+from app.domains.auth.router import get_credential_validator, get_refresh_store
+from app.domains.auth.service import (
+    InMemoryCredentialValidator,
+    InMemoryRefreshTokenStore,
+)
 from app.main import app
 
 
 @pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
+def client() -> Iterator[TestClient]:
+    credential_validator = InMemoryCredentialValidator(
+        username="dev-admin",
+        password_hash=PasswordHash.recommended().hash("password"),
+        user=UserIdentity(staff_id="staff-001", username="dev-admin", role="Admin", branch_id="central"),
+    )
+    refresh_store = InMemoryRefreshTokenStore()
+    app.dependency_overrides[get_credential_validator] = lambda: credential_validator
+    app.dependency_overrides[get_refresh_store] = lambda: refresh_store
+    yield TestClient(app)
+    app.dependency_overrides.clear()
 
 #Dev Logins
 '''
