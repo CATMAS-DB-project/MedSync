@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,8 @@ from app.core.exceptions import register_exception_handlers
 from app.domains.auth.router import router as auth_router
 
 =======
+=======
+>>>>>>> 4364d85 (feat(core): add DB pool, transaction helper, and error envelope)
 
 from fastapi import FastAPI
 
@@ -25,8 +28,22 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="CATMS API", version="1.0.0", lifespan=lifespan)
+<<<<<<< HEAD
 >>>>>>> 5541429 (implement database-backed refresh token store and update authentication flow)
 
+=======
+=======
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.db import close_pool, init_pool
+from app.core.exceptions import register_exception_handlers
+from app.domains.auth.router import router as auth_router
+
+>>>>>>> e66c700 (feat(core): add DB pool, transaction helper, and error envelope)
+
+>>>>>>> 4364d85 (feat(core): add DB pool, transaction helper, and error envelope)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_pool()
