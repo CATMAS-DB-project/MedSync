@@ -15,6 +15,18 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+// Mock user for development mode
+const DEV_MOCK_USER: CurrentUser = {
+  staffId: 999,
+  firstName: 'Dev',
+  lastName: 'User',
+  role: 'Admin',
+  branchId: 1,
+  branchName: 'Development Branch',
+};
+
+const IS_DEV_MODE = import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH === 'true';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
@@ -32,6 +44,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function bootstrap() {
       try {
+        // In dev mode, auto-authenticate with mock user
+        if (IS_DEV_MODE) {
+          if (!cancelled) setCurrentUser(DEV_MOCK_USER);
+          if (!cancelled) setIsBootstrapping(false);
+          return;
+        }
+
         await refreshAccessToken();
         const user = await fetchCurrentUser();
         if (!cancelled) setCurrentUser(user);
