@@ -21,7 +21,7 @@ export function AppLayout() {
         </main>
       </div>
 
-      <BottomNav />
+      <BottomNav currentUser={currentUser} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { SIDEBAR_NAV_ITEMS } from '../../constants/navigation';
+import { SIDEBAR_NAV_ITEMS, filterNavItemsByRole } from '../../constants/navigation';
 import { Icon } from '../ui/Icon';
 import { getInitials, formatFullName } from '../../utils/formatters';
 import { cn } from '../../utils/cn';
@@ -37,7 +37,7 @@ export function Sidebar({ currentUser }: SidebarProps) {
       </div>
 
       <nav className="flex-1 flex flex-col gap-1 px-2 overflow-y-auto">
-        {SIDEBAR_NAV_ITEMS.map((item) => (
+        {filterNavItemsByRole(SIDEBAR_NAV_ITEMS, currentUser.role).map((item) => (
           <NavLink
             key={item.path}
             to={item.comingSoon ? '#' : item.path}
