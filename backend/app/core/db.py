@@ -1,36 +1,55 @@
-from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 
 import asyncpg
-from fastapi import HTTPException, Request, status
+from asyncpg.pool import PoolConnectionProxy
 
-from app.core.config import Settings
+from app.core.config import get_settings
 
 
-async def create_pool(settings: Settings) -> asyncpg.Pool:
-    if not settings.database_url:
-        raise RuntimeError("DATABASE_URL must be configured to start the API")
-    return await asyncpg.create_pool(
+_pool: asyncpg.Pool | None = None
+
+
+async def init_pool() -> None:
+    global _pool
+    if _pool is not None:
+        return
+    settings = get_settings()
+    _pool = await asyncpg.create_pool(
         dsn=settings.database_url,
-        min_size=settings.db_pool_min_size,
-        max_size=settings.db_pool_max_size,
+        min_size=1,
+        max_size=10,
+        command_timeout=30,
+        statement_cache_size=0,
     )
 
 
+async def close_pool() -> None:
+    global _pool
+    if _pool is not None:
+        await _pool.close()
+        _pool = None
+
+
+def get_pool() -> asyncpg.Pool:
+    if _pool is None:
+        raise RuntimeError("DB pool is not initialised. Did the FastAPI lifespan run?")
+    return _pool
+
+
 @asynccontextmanager
-async def database_lifespan(settings: Settings) -> AsyncIterator[asyncpg.Pool]:
-    pool = await create_pool(settings)
-    try:
-        yield pool
-    finally:
-        await pool.close()
+async def get_conn() -> AsyncGenerator[PoolConnectionProxy, None]:
+    async with get_pool().acquire() as conn:
+        yield conn
 
 
-async def get_db_pool(request: Request) -> asyncpg.Pool:
-    pool = getattr(request.app.state, "db_pool", None)
-    if pool is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database connection is unavailable",
-        )
-    return pool
+@asynccontextmanager
+async def with_transaction(staff_id: int | None = None) -> AsyncGenerator[PoolConnectionProxy, None]:
+    async with get_pool().acquire() as conn:
+        async with conn.transaction():
+            if staff_id is not None:
+                await conn.execute(
+                    "SELECT set_config('app.current_staff_id', $1, true)",
+                    str(staff_id),
+                )
+            yield conn

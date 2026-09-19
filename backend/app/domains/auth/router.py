@@ -5,7 +5,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordBearer
 
 from app.core.config import Settings, get_settings
-from app.core.db import get_db_pool
+from app.core.db import get_pool
 from app.core.security import (
     InvalidAccessTokenError,
     create_access_token,
@@ -27,13 +27,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 async def get_credential_validator(
-    pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
+    pool: Annotated[asyncpg.Pool, Depends(get_pool)],
 ) -> CredentialValidator:
     return DatabaseCredentialValidator(pool)
 
 
 async def get_refresh_store(
-    pool: Annotated[asyncpg.Pool, Depends(get_db_pool)],
+    pool: Annotated[asyncpg.Pool, Depends(get_pool)],
 ) -> RefreshTokenStore:
     return DatabaseRefreshTokenStore(pool)
 
