@@ -1,4 +1,4 @@
-import { apiFetch, setAccessToken } from './client';
+import { apiGet, apiPost, setAccessToken } from './client';
 import type { CurrentUser, LoginCredentials, LoginResponse } from '../../types';
 
 interface AuthMeResponseRaw {
@@ -23,10 +23,7 @@ function mapAuthMeResponse(raw: AuthMeResponseRaw): CurrentUser {
 
 /** POST /auth/login - stores the returned access token in memory. */
 export async function login(credentials: LoginCredentials): Promise<LoginResponse> {
-  const result = await apiFetch<LoginResponse>('/auth/login', {
-    method: 'POST',
-    body: credentials,
-  });
+  const result = await apiPost<LoginResponse>('/auth/login', credentials);
   setAccessToken(result.accessToken);
   return result;
 }
@@ -34,7 +31,7 @@ export async function login(credentials: LoginCredentials): Promise<LoginRespons
 /** POST /auth/logout - invalidates the session server-side, clears the local token either way. */
 export async function logout(): Promise<void> {
   try {
-    await apiFetch<null>('/auth/logout', { method: 'POST' });
+    await apiPost<null>('/auth/logout');
   } finally {
     setAccessToken(null);
   }
@@ -42,6 +39,6 @@ export async function logout(): Promise<void> {
 
 /** GET /auth/me - full profile for the currently authenticated session. */
 export async function fetchCurrentUser(): Promise<CurrentUser> {
-  const raw = await apiFetch<AuthMeResponseRaw>('/auth/me');
+  const raw = await apiGet<AuthMeResponseRaw>('/auth/me');
   return mapAuthMeResponse(raw);
 }

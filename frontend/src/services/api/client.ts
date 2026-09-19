@@ -1,7 +1,8 @@
+import axios, { AxiosError } from 'axios';
+import type { InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL } from '../../constants/api';
 import { ApiError } from './ApiError';
-import type { ApiEnvelope } from '../../types';
-import type { RefreshResponse } from '../../types';
+import type { ApiEnvelope, RefreshResponse } from '../../types';
 
 let accessToken: string | null = null;
 
@@ -19,68 +20,85 @@ export function setSessionExpiredHandler(handler: (() => void) | null): void {
   onSessionExpired = handler;
 }
 
-interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
-  body?: unknown;
-  /** Internal - prevents infinite refresh loops. Never set this yourself. */
+const refreshClient = axios.create({ baseURL: API_BASE_URL, withCredentials: true });
+
+export async function refreshAccessToken(): Promise<string> {
+  try {
+    const response = await refreshClient.post<ApiEnvelope<RefreshResponse>>('/auth/refresh');
+    const envelope = response.data;
+    if (envelope.error || !envelope.data) {
+      throw new ApiError(envelope.error?.message ?? 'Session expired', 'SESSION_EXPIRED', response.status);
+    }
+    accessToken = envelope.data.accessToken;
+    return accessToken;
+  } catch {
+    throw new ApiError('Session expired', 'SESSION_EXPIRED', 401);
+  }
+}
+
+export const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  withCredentials: true,
+});
+
+apiClient.interceptors.request.use((config) => {
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
+  }
+  return config;
+});
+
+interface RetryableConfig extends InternalAxiosRequestConfig {
   _isRetry?: boolean;
 }
 
-export async function refreshAccessToken(): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-    method: 'POST',
-    credentials: 'include',
-  });
+apiClient.interceptors.response.use(
+  (response) => {
+    const envelope = response.data as ApiEnvelope<unknown>;
+    if (envelope && envelope.error) {
+      throw new ApiError(envelope.error.message, envelope.error.code, response.status);
+    }
+    response.data = envelope ? envelope.data : response.data;
+    return response;
+  },
+  async (error: AxiosError<ApiEnvelope<unknown>>) => {
+    const originalRequest = error.config as RetryableConfig | undefined;
 
-  if (!response.ok) {
-    throw new ApiError('Session expired', 'SESSION_EXPIRED', response.status);
-  }
+    if (error.response?.status === 401 && originalRequest && !originalRequest._isRetry) {
+      try {
+        await refreshAccessToken();
+      } catch {
+        accessToken = null;
+        onSessionExpired?.();
+        throw new ApiError('Session expired', 'SESSION_EXPIRED', 401);
+      }
+      originalRequest._isRetry = true;
+      return apiClient(originalRequest);
+    }
 
-  const envelope: ApiEnvelope<RefreshResponse> = await response.json();
-  if (envelope.error || !envelope.data) {
-    throw new ApiError(envelope.error?.message ?? 'Session expired', 'SESSION_EXPIRED', 401);
-  }
+    const envelope = error.response?.data;
+    const message = envelope?.error?.message ?? error.message ?? 'Request failed';
+    const code = envelope?.error?.code ?? 'UNKNOWN_ERROR';
+    throw new ApiError(message, code, error.response?.status ?? 0);
+  },
+);
 
-  accessToken = envelope.data.accessToken;
-  return accessToken;
+export async function apiGet<T>(path: string, params?: Record<string, unknown>): Promise<T> {
+  const response = await apiClient.get<T>(path, { params });
+  return response.data;
 }
 
-export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, _isRetry = false } = options;
+export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  const response = await apiClient.post<T>(path, body);
+  return response.data;
+}
 
-  const headers: Record<string, string> = {};
-  if (accessToken) {
-    headers.Authorization = `Bearer ${accessToken}`;
-  }
-  if (body !== undefined) {
-    headers['Content-Type'] = 'application/json';
-  }
+export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
+  const response = await apiClient.patch<T>(path, body);
+  return response.data;
+}
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers,
-    credentials: 'include',
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-
-  // Access token expired mid-session - refresh once and retry the original
-  // request. If refresh itself fails, the session is genuinely over.
-  if (response.status === 401 && !_isRetry) {
-    try {
-      await refreshAccessToken();
-    } catch {
-      accessToken = null;
-      onSessionExpired?.();
-      throw new ApiError('Session expired', 'SESSION_EXPIRED', 401);
-    }
-    return apiFetch<T>(path, { ...options, _isRetry: true });
-  }
-
-  const envelope: ApiEnvelope<T> = await response.json();
-
-  if (envelope.error) {
-    throw new ApiError(envelope.error.message, envelope.error.code, response.status);
-  }
-
-  return envelope.data as T;
+export async function apiDelete<T>(path: string): Promise<T> {
+  const response = await apiClient.delete<T>(path);
+  return response.data;
 }

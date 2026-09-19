@@ -3,10 +3,13 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { login as apiLogin, logout as apiLogout, fetchCurrentUser } from '../services/api/auth';
 import { refreshAccessToken, setSessionExpiredHandler } from '../services/api/client';
 import { ApiError } from '../services/api/ApiError';
+import { DEV_BYPASS_AUTH } from '../constants/api';
+import { mockCurrentUser } from '../services/mock/currentUser';
 import type { CurrentUser, LoginCredentials } from '../types';
 
 interface AuthContextValue {
   currentUser: CurrentUser | null;
+  /** True only during the initial silent-refresh-on-load check. */
   isBootstrapping: boolean;
   isAuthenticated: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
@@ -15,23 +18,15 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-// Mock user for development mode
-const DEV_MOCK_USER: CurrentUser = {
-  staffId: 999,
-  firstName: 'Dev',
-  lastName: 'User',
-  role: 'Admin',
-  branchId: 1,
-  branchName: 'Development Branch',
-};
-
-const IS_DEV_MODE = import.meta.env.DEV && import.meta.env.VITE_DEV_AUTH === 'true';
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
 
   const logout = useCallback(async () => {
+    if (DEV_BYPASS_AUTH) {
+      setCurrentUser(null);
+      return;
+    }
     try {
       await apiLogout();
     } finally {
@@ -39,18 +34,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // On first load (including a hard refresh), try to silently resume a
+  // session using the httpOnly refresh cookie. No token is ever read from
+  // localStorage - if there's no valid cookie, this just fails quietly and
+  // the app falls through to the login screen.
   useEffect(() => {
+    if (DEV_BYPASS_AUTH) {
+      // No backend yet - log straight in as the mock user, skip the
+      // network entirely. See constants/api.ts for how to turn this off.
+      setCurrentUser(mockCurrentUser);
+      setIsBootstrapping(false);
+      return;
+    }
+
     let cancelled = false;
 
     async function bootstrap() {
       try {
-        // In dev mode, auto-authenticate with mock user
-        if (IS_DEV_MODE) {
-          if (!cancelled) setCurrentUser(DEV_MOCK_USER);
-          if (!cancelled) setIsBootstrapping(false);
-          return;
-        }
-
         await refreshAccessToken();
         const user = await fetchCurrentUser();
         if (!cancelled) setCurrentUser(user);
@@ -67,12 +67,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Registered with the API client so a refresh failure mid-session (not
+  // just on load) also clears the logged-in state here.
   useEffect(() => {
     setSessionExpiredHandler(() => setCurrentUser(null));
     return () => setSessionExpiredHandler(null);
   }, []);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
+    if (DEV_BYPASS_AUTH) {
+      setCurrentUser(mockCurrentUser);
+      return;
+    }
     await apiLogin(credentials);
     const user = await fetchCurrentUser();
     setCurrentUser(user);
