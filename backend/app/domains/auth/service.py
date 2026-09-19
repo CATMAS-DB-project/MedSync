@@ -5,6 +5,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from uuid import uuid4
 
+import asyncpg
+
 from app.core.config import Settings
 from app.core.security import verify_password
 from app.domains.auth.models import RefreshRecord, UserIdentity
@@ -25,6 +27,34 @@ class InMemoryCredentialValidator:
             return None
         return self._user
 
+
+class DatabaseCredentialValidator:
+    def __init__(self, pool: asyncpg.Pool) -> None:
+        self._pool = pool
+
+    async def authenticate(self, username: str, password: str) -> UserIdentity | None:
+        async with self._pool.acquire() as connection:
+            row = await connection.fetchrow(
+                """
+                SELECT ua.staff_id, ua.username, ua.password_hash,
+                       r.role_name::text AS role, s.branch_id
+                FROM user_account ua
+                JOIN staff s ON s.staff_id = ua.staff_id
+                JOIN role r ON r.role_id = ua.role_id
+                WHERE ua.username = $1
+                  AND ua.account_status = 'Active'
+                """,
+                username,
+            )
+        if row is None or not verify_password(password, row["password_hash"]):
+            return None
+        return UserIdentity(
+            staff_id=str(row["staff_id"]),
+            username=row["username"],
+            role=row["role"],
+            branch_id=str(row["branch_id"]),
+        )
+
 # Need to be implemented alongside with a Database for easy Logout
 class RefreshTokenStore(Protocol):
     async def save(self, record: RefreshRecord) -> None: ...
@@ -34,6 +64,8 @@ class RefreshTokenStore(Protocol):
     async def revoke(self, token_hash: str) -> None: ...
 
     async def revoke_family(self, family_id: str) -> None: ...
+
+    async def rotate(self, token_hash: str, replacement: RefreshRecord) -> RefreshRecord | None: ...
 
 # Must Be Replaced after integrating the database.
 class InMemoryRefreshTokenStore:
