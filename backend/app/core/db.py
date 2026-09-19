@@ -4,31 +4,30 @@ from typing import AsyncGenerator
 import asyncpg
 from asyncpg.pool import PoolConnectionProxy
 
-from app.core.config import get_settings
+from app.core.config import Settings
 
 
 _pool: asyncpg.Pool | None = None
 
 
-async def init_pool() -> None:
+@asynccontextmanager
+async def database_lifespan(settings: Settings) -> AsyncGenerator[asyncpg.Pool, None]:
+    """Context-managed pool lifecycle. Called once from FastAPI's lifespan."""
     global _pool
-    if _pool is not None:
-        return
-    settings = get_settings()
     _pool = await asyncpg.create_pool(
         dsn=settings.database_url,
-        min_size=1,
-        max_size=10,
+        min_size=settings.db_pool_min_size,
+        max_size=settings.db_pool_max_size,
         command_timeout=30,
         statement_cache_size=0,
     )
-
-
-async def close_pool() -> None:
-    global _pool
-    if _pool is not None:
-        await _pool.close()
-        _pool = None
+    try:
+        yield _pool
+    finally:
+        try:
+            await _pool.close()
+        finally:
+            _pool = None
 
 
 def get_pool() -> asyncpg.Pool:
