@@ -1,8 +1,10 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { SIDEBAR_NAV_ITEMS } from '../../constants/navigation';
 import { Icon } from '../ui/Icon';
 import { getInitials, formatFullName } from '../../utils/formatters';
 import { cn } from '../../utils/cn';
+import { useAuth } from '../../context/AuthContext';
+import { ROUTES } from '../../constants/routes';
 import type { CurrentUser } from '../../types';
 
 export interface SidebarProps {
@@ -11,6 +13,14 @@ export interface SidebarProps {
 
 export function Sidebar({ currentUser }: SidebarProps) {
   const fullName = formatFullName(currentUser.firstName, currentUser.lastName);
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate(ROUTES.LOGIN, { replace: true });
+  };
+
   return (
     <aside className="hidden md:flex flex-col py-4 gap-2 bg-surface border-r border-outline-variant fixed left-0 top-0 h-full w-sidebar-width z-40">
       <div className="flex items-center gap-3 px-4 mb-6">
@@ -56,6 +66,15 @@ export function Sidebar({ currentUser }: SidebarProps) {
           </NavLink>
         ))}
       </nav>
+
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="flex items-center gap-3 px-3 py-2 mx-2 rounded text-label-md text-on-surface-variant hover:bg-surface-container-high transition-colors"
+      >
+        <Icon name="logout" />
+        <span>Log Out</span>
+      </button>
     </aside>
   );
 }

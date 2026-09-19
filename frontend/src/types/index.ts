@@ -1,4 +1,5 @@
 export * from './common';
+export * from './auth';
 export * from './staff';
 export * from './patient';
 export * from './appointment';
