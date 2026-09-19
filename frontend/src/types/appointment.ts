@@ -1,26 +1,36 @@
-export type AppointmentStatus =
-  | 'Scheduled'
-  | 'Confirmed'
-  | 'Checked In'
-  | 'In Progress'
-  | 'Completed'
-  | 'Cancelled'
-  | 'No Show';
-
-export type AppointmentType = 'Consultation' | 'Follow-up' | 'Walk-in' | 'Procedure' | 'Lab Test';
+export type AppointmentStatus = 'Scheduled' | 'Completed' | 'Cancelled';
 
 export interface Appointment {
-  id: string;
-  patientId: string;
-  patientName: string;
-  doctorId: string;
-  doctorName: string;
-  branch: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  type: AppointmentType;
+  appointmentId: number;
+  patientId: number;
+  patientName?: string;
+  doctorStaffId: number;
+  doctorName?: string;
+  branchId: number;
+  branchName?: string;
+  bookedByStaffId: number;
+  appointmentDate: string;
+  appointmentTime: string;
   status: AppointmentStatus;
+  isWalkIn: boolean;
+  cancelRescheduleReason?: string;
+  consultationNotes?: string;
+  createdAt: string;
+}
+
+export interface AppointmentRescheduleLog {
+  rescheduleId: number;
+  appointmentId: number;
+  previousDate: string;
+  previousTime: string;
+  newDate: string;
+  newTime: string;
   reason?: string;
-  notes?: string;
+  rescheduledByStaffId?: number;
+  rescheduledAt: string;
+}
+
+export interface AvailabilitySlot {
+  time: string;
+  available: boolean;
 }

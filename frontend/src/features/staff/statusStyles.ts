@@ -1,8 +1,8 @@
 import type { BadgeTone } from '../../components/ui/Badge';
-import type { StaffStatus } from '../../types';
+import type { EmploymentStatus } from '../../types';
 
-export const STAFF_STATUS_TONE: Record<StaffStatus, BadgeTone> = {
+export const EMPLOYMENT_STATUS_TONE: Record<EmploymentStatus, BadgeTone> = {
   Active: 'success',
-  'On Leave': 'warning',
-  Inactive: 'neutral',
+  OnLeave: 'warning',
+  Terminated: 'neutral',
 };

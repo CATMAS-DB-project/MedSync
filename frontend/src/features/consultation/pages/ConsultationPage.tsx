@@ -5,35 +5,39 @@ import { Input } from '../../../components/ui/Input';
 import { TextArea } from '../../../components/ui/TextArea';
 import { mockPatients } from '../../../services/mock/patients';
 import { mockTreatmentCatalogue } from '../../../services/mock/treatmentCatalogue';
-import { calculateAge, formatCurrency, getInitials } from '../../../utils/formatters';
+import { calculateAge, formatCurrency, formatFullName, getInitials } from '../../../utils/formatters';
 
 const activePatient = mockPatients[0];
+const activePatientName = formatFullName(activePatient.firstName, activePatient.lastName);
 
 export function ConsultationPage() {
   const [notes, setNotes] = useState('');
   const [catalogueQuery, setCatalogueQuery] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    () => new Set(['tc-1', 'tc-3']),
+  // Keyed by service_code, matching appointment_treatment.service_code.
+  const [selectedCodes, setSelectedCodes] = useState<Set<string>>(
+    () => new Set(['CONS-STD', 'IMG-MRI']),
   );
 
   const filteredCatalogue = useMemo(
     () =>
       mockTreatmentCatalogue.filter((item) =>
-        item.name.toLowerCase().includes(catalogueQuery.toLowerCase()),
+        item.treatmentName.toLowerCase().includes(catalogueQuery.toLowerCase()),
       ),
     [catalogueQuery],
   );
 
-  const selectedItems = mockTreatmentCatalogue.filter((item) => selectedIds.has(item.id));
-  const totalCost = selectedItems.reduce((sum, item) => sum + item.price, 0);
+  const selectedItems = mockTreatmentCatalogue.filter((item) =>
+    selectedCodes.has(item.serviceCode),
+  );
+  const totalCost = selectedItems.reduce((sum, item) => sum + item.unitPrice, 0);
 
-  const toggleItem = (id: string) => {
-    setSelectedIds((prev) => {
+  const toggleItem = (serviceCode: string) => {
+    setSelectedCodes((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
+      if (next.has(serviceCode)) {
+        next.delete(serviceCode);
       } else {
-        next.add(id);
+        next.add(serviceCode);
       }
       return next;
     });
@@ -45,17 +49,17 @@ export function ConsultationPage() {
       <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-elevated">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-headline-sm font-bold border border-outline-variant shrink-0">
-            {getInitials(activePatient.fullName)}
+            {getInitials(activePatientName)}
           </div>
           <div>
-            <h1 className="text-display-sm text-on-surface">{activePatient.fullName}</h1>
+            <h1 className="text-display-sm text-on-surface">{activePatientName}</h1>
             <div className="flex items-center gap-3 mt-1 flex-wrap">
               <span className="text-body-md text-on-surface-variant">
                 Age: {calculateAge(activePatient.dateOfBirth) ?? '—'}
               </span>
               <span className="w-1 h-1 rounded-full bg-outline-variant" />
               <span className="text-body-md text-on-surface-variant">
-                ID: {activePatient.id.toUpperCase()}
+                Patient #{activePatient.patientId}
               </span>
               <span className="w-1 h-1 rounded-full bg-outline-variant" />
               <span className="px-2 py-0.5 rounded bg-secondary-container text-on-secondary-container text-label-md">
@@ -123,12 +127,12 @@ export function ConsultationPage() {
 
           <div className="flex-1 overflow-y-auto p-2">
             {filteredCatalogue.map((item) => {
-              const isSelected = selectedIds.has(item.id);
+              const isSelected = selectedCodes.has(item.serviceCode);
               return (
                 <button
-                  key={item.id}
+                  key={item.serviceCode}
                   type="button"
-                  onClick={() => toggleItem(item.id)}
+                  onClick={() => toggleItem(item.serviceCode)}
                   className={`w-full flex items-center justify-between p-2 mb-1 rounded cursor-pointer border transition-colors text-left group ${
                     isSelected
                       ? 'bg-surface-container-high border-primary'
@@ -148,13 +152,15 @@ export function ConsultationPage() {
                       <div
                         className={`text-body-sm text-on-surface ${isSelected ? 'font-medium' : ''}`}
                       >
-                        {item.name}
+                        {item.treatmentName}
                       </div>
-                      <div className="text-label-md text-on-surface-variant">{item.code}</div>
+                      <div className="text-label-md text-on-surface-variant">
+                        {item.serviceCode} · {item.category}
+                      </div>
                     </div>
                   </div>
                   <div className={`text-body-sm ${isSelected ? 'font-medium' : ''}`}>
-                    {formatCurrency(item.price)}
+                    {formatCurrency(item.unitPrice)}
                   </div>
                 </button>
               );

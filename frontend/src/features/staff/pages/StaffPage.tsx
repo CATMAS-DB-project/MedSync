@@ -6,46 +6,39 @@ import { Badge } from '../../../components/ui/Badge';
 import { Pagination } from '../../../components/common/Pagination';
 import { Drawer, DrawerSection } from '../../../components/layout/Drawer';
 import { mockStaff } from '../../../services/mock/staff';
-import { formatDate, getInitials } from '../../../utils/formatters';
-import { STAFF_STATUS_TONE } from '../statusStyles';
-import type { StaffRole } from '../../../types';
+import { formatDate, formatFullName, getInitials } from '../../../utils/formatters';
+import { EMPLOYMENT_STATUS_TONE } from '../statusStyles';
 
 const PAGE_SIZE = 10;
 
-const ROLE_OPTIONS: { label: string; value: StaffRole | 'all' }[] = [
-  { label: 'All Roles', value: 'all' },
-  { label: 'Doctor', value: 'Doctor' },
+const JOB_TITLE_OPTIONS = [
+  { label: 'All Job Titles', value: 'all' },
+  { label: 'Physician', value: 'Physician' },
   { label: 'Nurse', value: 'Nurse' },
   { label: 'Receptionist', value: 'Receptionist' },
-  { label: 'Pharmacist', value: 'Pharmacist' },
-  { label: 'Admin', value: 'Admin' },
+  { label: 'Administrator', value: 'Administrator' },
 ];
 
-const NEW_STAFF_ROLE_OPTIONS = ROLE_OPTIONS.filter((option) => option.value !== 'all') as {
-  label: string;
-  value: StaffRole;
-}[];
-
 const BRANCH_OPTIONS = [
-  { label: 'Central Branch', value: 'Central Branch' },
-  { label: 'North Clinic', value: 'North Clinic' },
-  { label: 'East Wing', value: 'East Wing' },
+  { label: 'Main Branch', value: 'Main Branch' },
+  { label: 'Kandy Clinic', value: 'Kandy Clinic' },
+  { label: 'Galle Center', value: 'Galle Center' },
 ];
 
 export function StaffPage() {
   const [query, setQuery] = useState('');
-  const [role, setRole] = useState<StaffRole | 'all'>('all');
+  const [jobTitle, setJobTitle] = useState('all');
   const [page, setPage] = useState(1);
   const [isDrawerOpen, setDrawerOpen] = useState(false);
 
   const filtered = useMemo(() => {
     return mockStaff.filter((staff) => {
-      const matchesQuery =
-        query.trim() === '' || staff.fullName.toLowerCase().includes(query.toLowerCase());
-      const matchesRole = role === 'all' || staff.role === role;
-      return matchesQuery && matchesRole;
+      const fullName = formatFullName(staff.firstName, staff.lastName);
+      const matchesQuery = query.trim() === '' || fullName.toLowerCase().includes(query.toLowerCase());
+      const matchesJobTitle = jobTitle === 'all' || staff.jobTitle === jobTitle;
+      return matchesQuery && matchesJobTitle;
     });
-  }, [query, role]);
+  }, [query, jobTitle]);
 
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -77,10 +70,10 @@ export function StaffPage() {
         </div>
         <div className="sm:w-56">
           <Select
-            options={ROLE_OPTIONS}
-            value={role}
+            options={JOB_TITLE_OPTIONS}
+            value={jobTitle}
             onChange={(event) => {
-              setRole(event.target.value as StaffRole | 'all');
+              setJobTitle(event.target.value);
               setPage(1);
             }}
           />
@@ -96,7 +89,10 @@ export function StaffPage() {
                   Name
                 </th>
                 <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">
-                  Role
+                  Job Title
+                </th>
+                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">
+                  Account Role
                 </th>
                 <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">
                   Branch
@@ -105,7 +101,7 @@ export function StaffPage() {
                   Phone
                 </th>
                 <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">
-                  Joined
+                  Hired
                 </th>
                 <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">
                   Status
@@ -113,37 +109,50 @@ export function StaffPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant text-table-data text-on-surface bg-surface-container-lowest">
-              {paginated.map((staff) => (
-                <tr key={staff.id} className="hover:bg-surface-container-high transition-colors h-10">
-                  <td className="py-1.5 px-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-[10px] font-bold shrink-0">
-                        {getInitials(staff.fullName)}
+              {paginated.map((staff) => {
+                const fullName = formatFullName(staff.firstName, staff.lastName);
+                const specialtyNames = staff.doctor?.specialties
+                  .map((specialty) => specialty.specialtyName)
+                  .join(', ');
+                return (
+                  <tr key={staff.staffId} className="hover:bg-surface-container-high transition-colors h-10">
+                    <td className="py-1.5 px-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-[10px] font-bold shrink-0">
+                          {getInitials(fullName)}
+                        </div>
+                        <div>
+                          <div className="font-medium">{fullName}</div>
+                          {specialtyNames && (
+                            <div className="text-[11px] text-on-surface-variant">{specialtyNames}</div>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-medium">{staff.fullName}</div>
-                        {staff.specialty && (
-                          <div className="text-[11px] text-on-surface-variant">
-                            {staff.specialty}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-1.5 px-3 text-on-surface-variant">{staff.role}</td>
-                  <td className="py-1.5 px-3 text-on-surface-variant">{staff.branch}</td>
-                  <td className="py-1.5 px-3 text-on-surface-variant">{staff.phone}</td>
-                  <td className="py-1.5 px-3 text-on-surface-variant">
-                    {formatDate(staff.joinedOn)}
-                  </td>
-                  <td className="py-1.5 px-3">
-                    <Badge tone={STAFF_STATUS_TONE[staff.status]}>{staff.status}</Badge>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="py-1.5 px-3 text-on-surface-variant">{staff.jobTitle}</td>
+                    <td className="py-1.5 px-3 text-on-surface-variant">
+                      {staff.userAccount?.role ?? (
+                        <span className="text-outline italic">No login</span>
+                      )}
+                    </td>
+                    <td className="py-1.5 px-3 text-on-surface-variant">{staff.branchName}</td>
+                    <td className="py-1.5 px-3 text-on-surface-variant">
+                      {staff.phones?.[0]?.phoneNumber ?? '—'}
+                    </td>
+                    <td className="py-1.5 px-3 text-on-surface-variant">
+                      {formatDate(staff.hireDate)}
+                    </td>
+                    <td className="py-1.5 px-3">
+                      <Badge tone={EMPLOYMENT_STATUS_TONE[staff.employmentStatus]}>
+                        {staff.employmentStatus}
+                      </Badge>
+                    </td>
+                  </tr>
+                );
+              })}
               {paginated.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-on-surface-variant">
+                  <td colSpan={7} className="py-8 text-center text-on-surface-variant">
                     No staff match your search.
                   </td>
                 </tr>
@@ -181,9 +190,8 @@ export function StaffPage() {
             <div className="sm:col-span-2">
               <Input label="National Identity Card (NIC)" placeholder="e.g. 199012345678" />
             </div>
-            <div className="sm:col-span-2">
-              <Input label="Full Name" placeholder="Legal full name" />
-            </div>
+            <Input label="First Name" placeholder="Given name" />
+            <Input label="Last Name" placeholder="Family name" />
             <Input label="Date of Birth" type="date" />
             <Select
               label="Gender"
@@ -199,11 +207,8 @@ export function StaffPage() {
 
         <DrawerSection title="Employment Details" icon="work">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Select label="Role" placeholder="Select role" options={NEW_STAFF_ROLE_OPTIONS} />
+            <Input label="Job Title" placeholder="e.g. Physician, Receptionist" />
             <Select label="Branch" placeholder="Select branch" options={BRANCH_OPTIONS} />
-            <div className="sm:col-span-2">
-              <Input label="Specialty (optional)" placeholder="e.g. Pediatrics" />
-            </div>
           </div>
         </DrawerSection>
 

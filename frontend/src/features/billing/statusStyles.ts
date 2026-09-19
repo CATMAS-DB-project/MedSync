@@ -3,8 +3,7 @@ import type { InvoiceStatus } from '../../types';
 
 export const INVOICE_STATUS_TONE: Record<InvoiceStatus, BadgeTone> = {
   Paid: 'success',
-  Pending: 'primary',
-  Overdue: 'error',
+  Finalized: 'primary',
+  Draft: 'neutral',
   'Partially Paid': 'warning',
-  Cancelled: 'neutral',
 };

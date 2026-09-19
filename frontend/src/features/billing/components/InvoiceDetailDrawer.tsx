@@ -1,7 +1,10 @@
 import { Drawer, DrawerSection } from '../../../components/layout/Drawer';
 import { Badge } from '../../../components/ui/Badge';
 import { formatCurrency, formatDate } from '../../../utils/formatters';
+import { calculateAmountPaid, calculateOutstandingBalance, calculatePayableAmount } from '../../../utils/billing';
 import { INVOICE_STATUS_TONE } from '../statusStyles';
+import { mockAppointmentTreatments } from '../../../services/mock/appointmentTreatments';
+import { mockPayments } from '../../../services/mock/payments';
 import type { Invoice } from '../../../types';
 
 export interface InvoiceDetailDrawerProps {
@@ -10,13 +13,21 @@ export interface InvoiceDetailDrawerProps {
 }
 
 export function InvoiceDetailDrawer({ invoice, onClose }: InvoiceDetailDrawerProps) {
-  const balance = invoice ? invoice.total - invoice.amountPaid : 0;
+  const lineItems = invoice
+    ? mockAppointmentTreatments.filter((treatment) => treatment.appointmentId === invoice.appointmentId)
+    : [];
+  const invoicePayments = invoice
+    ? mockPayments.filter((payment) => payment.invoiceId === invoice.invoiceId)
+    : [];
+  const payableAmount = invoice ? calculatePayableAmount(invoice) : 0;
+  const amountPaid = invoice ? calculateAmountPaid(invoice.invoiceId, mockPayments) : 0;
+  const balance = invoice ? calculateOutstandingBalance(invoice, mockPayments) : 0;
 
   return (
     <Drawer
       isOpen={invoice !== null}
       onClose={onClose}
-      title={invoice?.invoiceNumber ?? ''}
+      title={invoice ? `Invoice #${invoice.invoiceId}` : ''}
       subtitle={invoice?.patientName}
     >
       {invoice && (
@@ -24,16 +35,12 @@ export function InvoiceDetailDrawer({ invoice, onClose }: InvoiceDetailDrawerPro
           <DrawerSection title="Summary" icon="receipt_long">
             <div className="grid grid-cols-2 gap-4 text-body-sm">
               <div>
-                <div className="text-on-surface-variant text-label-md">Issue Date</div>
-                <div className="text-on-surface">{formatDate(invoice.issueDate)}</div>
-              </div>
-              <div>
-                <div className="text-on-surface-variant text-label-md">Due Date</div>
-                <div className="text-on-surface">{formatDate(invoice.dueDate)}</div>
+                <div className="text-on-surface-variant text-label-md">Created</div>
+                <div className="text-on-surface">{formatDate(invoice.createdAt)}</div>
               </div>
               <div>
                 <div className="text-on-surface-variant text-label-md">Branch</div>
-                <div className="text-on-surface">{invoice.branch}</div>
+                <div className="text-on-surface">{invoice.branchName}</div>
               </div>
               <div>
                 <div className="text-on-surface-variant text-label-md">Status</div>
@@ -42,25 +49,35 @@ export function InvoiceDetailDrawer({ invoice, onClose }: InvoiceDetailDrawerPro
             </div>
           </DrawerSection>
 
-          <DrawerSection title="Line Items" icon="list_alt">
+          <DrawerSection title="Logged Treatments" icon="list_alt">
             <table className="w-full text-left border-collapse text-body-sm">
               <thead>
                 <tr className="border-b border-outline-variant text-label-md text-on-surface-variant">
-                  <th className="py-1.5">Description</th>
-                  <th className="py-1.5 text-center">Qty</th>
-                  <th className="py-1.5 text-right">Total</th>
+                  <th className="py-1.5">Service</th>
+                  <th className="py-1.5 text-right">Price</th>
                 </tr>
               </thead>
               <tbody>
-                {invoice.items.map((item) => (
-                  <tr key={item.id} className="border-b border-outline-variant/60">
-                    <td className="py-1.5 text-on-surface">{item.description}</td>
-                    <td className="py-1.5 text-center text-on-surface-variant">{item.quantity}</td>
+                {lineItems.map((item) => (
+                  <tr key={item.appointmentTreatmentId} className="border-b border-outline-variant/60">
+                    <td className="py-1.5 text-on-surface">
+                      {item.treatmentName ?? item.serviceCode}
+                      {item.isAmended && (
+                        <span className="ml-1.5 text-label-md text-tertiary">(amended)</span>
+                      )}
+                    </td>
                     <td className="py-1.5 text-right text-on-surface">
-                      {formatCurrency(item.total)}
+                      {formatCurrency(item.priceAtTime)}
                     </td>
                   </tr>
                 ))}
+                {lineItems.length === 0 && (
+                  <tr>
+                    <td colSpan={2} className="py-3 text-center text-on-surface-variant">
+                      No treatments logged for this visit.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </DrawerSection>
@@ -69,19 +86,23 @@ export function InvoiceDetailDrawer({ invoice, onClose }: InvoiceDetailDrawerPro
             <div className="flex flex-col gap-2 text-body-sm">
               <div className="flex justify-between">
                 <span className="text-on-surface-variant">Subtotal</span>
-                <span className="text-on-surface">{formatCurrency(invoice.subtotal)}</span>
+                <span className="text-on-surface">{formatCurrency(invoice.subtotalAmount)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-on-surface-variant">Tax</span>
-                <span className="text-on-surface">{formatCurrency(invoice.tax)}</span>
+                <span className="text-on-surface-variant">Insurance Deduction</span>
+                <span className="text-on-surface">-{formatCurrency(invoice.insuranceDeduction)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-on-surface-variant">Manual Discount</span>
+                <span className="text-on-surface">-{formatCurrency(invoice.manualDiscount)}</span>
               </div>
               <div className="flex justify-between font-semibold border-t border-outline-variant pt-2">
-                <span className="text-on-surface">Total</span>
-                <span className="text-on-surface">{formatCurrency(invoice.total)}</span>
+                <span className="text-on-surface">Payable Amount</span>
+                <span className="text-on-surface">{formatCurrency(payableAmount)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-on-surface-variant">Amount Paid</span>
-                <span className="text-on-surface">{formatCurrency(invoice.amountPaid)}</span>
+                <span className="text-on-surface">{formatCurrency(amountPaid)}</span>
               </div>
               <div className="flex justify-between font-semibold">
                 <span className="text-on-surface">Balance Due</span>
@@ -91,6 +112,21 @@ export function InvoiceDetailDrawer({ invoice, onClose }: InvoiceDetailDrawerPro
               </div>
             </div>
           </DrawerSection>
+
+          {invoicePayments.length > 0 && (
+            <DrawerSection title="Payment History" icon="history">
+              <div className="flex flex-col gap-2 text-body-sm">
+                {invoicePayments.map((payment) => (
+                  <div key={payment.paymentId} className="flex justify-between">
+                    <span className="text-on-surface-variant">
+                      {formatDate(payment.paymentDate)} · {payment.paymentMethod}
+                    </span>
+                    <span className="text-on-surface">{formatCurrency(payment.amountPaid)}</span>
+                  </div>
+                ))}
+              </div>
+            </DrawerSection>
+          )}
         </>
       )}
     </Drawer>

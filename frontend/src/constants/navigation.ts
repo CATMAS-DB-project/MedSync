@@ -1,4 +1,6 @@
 import { ROUTES } from './routes';
+import { ROUTE_ROLES } from './roleAccess';
+import type { Role } from '../types';
 
 export interface NavItem {
   label: string;
@@ -25,3 +27,11 @@ export const BOTTOM_NAV_ITEMS: NavItem[] = [
   { label: 'Patients', path: ROUTES.PATIENTS, icon: 'group' },
   { label: 'More', path: ROUTES.STAFF, icon: 'menu' },
 ];
+
+export function filterNavItemsByRole(items: NavItem[], role: Role): NavItem[] {
+  return items.filter((item) => {
+    if (item.comingSoon) return true;
+    const allowedRoles = ROUTE_ROLES[item.path];
+    return !allowedRoles || allowedRoles.includes(role);
+  });
+}
