@@ -49,10 +49,10 @@ class DatabaseCredentialValidator:
         if row is None or not verify_password(password, row["password_hash"]):
             return None
         return UserIdentity(
-            staff_id=str(row["staff_id"]),
+            staff_id=row["staff_id"],
             username=row["username"],
             role=row["role"],
-            branch_id=str(row["branch_id"]),
+            branch_id=row["branch_id"],
         )
 
 # Need to be implemented alongside with a Database for easy Logout

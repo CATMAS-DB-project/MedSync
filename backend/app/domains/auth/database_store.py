@@ -21,10 +21,10 @@ class DatabaseRefreshTokenStore:
         return RefreshRecord(
             token_hash=row["token_hash"],
             user=UserIdentity(
-                staff_id=str(row["staff_id"]),
+                staff_id=row["staff_id"],
                 username=row["username"],
                 role=row["role"],
-                branch_id=str(row["branch_id"]) if row["branch_id"] is not None else None,
+                branch_id=row["branch_id"],
             ),
             expires_at=row["expires_at"],
             family_id=str(row["family_id"]),
