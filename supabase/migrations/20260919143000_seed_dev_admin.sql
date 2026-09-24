@@ -34,14 +34,14 @@ BEGIN
 
     INSERT INTO specialty (specialty_name)
     VALUES
-        ('General Medicine'),
-        ('ENT'),
-        ('Paediatrics'),
-        ('Cardiology'),
-        ('Dermatology'),
-        ('Orthopaedics'),
-        ('Obstetrics & Gynaecology'),
-        ('Radiology')
+        ('general medicine'),
+        ('ent'),
+        ('paediatrics'),
+        ('cardiology'),
+        ('dermatology'),
+        ('orthopaedics'),
+        ('obstetrics & gynaecology'),
+        ('radiology')
     ON CONFLICT (specialty_name) DO NOTHING;
 
     INSERT INTO treatment_catalogue (
@@ -239,7 +239,7 @@ BEGIN
     INSERT INTO doctor_specialty (staff_id, specialty_id)
     SELECT v_doctor_staff_id, specialty_id
     FROM specialty
-    WHERE specialty_name IN ('Cardiology', 'General Medicine')
+    WHERE specialty_name IN ('cardiology', 'general medicine')
     ON CONFLICT (staff_id, specialty_id) DO NOTHING;
 
     INSERT INTO user_account (staff_id, username, password_hash, role_id)

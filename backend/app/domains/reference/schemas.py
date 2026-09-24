@@ -11,3 +11,7 @@ class SpecialtyCreate(BaseModel):
         if not value:
             raise ValueError("specialty_name must not be blank")
         return value
+
+
+class SpecialtyUpdate(SpecialtyCreate):
+    pass
