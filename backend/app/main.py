@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.core.db import close_pool, init_pool
+from app.core.db import database_lifespan
 from app.core.exceptions import register_exception_handlers
 from app.domains.auth.router import router as auth_router
 
@@ -13,11 +13,8 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_pool()
-    try:
+    async with database_lifespan(settings) as pool:
         yield
-    finally:
-        await close_pool()
 
 
 app = FastAPI(title="CATMS API", version="1.0.0", lifespan=lifespan)
