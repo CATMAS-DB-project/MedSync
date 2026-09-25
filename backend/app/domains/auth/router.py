@@ -2,15 +2,11 @@ from typing import Annotated
 
 import asyncpg
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
-from fastapi.security import OAuth2PasswordBearer
 
 from app.core.config import Settings, get_settings
 from app.core.db import get_pool
-from app.core.security import (
-    InvalidAccessTokenError,
-    create_access_token,
-    decode_access_token,
-)
+from app.core.deps import get_current_user
+from app.core.security import create_access_token
 from app.domains.auth.database_store import DatabaseRefreshTokenStore
 from app.domains.auth.models import LoginRequest, LoginResponse, UserIdentity
 from app.domains.auth.service import (
@@ -22,7 +18,6 @@ from app.domains.auth.service import (
 )
 
 settings = get_settings()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -48,20 +43,6 @@ def _set_refresh_cookie(response: Response, raw_token: str, config: Settings) ->
         max_age=config.refresh_token_expire_days * 86400,
         path=config.refresh_cookie_path,
     )
-
-
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> UserIdentity:
-    try:
-        claims = decode_access_token(token)
-    except InvalidAccessTokenError as error:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid access token") from error
-    return UserIdentity(
-        staff_id=int(claims["sub"]),
-        username=str(claims.get("username", "")),
-        role=claims.get("role"),
-        branch_id=claims.get("branch_id"),
-    )
-
 
 @router.post("/login", response_model=LoginResponse)
 async def login(
