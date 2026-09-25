@@ -36,7 +36,6 @@ def get_pool() -> asyncpg.Pool:
     return _pool
 
 
-@asynccontextmanager
 async def get_conn() -> AsyncGenerator[PoolConnectionProxy, None]:
     async with get_pool().acquire() as conn:
         yield conn

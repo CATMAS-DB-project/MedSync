@@ -18,7 +18,7 @@ def client() -> Iterator[TestClient]:
     credential_validator = InMemoryCredentialValidator(
         username="dev-admin",
         password_hash=PasswordHash.recommended().hash("password"),
-        user=UserIdentity(staff_id="staff-001", username="dev-admin", role="Admin", branch_id="central"),
+        user=UserIdentity(staff_id=1, username="dev-admin", role="Admin", branch_id=1),
     )
     refresh_store = InMemoryRefreshTokenStore()
     app.dependency_overrides[get_credential_validator] = lambda: credential_validator

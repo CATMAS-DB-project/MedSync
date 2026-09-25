@@ -3,7 +3,6 @@ CREATE TYPE role_name_enum AS ENUM (
     'Branch Manager',
     'Receptionist',
     'Doctor',
-    'Cashier',
     'QA Tester'
 );
 
