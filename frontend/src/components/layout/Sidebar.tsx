@@ -1,8 +1,10 @@
-import { NavLink } from 'react-router-dom';
-import { SIDEBAR_NAV_ITEMS } from '../../constants/navigation';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { SIDEBAR_NAV_ITEMS, filterNavItemsByRole } from '../../constants/navigation';
 import { Icon } from '../ui/Icon';
-import { getInitials } from '../../utils/formatters';
+import { getInitials, formatFullName } from '../../utils/formatters';
 import { cn } from '../../utils/cn';
+import { useAuth } from '../../context/AuthContext';
+import { ROUTES } from '../../constants/routes';
 import type { CurrentUser } from '../../types';
 
 export interface SidebarProps {
@@ -10,15 +12,24 @@ export interface SidebarProps {
 }
 
 export function Sidebar({ currentUser }: SidebarProps) {
+  const fullName = formatFullName(currentUser.firstName, currentUser.lastName);
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate(ROUTES.LOGIN, { replace: true });
+  };
+
   return (
     <aside className="hidden md:flex flex-col py-4 gap-2 bg-surface border-r border-outline-variant fixed left-0 top-0 h-full w-sidebar-width z-40">
       <div className="flex items-center gap-3 px-4 mb-6">
         <div className="w-10 h-10 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-label-md font-bold">
-          {getInitials(currentUser.name)}
+          {getInitials(fullName)}
         </div>
         <div>
-          <h3 className="text-body-md font-semibold text-primary">{currentUser.name}</h3>
-          <p className="text-label-md text-on-surface-variant">{currentUser.branch}</p>
+          <h3 className="text-body-md font-semibold text-primary">{fullName}</h3>
+          <p className="text-label-md text-on-surface-variant">{currentUser.branchName}</p>
           <span className="text-[10px] uppercase tracking-wider text-outline">
             {currentUser.role}
           </span>
@@ -26,7 +37,7 @@ export function Sidebar({ currentUser }: SidebarProps) {
       </div>
 
       <nav className="flex-1 flex flex-col gap-1 px-2 overflow-y-auto">
-        {SIDEBAR_NAV_ITEMS.map((item) => (
+        {filterNavItemsByRole(SIDEBAR_NAV_ITEMS, currentUser.role).map((item) => (
           <NavLink
             key={item.path}
             to={item.comingSoon ? '#' : item.path}
@@ -55,6 +66,15 @@ export function Sidebar({ currentUser }: SidebarProps) {
           </NavLink>
         ))}
       </nav>
+
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="flex items-center gap-3 px-3 py-2 mx-2 rounded text-label-md text-on-surface-variant hover:bg-surface-container-high transition-colors"
+      >
+        <Icon name="logout" />
+        <span>Log Out</span>
+      </button>
     </aside>
   );
 }

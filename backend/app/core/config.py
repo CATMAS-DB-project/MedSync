@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file="../.env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -15,6 +15,9 @@ class Settings(BaseSettings):
 
     environment: str = "development"
     log_level: str = "INFO"
+    database_url: str | None = None
+    db_pool_min_size: int = Field(default=2, ge=1)
+    db_pool_max_size: int = Field(default=10, ge=1)
 
     jwt_secret: str = Field(
         default="development-only-change-this-secret",
@@ -31,7 +34,12 @@ class Settings(BaseSettings):
     refresh_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     refresh_cookie_path: str = "/api/v1/auth"
 
+    cors_origins: str = "http://localhost:5173"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    return Settings()  # type: ignore[call-arg]

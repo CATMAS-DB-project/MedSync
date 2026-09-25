@@ -1,33 +1,41 @@
 from typing import Annotated
 
+import asyncpg
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordBearer
-from pwdlib import PasswordHash
 
 from app.core.config import Settings, get_settings
+from app.core.db import get_pool
 from app.core.security import (
     InvalidAccessTokenError,
     create_access_token,
     decode_access_token,
 )
+from app.domains.auth.database_store import DatabaseRefreshTokenStore
 from app.domains.auth.models import LoginRequest, LoginResponse, UserIdentity
 from app.domains.auth.service import (
-    InMemoryCredentialValidator,
-    InMemoryRefreshTokenStore,
+    CredentialValidator,
+    DatabaseCredentialValidator,
+    RefreshTokenStore,
     create_refresh_record,
     hash_refresh_token,
 )
 
 settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
-password_hash = PasswordHash.recommended()
-credential_validator = InMemoryCredentialValidator(
-    username="dev-admin",
-    password_hash=password_hash.hash("password"),
-    user=UserIdentity(staff_id="staff-001", username="dev-admin", role="Admin", branch_id="central"),
-)
-refresh_store = InMemoryRefreshTokenStore()
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+async def get_credential_validator(
+    pool: Annotated[asyncpg.Pool, Depends(get_pool)],
+) -> CredentialValidator:
+    return DatabaseCredentialValidator(pool)
+
+
+async def get_refresh_store(
+    pool: Annotated[asyncpg.Pool, Depends(get_pool)],
+) -> RefreshTokenStore:
+    return DatabaseRefreshTokenStore(pool)
 
 
 def _set_refresh_cookie(response: Response, raw_token: str, config: Settings) -> None:
@@ -48,7 +56,7 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> Use
     except InvalidAccessTokenError as error:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid access token") from error
     return UserIdentity(
-        staff_id=str(claims["sub"]),
+        staff_id=int(claims["sub"]),
         username=str(claims.get("username", "")),
         role=claims.get("role"),
         branch_id=claims.get("branch_id"),
@@ -56,7 +64,12 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> Use
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(payload: LoginRequest, response: Response) -> LoginResponse:
+async def login(
+    payload: LoginRequest,
+    response: Response,
+    credential_validator: Annotated[CredentialValidator, Depends(get_credential_validator)],
+    refresh_store: Annotated[RefreshTokenStore, Depends(get_refresh_store)],
+) -> LoginResponse:
     user = await credential_validator.authenticate(payload.username, payload.password)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -65,7 +78,7 @@ async def login(payload: LoginRequest, response: Response) -> LoginResponse:
     await refresh_store.save(refresh_record)
     _set_refresh_cookie(response, raw_refresh_token, settings)
     access_token = create_access_token(
-        user.staff_id,
+        str(user.staff_id),
         settings,
         {"username": user.username, "role": user.role, "branch_id": user.branch_id},
     )
@@ -75,6 +88,7 @@ async def login(payload: LoginRequest, response: Response) -> LoginResponse:
 @router.post("/refresh", response_model=LoginResponse)
 async def refresh(
     response: Response,
+    refresh_store: Annotated[RefreshTokenStore, Depends(get_refresh_store)],
     refresh_token: Annotated[str | None, Cookie(alias=settings.refresh_cookie_name)] = None,
 ) -> LoginResponse:
     if not refresh_token:
@@ -94,7 +108,7 @@ async def refresh(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
     _set_refresh_cookie(response, new_raw_token, settings)
     access_token = create_access_token(
-        record.user.staff_id,
+        str(record.user.staff_id),
         settings,
         {"username": record.user.username, "role": record.user.role, "branch_id": record.user.branch_id},
     )
@@ -104,6 +118,7 @@ async def refresh(
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     response: Response,
+    refresh_store: Annotated[RefreshTokenStore, Depends(get_refresh_store)],
     refresh_token: Annotated[str | None, Cookie(alias=settings.refresh_cookie_name)] = None,
 ) -> None:
     if refresh_token:

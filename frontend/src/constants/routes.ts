@@ -1,4 +1,5 @@
 export const ROUTES = {
+  LOGIN: '/login',
   DASHBOARD: '/',
   APPOINTMENTS: '/appointments',
   APPOINTMENT_BOOKING: '/appointments/book',

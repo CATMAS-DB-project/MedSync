@@ -54,9 +54,8 @@ export function PatientRegistrationDrawer({ isOpen, onClose }: PatientRegistrati
           <div className="sm:col-span-2">
             <Input label="National Identity Card (NIC)" placeholder="e.g. 199012345678" />
           </div>
-          <div className="sm:col-span-2">
-            <Input label="Full Name" placeholder="Legal full name" />
-          </div>
+          <Input label="First Name" placeholder="Given name" />
+          <Input label="Last Name" placeholder="Family name" />
           <Input label="Date of Birth" type="date" />
           <Select label="Gender" placeholder="Select gender" options={GENDER_OPTIONS} />
           <Select

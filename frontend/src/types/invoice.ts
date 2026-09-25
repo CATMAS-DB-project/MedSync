@@ -1,28 +1,38 @@
-export type InvoiceStatus = 'Paid' | 'Pending' | 'Overdue' | 'Partially Paid' | 'Cancelled';
-
-export type PaymentMethod = 'Cash' | 'Card' | 'Insurance' | 'Bank Transfer';
-
-export interface InvoiceLineItem {
-  id: string;
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  total: number;
-}
+export type InvoiceStatus = 'Draft' | 'Finalized' | 'Paid' | 'Partially Paid';
 
 export interface Invoice {
-  id: string;
-  invoiceNumber: string;
-  patientId: string;
-  patientName: string;
-  branch: string;
-  issueDate: string;
-  dueDate: string;
-  items: InvoiceLineItem[];
-  subtotal: number;
-  tax: number;
-  total: number;
-  amountPaid: number;
+  invoiceId: number;
+  appointmentId: number;
+  patientId?: number;
+  patientName?: string;
+  branchName?: string;
+  subtotalAmount: number;
+  insuranceDeduction: number;
+  manualDiscount: number;
   status: InvoiceStatus;
-  paymentMethod?: PaymentMethod;
+  createdAt: string;
+  finalizedByStaffId?: number;
+}
+
+export type PaymentMethod = 'Cash' | 'Credit Card' | 'Insurance';
+
+export interface Payment {
+  paymentId: number;
+  invoiceId: number;
+  amountPaid: number;
+  paymentMethod: PaymentMethod;
+  paymentDate: string;
+  processedByStaffId: number;
+}
+
+export type ClaimVerificationStatus = 'Pending' | 'Approved' | 'Rejected';
+
+export interface InsuranceClaim {
+  claimId: number;
+  invoiceId: number;
+  policyId: string;
+  claimedAmount: number;
+  approvedAmount?: number;
+  verificationStatus: ClaimVerificationStatus;
+  verificationDate?: string;
 }

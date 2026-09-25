@@ -6,7 +6,7 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Toggle } from '../../../components/ui/Toggle';
 import { mockPatients } from '../../../services/mock/patients';
-import { getInitials } from '../../../utils/formatters';
+import { getInitials, formatFullName } from '../../../utils/formatters';
 import { ROUTES } from '../../../constants/routes';
 import type { Patient } from '../../../types';
 
@@ -73,7 +73,7 @@ export function AppointmentBookingPage() {
     patientQuery.trim() === ''
       ? []
       : mockPatients.filter((patient) =>
-          patient.fullName.toLowerCase().includes(patientQuery.toLowerCase()),
+          formatFullName(patient.firstName, patient.lastName).toLowerCase().includes(patientQuery.toLowerCase()),
         );
 
   const canSubmit = selectedPatient !== null && selectedTime !== null;
@@ -115,7 +115,7 @@ export function AppointmentBookingPage() {
                   <div className="absolute z-10 mt-1 w-full bg-surface-container-lowest border border-outline-variant rounded shadow-elevated max-h-48 overflow-y-auto">
                     {patientMatches.map((patient) => (
                       <button
-                        key={patient.id}
+                        key={patient.patientId}
                         type="button"
                         onClick={() => {
                           setSelectedPatient(patient);
@@ -124,9 +124,9 @@ export function AppointmentBookingPage() {
                         className="w-full text-left px-3 py-2 hover:bg-surface-container-low flex items-center gap-2"
                       >
                         <div className="w-6 h-6 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center text-[10px] font-bold">
-                          {getInitials(patient.fullName)}
+                          {getInitials(formatFullName(patient.firstName, patient.lastName))}
                         </div>
-                        <span className="text-body-sm text-on-surface">{patient.fullName}</span>
+                        <span className="text-body-sm text-on-surface">{formatFullName(patient.firstName, patient.lastName)}</span>
                       </button>
                     ))}
                   </div>
@@ -136,14 +136,14 @@ export function AppointmentBookingPage() {
               <div className="bg-surface-container-low p-3 rounded border border-outline-variant flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-bold text-label-md">
-                    {getInitials(selectedPatient.fullName)}
+                    {getInitials(formatFullName(selectedPatient.firstName, selectedPatient.lastName))}
                   </div>
                   <div>
                     <div className="text-body-md font-medium text-on-surface">
-                      {selectedPatient.fullName}
+                      {formatFullName(selectedPatient.firstName, selectedPatient.lastName)}
                     </div>
                     <div className="text-label-md text-outline">
-                      NIC: {selectedPatient.nic}
+                      NIC: {selectedPatient.nicPassportNo}
                     </div>
                   </div>
                 </div>

@@ -11,10 +11,10 @@ class LoginRequest(BaseModel):
 class UserIdentity(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    staff_id: str
+    staff_id: int
     username: str
     role: str | None = None
-    branch_id: str | None = None
+    branch_id: int | None = None
 
 
 class LoginResponse(BaseModel):

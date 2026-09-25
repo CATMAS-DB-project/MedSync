@@ -1,8 +1,6 @@
 import { Drawer, DrawerSection } from '../../../components/layout/Drawer';
-import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
-import { calculateAge, formatDate, getInitials } from '../../../utils/formatters';
-import { PATIENT_STATUS_TONE } from '../statusStyles';
+import { calculateAge, formatDate, formatFullName, getInitials } from '../../../utils/formatters';
 import type { Patient } from '../../../types';
 
 export interface PatientDetailDrawerProps {
@@ -11,12 +9,14 @@ export interface PatientDetailDrawerProps {
 }
 
 export function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerProps) {
+  const fullName = patient ? formatFullName(patient.firstName, patient.lastName) : '';
+
   return (
     <Drawer
       isOpen={patient !== null}
       onClose={onClose}
-      title={patient?.fullName ?? ''}
-      subtitle={patient ? `NIC: ${patient.nic}` : undefined}
+      title={fullName}
+      subtitle={patient ? `NIC: ${patient.nicPassportNo}` : undefined}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -32,13 +32,10 @@ export function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerPro
         <>
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-headline-sm font-bold shrink-0">
-              {getInitials(patient.fullName)}
+              {getInitials(fullName)}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-body-md font-semibold text-on-surface">{patient.fullName}</h3>
-                <Badge tone={PATIENT_STATUS_TONE[patient.status]}>{patient.status}</Badge>
-              </div>
+              <h3 className="text-body-md font-semibold text-on-surface">{fullName}</h3>
               <p className="text-body-sm text-on-surface-variant mt-0.5">
                 {calculateAge(patient.dateOfBirth) ?? '—'} yrs · {patient.gender}
               </p>
@@ -52,36 +49,28 @@ export function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerPro
                 <div className="text-on-surface">{formatDate(patient.dateOfBirth)}</div>
               </div>
               <div>
-                <div className="text-on-surface-variant text-label-md">Branch</div>
-                <div className="text-on-surface">{patient.branch}</div>
+                <div className="text-on-surface-variant text-label-md">Registered Branch</div>
+                <div className="text-on-surface">{patient.registeredBranchName}</div>
               </div>
               <div>
-                <div className="text-on-surface-variant text-label-md">Registered</div>
-                <div className="text-on-surface">{formatDate(patient.registeredOn)}</div>
+                <div className="text-on-surface-variant text-label-md">Registered On</div>
+                <div className="text-on-surface">{formatDate(patient.createdAt)}</div>
               </div>
-              <div>
-                <div className="text-on-surface-variant text-label-md">Last Visit</div>
-                <div className="text-on-surface">{formatDate(patient.lastVisit)}</div>
-              </div>
-              {patient.bloodType && (
-                <div>
-                  <div className="text-on-surface-variant text-label-md">Blood Type</div>
-                  <div className="text-on-surface">{patient.bloodType}</div>
-                </div>
-              )}
             </div>
           </DrawerSection>
 
           <DrawerSection title="Contact Information" icon="call">
             <div className="grid grid-cols-2 gap-4 text-body-sm">
-              <div>
-                <div className="text-on-surface-variant text-label-md">Phone</div>
-                <div className="text-on-surface">{patient.phone}</div>
-              </div>
-              <div>
-                <div className="text-on-surface-variant text-label-md">Email</div>
-                <div className="text-on-surface">{patient.email ?? '—'}</div>
-              </div>
+              {patient.phones && patient.phones.length > 0 ? (
+                patient.phones.map((phone) => (
+                  <div key={phone.phoneId}>
+                    <div className="text-on-surface-variant text-label-md">{phone.phoneType}</div>
+                    <div className="text-on-surface">{phone.phoneNumber}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-on-surface-variant col-span-2">No phone numbers on file.</div>
+              )}
               {patient.address && (
                 <div className="col-span-2">
                   <div className="text-on-surface-variant text-label-md">Address</div>
@@ -91,36 +80,6 @@ export function PatientDetailDrawer({ patient, onClose }: PatientDetailDrawerPro
             </div>
           </DrawerSection>
 
-          {patient.allergies && patient.allergies.length > 0 && (
-            <DrawerSection title="Allergies" icon="warning">
-              <div className="flex flex-wrap gap-2">
-                {patient.allergies.map((allergy) => (
-                  <Badge key={allergy} tone="error">
-                    {allergy}
-                  </Badge>
-                ))}
-              </div>
-            </DrawerSection>
-          )}
-
-          {patient.emergencyContact && (
-            <DrawerSection title="Emergency Contact" icon="emergency">
-              <div className="grid grid-cols-2 gap-4 text-body-sm">
-                <div>
-                  <div className="text-on-surface-variant text-label-md">Name</div>
-                  <div className="text-on-surface">{patient.emergencyContact.name}</div>
-                </div>
-                <div>
-                  <div className="text-on-surface-variant text-label-md">Relationship</div>
-                  <div className="text-on-surface">{patient.emergencyContact.relationship}</div>
-                </div>
-                <div className="col-span-2">
-                  <div className="text-on-surface-variant text-label-md">Phone</div>
-                  <div className="text-on-surface">{patient.emergencyContact.phone}</div>
-                </div>
-              </div>
-            </DrawerSection>
-          )}
         </>
       )}
     </Drawer>

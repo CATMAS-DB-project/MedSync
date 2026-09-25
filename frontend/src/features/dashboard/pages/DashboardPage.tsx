@@ -11,8 +11,8 @@ import { ROUTES } from '../../../constants/routes';
 export function DashboardPage() {
   const navigate = useNavigate();
 
-  const openConsultation = (appointmentId: string) => {
-    navigate(ROUTES.CONSULTATION.replace(':appointmentId', appointmentId));
+  const openConsultation = (appointmentId: number) => {
+    navigate(ROUTES.CONSULTATION.replace(':appointmentId', String(appointmentId)));
   };
   return (
     <div className="max-w-7xl mx-auto flex flex-col gap-6">
@@ -84,18 +84,18 @@ export function DashboardPage() {
             <tbody className="text-table-data">
               {mockAppointments.map((appointment) => (
                 <tr
-                  key={appointment.id}
-                  onClick={() => openConsultation(appointment.id)}
+                  key={appointment.appointmentId}
+                  onClick={() => openConsultation(appointment.appointmentId)}
                   className="border-b border-outline-variant hover:bg-[#EDF2F7] cursor-pointer transition-colors group"
                 >
                   <td className="p-table-cell-padding font-medium text-on-surface">
                     {appointment.patientName}
                   </td>
                   <td className="p-table-cell-padding text-on-surface-variant">
-                    {formatTime(appointment.startTime)} · Today
+                    {formatTime(appointment.appointmentTime)} · Today
                   </td>
                   <td className="p-table-cell-padding text-on-surface-variant">
-                    {appointment.branch}
+                    {appointment.branchName}
                   </td>
                   <td className="p-table-cell-padding">
                     <Badge tone={APPOINTMENT_STATUS_TONE[appointment.status]}>
@@ -108,7 +108,7 @@ export function DashboardPage() {
                       aria-label={`Edit appointment for ${appointment.patientName}`}
                       onClick={(event) => {
                         event.stopPropagation();
-                        openConsultation(appointment.id);
+                        openConsultation(appointment.appointmentId);
                       }}
                       className="opacity-0 group-hover:opacity-100"
                     />
