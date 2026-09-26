@@ -1,7 +1,8 @@
+from datetime import time
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +19,15 @@ class Settings(BaseSettings):
     database_url: str | None = None
     db_pool_min_size: int = Field(default=2, ge=1)
     db_pool_max_size: int = Field(default=10, ge=1)
+    clinic_opening_time: time = time(9, 0)
+    clinic_closing_time: time = time(17, 0)
+    clinic_slot_minutes: int = Field(default=15, ge=1, le=240)
+
+    @model_validator(mode="after")
+    def validate_clinic_hours(self) -> Settings:
+        if self.clinic_opening_time >= self.clinic_closing_time:
+            raise ValueError("clinic_opening_time must be before clinic_closing_time")
+        return self
 
     jwt_secret: str = Field(
         default="development-only-change-this-secret",
