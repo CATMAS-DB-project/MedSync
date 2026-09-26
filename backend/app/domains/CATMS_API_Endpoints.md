@@ -176,11 +176,10 @@ one row).
 - `POST`/`PATCH` on appointments must surface the BR-1/BR-7 overlap
   trigger's rejection as a 409 Conflict, not a 500 — the frontend's
   "conflict shown right at the time picker" behavior depends on this.
-- `GET /appointments/availability` is a good candidate for
-  `generate_series()` in Postgres to produce the full slot grid (e.g. every
-  15 minutes across clinic hours) LEFT JOINed against existing
-  appointments for that doctor/date, rather than hardcoding slot lists in
-  application code.
+- `GET /appointments/availability` performs one database query for the
+  doctor's non-cancelled appointments on the requested date. The backend
+  generates the clinic slot grid and availability flags using the configured
+  opening time, closing time, and slot interval.
 
 ---
 
