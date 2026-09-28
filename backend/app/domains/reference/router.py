@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.db import get_conn
 from app.core.deps import require_role
+from app.core.pagination import list_response, pagination
 from app.domains.auth.models import UserIdentity
 from app.domains.reference import service
 from app.domains.reference.schemas import SpecialtyCreate, SpecialtyUpdate
@@ -16,8 +17,15 @@ router = APIRouter(tags=["reference"])
 async def list_roles(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
     _user: Annotated[UserIdentity, Depends(require_role("Admin"))],
+    paging: Annotated[dict[str, int], Depends(pagination)],
 ) -> dict:
-    return {"data": await service.list_roles(conn), "error": None}
+    items, total = await service.list_roles(
+        conn, paging["offset"], paging["limit"]
+    )
+    return {
+        "data": list_response(items, total, paging["page"], paging["page_size"]),
+        "error": None,
+    }
 
 
 @router.get("/specialties")
@@ -35,8 +43,15 @@ async def list_specialties(
             )
         ),
     ],
+    paging: Annotated[dict[str, int], Depends(pagination)],
 ) -> dict:
-    return {"data": await service.list_specialties(conn), "error": None}
+    items, total = await service.list_specialties(
+        conn, paging["offset"], paging["limit"]
+    )
+    return {
+        "data": list_response(items, total, paging["page"], paging["page_size"]),
+        "error": None,
+    }
 
 
 @router.post("/specialties", status_code=status.HTTP_201_CREATED)

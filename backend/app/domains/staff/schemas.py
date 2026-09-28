@@ -1,0 +1,52 @@
+from datetime import date
+from typing import Literal
+
+from pydantic import BaseModel, Field, field_validator
+
+Gender = Literal["Male", "Female", "Other"]
+EmploymentStatus = Literal["Active", "OnLeave", "Terminated"]
+
+
+class StaffCreate(BaseModel):
+    nic: str = Field(min_length=1, max_length=20)
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    date_of_birth: date
+    gender: Gender
+    address: str | None = Field(None, max_length=255)
+    branch_id: int
+    job_title: str = Field(min_length=1, max_length=50)
+    employment_status: EmploymentStatus = "Active"
+    hire_date: date
+
+    @field_validator("nic")
+    @classmethod
+    def normalize_nic(cls, value: str) -> str:
+        value = value.strip().upper()
+        if not value:
+            raise ValueError("nic must not be blank")
+        return value
+
+    @field_validator("date_of_birth", "hire_date")
+    @classmethod
+    def reject_future_dates(cls, value: date) -> date:
+        if value > date.today():
+            raise ValueError("date must not be in the future")
+        return value
+
+
+class StaffUpdate(BaseModel):
+    first_name: str | None = Field(None, min_length=1, max_length=100)
+    last_name: str | None = Field(None, min_length=1, max_length=100)
+    address: str | None = Field(None, max_length=255)
+    branch_id: int | None = None
+    job_title: str | None = Field(None, min_length=1, max_length=50)
+    employment_status: EmploymentStatus | None = None
+    hire_date: date | None = None
+
+    @field_validator("hire_date")
+    @classmethod
+    def reject_future_hire_date(cls, value: date | None) -> date | None:
+        if value is not None and value > date.today():
+            raise ValueError("hire_date must not be in the future")
+        return value
