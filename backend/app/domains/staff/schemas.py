@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 
 Gender = Literal["Male", "Female", "Other"]
 EmploymentStatus = Literal["Active", "OnLeave", "Terminated"]
+PhoneType = Literal["Mobile", "Home", "Work"]
 
 
 class StaffCreate(BaseModel):
@@ -49,4 +50,17 @@ class StaffUpdate(BaseModel):
     def reject_future_hire_date(cls, value: date | None) -> date | None:
         if value is not None and value > date.today():
             raise ValueError("hire_date must not be in the future")
+        return value
+
+
+class PhoneCreate(BaseModel):
+    phone_number: str = Field(min_length=1, max_length=20)
+    phone_type: PhoneType
+
+    @field_validator("phone_number")
+    @classmethod
+    def normalize_number(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("phone_number must not be blank")
         return value
