@@ -157,3 +157,36 @@ async def update_staff(
     if result is None:
         return None
     return await get_staff(conn, staff_id)
+
+
+async def list_phones(
+    conn: PoolConnectionProxy, staff_id: int
+) -> list[dict]:
+    rows = await conn.fetch(
+        "SELECT phone_id, phone_number, phone_type "
+        "FROM staff_phone WHERE staff_id = $1 ORDER BY phone_id",
+        staff_id,
+    )
+    return [dict(r) for r in rows]
+
+
+async def add_phone(
+    conn: PoolConnectionProxy, staff_id: int, data: dict
+) -> dict:
+    row = await conn.fetchrow(
+        "INSERT INTO staff_phone (staff_id, phone_number, phone_type) "
+        "VALUES ($1, $2, $3) "
+        "RETURNING phone_id, phone_number, phone_type",
+        staff_id, data["phone_number"], data["phone_type"],
+    )
+    return dict(row)
+
+
+async def delete_phone(
+    conn: PoolConnectionProxy, staff_id: int, phone_id: int
+) -> bool:
+    result = await conn.execute(
+        "DELETE FROM staff_phone WHERE staff_id = $1 AND phone_id = $2",
+        staff_id, phone_id,
+    )
+    return result.endswith("1")

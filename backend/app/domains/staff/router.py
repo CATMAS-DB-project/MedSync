@@ -8,7 +8,12 @@ from app.core.db import get_conn
 from app.core.pagination import list_response, pagination
 from app.domains.auth.models import UserIdentity
 from app.domains.staff import service
-from app.domains.staff.schemas import EmploymentStatus, StaffCreate, StaffUpdate
+from app.domains.staff.schemas import (
+    EmploymentStatus,
+    PhoneCreate,
+    StaffCreate,
+    StaffUpdate,
+)
 
 router = APIRouter(tags=["staff"])
 
@@ -79,3 +84,47 @@ async def update_staff(
     if data is None:
         raise HTTPException(status_code=404, detail="Staff not found")
     return {"data": data, "error": None}
+
+
+@router.get("/staff/{staff_id}/phones")
+async def list_phones(
+    staff_id: int,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    user: Annotated[UserIdentity, Depends(get_current_user)],
+) -> dict:
+    if user.role not in MANAGERS and user.staff_id != staff_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return {"data": await service.list_phones(conn, staff_id), "error": None}
+
+
+@router.post(
+    "/staff/{staff_id}/phones",
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_phone(
+    staff_id: int,
+    body: PhoneCreate,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    user: Annotated[UserIdentity, Depends(get_current_user)],
+) -> dict:
+    if user.role not in MANAGERS and user.staff_id != staff_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    data = await service.add_phone(conn, staff_id, body.model_dump())
+    return {"data": data, "error": None}
+
+
+@router.delete(
+    "/staff/{staff_id}/phones/{phone_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_phone(
+    staff_id: int,
+    phone_id: int,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    user: Annotated[UserIdentity, Depends(get_current_user)],
+) -> None:
+    if user.role not in MANAGERS and user.staff_id != staff_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    deleted = await service.delete_phone(conn, staff_id, phone_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Phone not found")
