@@ -16,7 +16,7 @@ called out explicitly under "SQL notes" — this is a database-focused
 project, so query design matters as much as the endpoint shape.
 
 **RBAC legend:** A = Admin, BM = Branch Manager, R = Receptionist,
-D = Doctor, C = Cashier, QA = QA Tester. "Any" = any authenticated role.
+D = Doctor, QA = QA Tester. "Any" = any authenticated role.
 
 ---
 
@@ -115,9 +115,9 @@ be created"), not swallow it as a generic 500.
 
 | Method | Path | Description | Roles |
 |---|---|---|---|
-| GET | `/patients` | search, `?search=&branch_id=` (matches name/NIC/phone across branches) | R, D, C, A, BM |
+| GET | `/patients` | search, `?search=&branch_id=` (matches name/NIC/phone across branches) | R, D, A, BM |
 | POST | `/patients` | register new patient | R |
-| GET | `/patients/{patient_id}` | full profile incl. phones, guardians, insurance | R, D, C, A, BM |
+| GET | `/patients/{patient_id}` | full profile incl. phones, guardians, insurance | R, D, A, BM |
 | PATCH | `/patients/{patient_id}` | update demographics | R |
 | GET | `/patients/{patient_id}/phones` | list phones | R, D, A |
 | POST | `/patients/{patient_id}/phones` | add phone | R |
@@ -125,7 +125,7 @@ be created"), not swallow it as a generic 500.
 | GET | `/patients/{patient_id}/guardians` | list linked guardians + relationship | R, D |
 | POST | `/patients/{patient_id}/guardians` | link a guardian (existing `guardian_id` or inline new-guardian payload) | R |
 | DELETE | `/patients/{patient_id}/guardians/{guardian_id}` | unlink | R |
-| GET | `/patients/{patient_id}/insurance` | policy detail | R, C |
+| GET | `/patients/{patient_id}/insurance` | policy detail | R |
 | POST | `/patients/{patient_id}/insurance` | add policy | R |
 | PATCH | `/patients/{patient_id}/insurance/{policy_id}` | update status/coverage | R |
 | GET | `/patients/{patient_id}/appointments` | appointment history | R, D, A, BM |
@@ -188,7 +188,7 @@ one row).
 
 | Method | Path | Description | Roles |
 |---|---|---|---|
-| GET | `/appointments/{appointment_id}/treatments` | list logged treatments for a visit | D, C, R |
+| GET | `/appointments/{appointment_id}/treatments` | list logged treatments for a visit | D, R |
 | POST | `/appointments/{appointment_id}/treatments` | log a treatment (only allowed if appointment is Completed) | D |
 | POST | `/appointment-treatments/{id}/amend` | create a correction row (`original_record_id` link) | D |
 | PATCH | `/appointments/{appointment_id}/notes` | save consultation notes | D |
@@ -204,10 +204,10 @@ ever go through `/amend`.
 
 | Method | Path | Description | Roles |
 |---|---|---|---|
-| GET | `/invoices` | list/filter `?status=&branch_id=&patient_id=` | C, R (read-only), A, BM |
-| GET | `/invoices/{invoice_id}` | detail incl. line items + payable amount (computed) | C, R, A, BM |
-| POST | `/invoices/{invoice_id}/finalize` | apply insurance deduction / manual discount, Draft → Finalized | C |
-| GET | `/invoices/{invoice_id}/payments` | payment history | C, R, A |
+| GET | `/invoices` | list/filter `?status=&branch_id=&patient_id=` | R, A, BM |
+| GET | `/invoices/{invoice_id}` | detail incl. line items + payable amount (computed) | R, A, BM |
+| POST | `/invoices/{invoice_id}/finalize` | apply insurance deduction / manual discount, Draft → Finalized | R |
+| GET | `/invoices/{invoice_id}/payments` | payment history | R, A |
 
 **SQL notes:** `payable_amount` is NOT a stored column (dropped for 3NF,
 see the schema notes) — this endpoint computes it in the query:
@@ -236,8 +236,8 @@ GROUP BY i.invoice_id;
 
 | Method | Path | Description | Roles |
 |---|---|---|---|
-| POST | `/invoices/{invoice_id}/payments` | record a full/partial payment | C |
-| GET | `/payments/{payment_id}` | detail | C, A |
+| POST | `/invoices/{invoice_id}/payments` | record a full/partial payment | R |
+| GET | `/payments/{payment_id}` | detail | R, A |
 
 Payments are append-only — no PATCH/DELETE, matching the schema.
 
@@ -247,16 +247,16 @@ Payments are append-only — no PATCH/DELETE, matching the schema.
 
 | Method | Path | Description | Roles |
 |---|---|---|---|
-| GET | `/insurance-claims` | list/filter `?status=&branch_id=` | C, A, BM |
-| POST | `/invoices/{invoice_id}/claim` | create a claim against an invoice | C |
-| POST | `/insurance-claims/{claim_id}/verify` | call the mock insurance API, update status/approved_amount | C |
-| GET | `/insurance-claims/{claim_id}` | detail | C, A |
+| GET | `/insurance-claims` | list/filter `?status=&branch_id=` | R, A, BM |
+| POST | `/invoices/{invoice_id}/claim` | create a claim against an invoice | R |
+| POST | `/insurance-claims/{claim_id}/verify` | call the mock insurance API, update status/approved_amount | R |
+| GET | `/insurance-claims/{claim_id}` | detail | R, A |
 
 **SQL notes:** `approved_amount <= claimed_amount` is already enforced by
 a trigger (BR-4) — the `/verify` endpoint should still validate this
 client-side before calling the trigger-backed insert/update, so a bad
 mock-API response produces a clean error instead of an ugly DB rejection
-surfacing to the Cashier.
+surfacing to the Receptionist.
 
 ---
 
@@ -266,7 +266,7 @@ surfacing to the Cashier.
 |---|---|---|---|---|
 | GET | `/reports/appointments-summary` | `?branch_id=&from=&to=` daily counts by status | A, BM | RG-1 |
 | GET | `/reports/doctor-revenue` | `?branch_id=&from=&to=` revenue per doctor | A, BM | RG-2 |
-| GET | `/reports/outstanding-balances` | `?branch_id=` patients with unpaid dues | A, BM, C | RG-3 |
+| GET | `/reports/outstanding-balances` | `?branch_id=` patients with unpaid dues | A, BM, R | RG-3 |
 | GET | `/reports/treatment-frequency` | `?category=&from=&to=` counts per treatment/category | A, BM | RG-4 |
 | GET | `/reports/insurance-vs-outofpocket` | `?branch_id=&from=&to=` | A, BM | RG-5 |
 

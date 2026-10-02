@@ -1,4 +1,4 @@
-export type Role = 'Admin' | 'Branch Manager' | 'Receptionist' | 'Doctor' | 'Cashier' | 'QA Tester';
+export type Role = 'Admin' | 'Branch Manager' | 'Receptionist' | 'Doctor' | 'QA Tester';
 
 export type Gender = 'Male' | 'Female' | 'Other';
 

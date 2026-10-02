@@ -6,9 +6,9 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   [ROUTES.DASHBOARD]: ['Admin', 'Branch Manager', 'QA Tester'],
   [ROUTES.APPOINTMENTS]: ['Admin', 'Branch Manager', 'Receptionist', 'Doctor'],
   [ROUTES.APPOINTMENT_BOOKING]: ['Admin', 'Branch Manager', 'Receptionist'],
-  [ROUTES.PATIENTS]: ['Admin', 'Branch Manager', 'Receptionist', 'Doctor', 'Cashier'],
+  [ROUTES.PATIENTS]: ['Admin', 'Branch Manager', 'Receptionist', 'Doctor'],
   [ROUTES.STAFF]: ['Admin', 'Branch Manager'],
-  [ROUTES.BILLING]: ['Admin', 'Branch Manager', 'Receptionist', 'Cashier'],
+  [ROUTES.BILLING]: ['Admin', 'Branch Manager', 'Receptionist'],
   [ROUTES.CONSULTATION]: ['Admin', 'Doctor'],
   [ROUTES.WALK_IN]: ['Admin', 'Branch Manager', 'Receptionist'],
   [ROUTES.REPORTS]: ['Admin', 'Branch Manager'],
@@ -19,7 +19,6 @@ export const ROLE_HOME: Record<Role, string> = {
   'Branch Manager': ROUTES.DASHBOARD,
   Receptionist: ROUTES.APPOINTMENTS,
   Doctor: ROUTES.APPOINTMENTS,
-  Cashier: ROUTES.BILLING,
   'QA Tester': ROUTES.DASHBOARD,
 };
 

@@ -1,6 +1,6 @@
 -- Migration: Seed Reference Data
 -- Purpose: insert the fixed reference rows every environment needs.
---   - 6 roles (matches role_name_enum exactly)
+--   - 5 roles (matches role_name_enum exactly)
 --   - 3 branches (Colombo, Kandy, Galle) per SRS §1.4
 --   - 8 specialties, 10 treatment catalogue items
 
@@ -9,7 +9,6 @@ INSERT INTO role (role_name) VALUES
     ('Branch Manager'),
     ('Receptionist'),
     ('Doctor'),
-    ('Cashier'),
     ('QA Tester')
 ON CONFLICT (role_name) DO NOTHING;
 

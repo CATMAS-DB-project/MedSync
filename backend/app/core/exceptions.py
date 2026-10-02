@@ -48,7 +48,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             for e in errors
         ) or "Invalid request payload"
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content=_envelope("validation_error", message),
         )
 
