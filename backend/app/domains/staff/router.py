@@ -3,14 +3,16 @@ from typing import Annotated
 from asyncpg.pool import PoolConnectionProxy
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.core.deps import get_current_user, require_role
 from app.core.db import get_conn
+from app.core.deps import get_current_user, require_role
 from app.core.pagination import list_response, pagination
 from app.domains.auth.models import UserIdentity
 from app.domains.staff import service
 from app.domains.staff.schemas import (
+    DoctorPromote,
     EmploymentStatus,
     PhoneCreate,
+    SpecialtyLink,
     StaffCreate,
     StaffUpdate,
 )
@@ -128,3 +130,72 @@ async def delete_phone(
     deleted = await service.delete_phone(conn, staff_id, phone_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Phone not found")
+
+
+@router.post(
+    "/staff/{staff_id}/doctor",
+    status_code=status.HTTP_201_CREATED,
+)
+async def promote_to_doctor(
+    staff_id: int,
+    body: DoctorPromote,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
+) -> dict:
+    data = await service.promote_to_doctor(conn, staff_id, body.model_dump())
+    return {"data": data, "error": None}
+
+
+@router.get("/staff/{staff_id}/doctor")
+async def get_doctor(
+    staff_id: int,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[UserIdentity, Depends(get_current_user)],
+) -> dict:
+    data = await service.get_doctor(conn, staff_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+    return {"data": data, "error": None}
+
+
+@router.post(
+    "/staff/{staff_id}/doctor/specialties",
+    status_code=status.HTTP_201_CREATED,
+)
+async def link_specialty(
+    staff_id: int,
+    body: SpecialtyLink,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
+) -> dict:
+    await service.link_specialty(conn, staff_id, body.specialty_id)
+    return {
+        "data": {"staff_id": staff_id, "specialty_id": body.specialty_id},
+        "error": None,
+    }
+
+
+@router.delete(
+    "/staff/{staff_id}/doctor/specialties/{specialty_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def unlink_specialty(
+    staff_id: int,
+    specialty_id: int,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
+) -> None:
+    deleted = await service.unlink_specialty(conn, staff_id, specialty_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Link not found")
+
+
+@router.get("/doctors")
+async def list_doctors(
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[UserIdentity, Depends(get_current_user)],
+    branch_id: int | None = Query(None, gt=0),
+    specialty_id: int | None = Query(None, gt=0),
+) -> dict:
+    data = await service.list_doctors(conn, branch_id, specialty_id)
+    return {"data": data, "error": None}

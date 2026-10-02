@@ -64,3 +64,22 @@ class PhoneCreate(BaseModel):
         if not value:
             raise ValueError("phone_number must not be blank")
         return value
+
+
+class DoctorPromote(BaseModel):
+    license_no: str = Field(min_length=1, max_length=50)
+    years_of_experience: int = Field(default=0, ge=0)
+    consultation_fee: float = Field(default=0.0, ge=0)
+    qualifications: str | None = None
+
+    @field_validator("license_no")
+    @classmethod
+    def normalize_license(cls, value: str) -> str:
+        value = value.strip().upper()
+        if not value:
+            raise ValueError("license_no must not be blank")
+        return value
+
+
+class SpecialtyLink(BaseModel):
+    specialty_id: int = Field(gt=0)

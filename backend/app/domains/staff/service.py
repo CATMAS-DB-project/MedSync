@@ -1,6 +1,5 @@
 from asyncpg.pool import PoolConnectionProxy
 
-
 ALLOWED_UPDATE_FIELDS = {
     "first_name",
     "last_name",
@@ -190,3 +189,119 @@ async def delete_phone(
         staff_id, phone_id,
     )
     return result.endswith("1")
+
+
+async def promote_to_doctor(
+    conn: PoolConnectionProxy, staff_id: int, data: dict
+) -> dict | None:
+    await conn.execute(
+        """
+        INSERT INTO doctor (staff_id, license_no, years_of_experience,
+                            consultation_fee, qualifications)
+        VALUES ($1, $2, $3, $4, $5)
+        """,
+        staff_id,
+        data["license_no"],
+        data["years_of_experience"],
+        data["consultation_fee"],
+        data.get("qualifications"),
+    )
+    return await get_doctor(conn, staff_id)
+
+
+async def get_doctor(
+    conn: PoolConnectionProxy, staff_id: int
+) -> dict | None:
+    row = await conn.fetchrow(
+        """
+        SELECT d.staff_id,
+               s.first_name, s.last_name,
+               s.first_name || ' ' || s.last_name AS doctor_name,
+               s.branch_id, b.branch_name,
+               d.license_no, d.years_of_experience,
+               d.consultation_fee, d.qualifications,
+               COALESCE(
+                   (SELECT jsonb_agg(
+                       jsonb_build_object(
+                           'specialty_id',   sp.specialty_id,
+                           'specialty_name', sp.specialty_name
+                       ) ORDER BY sp.specialty_name
+                   )
+                    FROM doctor_specialty ds
+                    JOIN specialty sp ON sp.specialty_id = ds.specialty_id
+                    WHERE ds.staff_id = d.staff_id),
+                   '[]'::jsonb
+               ) AS specialties
+        FROM doctor d
+        JOIN staff s ON s.staff_id = d.staff_id
+        JOIN branch b ON b.branch_id = s.branch_id
+        WHERE d.staff_id = $1
+        """,
+        staff_id,
+    )
+    return dict(row) if row else None
+
+
+async def link_specialty(
+    conn: PoolConnectionProxy, staff_id: int, specialty_id: int
+) -> None:
+    await conn.execute(
+        "INSERT INTO doctor_specialty (staff_id, specialty_id) "
+        "VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        staff_id, specialty_id,
+    )
+
+
+async def unlink_specialty(
+    conn: PoolConnectionProxy, staff_id: int, specialty_id: int
+) -> bool:
+    result = await conn.execute(
+        "DELETE FROM doctor_specialty "
+        "WHERE staff_id = $1 AND specialty_id = $2",
+        staff_id, specialty_id,
+    )
+    return result.endswith("1")
+
+
+async def list_doctors(
+    conn: PoolConnectionProxy,
+    branch_id: int | None,
+    specialty_id: int | None,
+) -> list[dict]:
+    where = ["1=1"]
+    args: list[object] = []
+
+    if branch_id is not None:
+        args.append(branch_id)
+        where.append(f"s.branch_id = ${len(args)}")
+    if specialty_id is not None:
+        args.append(specialty_id)
+        where.append(
+            f"EXISTS (SELECT 1 FROM doctor_specialty ds "
+            f"WHERE ds.staff_id = d.staff_id "
+            f"AND ds.specialty_id = ${len(args)})"
+        )
+
+    where_sql = " AND ".join(where)
+    rows = await conn.fetch(
+        f"""
+        SELECT d.staff_id,
+               s.first_name || ' ' || s.last_name AS doctor_name,
+               s.branch_id, b.branch_name,
+               d.license_no, d.consultation_fee,
+               COALESCE(
+                   (SELECT jsonb_agg(sp.specialty_name ORDER BY sp.specialty_name)
+                    FROM doctor_specialty ds
+                    JOIN specialty sp ON sp.specialty_id = ds.specialty_id
+                    WHERE ds.staff_id = d.staff_id),
+                   '[]'::jsonb
+               ) AS specialties
+        FROM doctor d
+        JOIN staff s ON s.staff_id = d.staff_id
+        JOIN branch b ON b.branch_id = s.branch_id
+        WHERE {where_sql}
+        ORDER BY s.first_name, s.last_name
+        """,
+        *args,
+    )
+    return [dict(r) for r in rows]
