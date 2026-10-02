@@ -6,6 +6,11 @@ from pydantic import BaseModel, Field, field_validator
 Gender = Literal["Male", "Female", "Other"]
 EmploymentStatus = Literal["Active", "OnLeave", "Terminated"]
 PhoneType = Literal["Mobile", "Home", "Work"]
+AccountStatus = Literal["Active", "Disabled"]
+RoleName = Literal[
+    "Admin", "Branch Manager", "Receptionist",
+    "Doctor", "QA Tester",
+]
 
 
 class StaffCreate(BaseModel):
@@ -83,3 +88,26 @@ class DoctorPromote(BaseModel):
 
 class SpecialtyLink(BaseModel):
     specialty_id: int = Field(gt=0)
+
+
+class AccountCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=50)
+    password: str = Field(min_length=6, max_length=72)
+    role_name: RoleName
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        value = value.strip().lower()
+        if len(value) < 3:
+            raise ValueError("username must be at least 3 characters")
+        return value
+
+
+class AccountUpdate(BaseModel):
+    role_name: RoleName | None = None
+    account_status: AccountStatus | None = None
+
+
+class PasswordReset(BaseModel):
+    new_password: str = Field(min_length=6, max_length=72)

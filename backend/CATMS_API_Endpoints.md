@@ -16,8 +16,7 @@ called out explicitly under "SQL notes" — this is a database-focused
 project, so query design matters as much as the endpoint shape.
 
 **RBAC legend:** A = Admin, BM = Branch Manager, R = Receptionist
-(also handles billing/cashier duties — Receptionist and Cashier are the
-same role, not two separate ones), D = Doctor, QA = QA Tester. "Any" =
+(including billing duties), D = Doctor, QA = QA Tester. "Any" =
 any authenticated role.
 
 ---

@@ -9,8 +9,11 @@ from app.core.pagination import list_response, pagination
 from app.domains.auth.models import UserIdentity
 from app.domains.staff import service
 from app.domains.staff.schemas import (
+    AccountCreate,
+    AccountUpdate,
     DoctorPromote,
     EmploymentStatus,
+    PasswordReset,
     PhoneCreate,
     SpecialtyLink,
     StaffCreate,
@@ -199,3 +202,50 @@ async def list_doctors(
 ) -> dict:
     data = await service.list_doctors(conn, branch_id, specialty_id)
     return {"data": data, "error": None}
+
+
+@router.post(
+    "/staff/{staff_id}/account",
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_account(
+    staff_id: int,
+    body: AccountCreate,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[UserIdentity, Depends(require_role("Admin"))],
+) -> dict:
+    data = await service.create_account(conn, staff_id, body.model_dump())
+    if data is None:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    return {"data": data, "error": None}
+
+
+@router.patch("/staff/{staff_id}/account")
+async def update_account(
+    staff_id: int,
+    body: AccountUpdate,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[UserIdentity, Depends(require_role("Admin"))],
+) -> dict:
+    data = await service.update_account(
+        conn,
+        staff_id,
+        body.model_dump(exclude_unset=True, exclude_none=True),
+    )
+    if data is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return {"data": data, "error": None}
+
+
+@router.post(
+    "/staff/{staff_id}/account/reset-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def reset_password(
+    staff_id: int,
+    body: PasswordReset,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[UserIdentity, Depends(require_role("Admin"))],
+) -> None:
+    if not await service.reset_password(conn, staff_id, body.new_password):
+        raise HTTPException(status_code=404, detail="Account not found")

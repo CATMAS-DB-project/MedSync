@@ -1,4 +1,13 @@
+import json
+
 from asyncpg.pool import PoolConnectionProxy
+
+from app.core.security import hash_password
+
+
+def _decode_json(value: object) -> object:
+    return json.loads(value) if isinstance(value, str) else value
+
 
 ALLOWED_UPDATE_FIELDS = {
     "first_name",
@@ -100,7 +109,11 @@ async def get_staff(
         """,
         staff_id,
     )
-    return dict(row) if row else None
+    if row is None:
+        return None
+    result = dict(row)
+    result["phones"] = _decode_json(result["phones"])
+    return result
 
 
 async def create_staff(
@@ -239,7 +252,11 @@ async def get_doctor(
         """,
         staff_id,
     )
-    return dict(row) if row else None
+    if row is None:
+        return None
+    result = dict(row)
+    result["specialties"] = _decode_json(result["specialties"])
+    return result
 
 
 async def link_specialty(
@@ -259,6 +276,95 @@ async def unlink_specialty(
         "DELETE FROM doctor_specialty "
         "WHERE staff_id = $1 AND specialty_id = $2",
         staff_id, specialty_id,
+    )
+    return result.endswith("1")
+
+
+async def create_account(
+    conn: PoolConnectionProxy, staff_id: int, data: dict
+) -> dict | None:
+    staff_exists = await conn.fetchval(
+        "SELECT 1 FROM staff WHERE staff_id = $1",
+        staff_id,
+    )
+    if staff_exists is None:
+        return None
+
+    role_id = await conn.fetchval(
+        "SELECT role_id FROM role WHERE role_name = $1",
+        data["role_name"],
+    )
+    pwd_hash = hash_password(data["password"])
+    row = await conn.fetchrow(
+        """
+        INSERT INTO user_account (staff_id, username, password_hash, role_id)
+        VALUES ($1, $2, $3, $4)
+        RETURNING staff_id
+        """,
+        staff_id,
+        data["username"],
+        pwd_hash,
+        role_id,
+    )
+    return await get_account(conn, row["staff_id"])
+
+
+async def get_account(
+    conn: PoolConnectionProxy, staff_id: int
+) -> dict | None:
+    row = await conn.fetchrow(
+        """
+        SELECT ua.staff_id, ua.username, ua.account_status,
+               ua.last_login, ua.created_at,
+               r.role_id, r.role_name
+        FROM user_account ua
+        JOIN role r ON r.role_id = ua.role_id
+        WHERE ua.staff_id = $1
+        """,
+        staff_id,
+    )
+    return dict(row) if row else None
+
+
+async def update_account(
+    conn: PoolConnectionProxy, staff_id: int, data: dict
+) -> dict | None:
+    fields: list[str] = []
+    values: list[object] = []
+
+    if data.get("role_name") is not None:
+        role_id = await conn.fetchval(
+            "SELECT role_id FROM role WHERE role_name = $1",
+            data["role_name"],
+        )
+        fields.append(f"role_id = ${len(values) + 1}")
+        values.append(role_id)
+
+    if data.get("account_status") is not None:
+        fields.append(f"account_status = ${len(values) + 1}")
+        values.append(data["account_status"])
+
+    if not fields:
+        return await get_account(conn, staff_id)
+
+    values.append(staff_id)
+    result = await conn.fetchval(
+        f"UPDATE user_account SET {', '.join(fields)} "
+        f"WHERE staff_id = ${len(values)} RETURNING staff_id",
+        *values,
+    )
+    if result is None:
+        return None
+    return await get_account(conn, staff_id)
+
+
+async def reset_password(
+    conn: PoolConnectionProxy, staff_id: int, new_password: str
+) -> bool:
+    result = await conn.execute(
+        "UPDATE user_account SET password_hash = $1 WHERE staff_id = $2",
+        hash_password(new_password),
+        staff_id,
     )
     return result.endswith("1")
 
