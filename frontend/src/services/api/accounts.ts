@@ -13,14 +13,26 @@ export async function createUserAccount(
     role: Role;
   },
 ): Promise<UserAccount> {
-  return apiPost<UserAccount>(`/staff/${staffId}/account`, input);
+  const payload = {
+    username: input.username,
+    password: input.tempPassword, 
+    roleName: input.role,
+  };
+  return apiPost<UserAccount>(`/staff/${staffId}/account`, payload);
 }
 
 export async function updateUserAccount(
   staffId: number,
   updates: Partial<Pick<UserAccount, 'role' | 'accountStatus'>>,
 ): Promise<UserAccount> {
-  return apiPatch<UserAccount>(`/staff/${staffId}/account`, updates);
+  const payload: Record<string, unknown> = {};
+  if ('role' in updates && updates.role !== undefined) {
+    payload.roleName = updates.role;
+  }
+  if ('accountStatus' in updates && updates.accountStatus !== undefined) {
+    payload.accountStatus = updates.accountStatus;
+  }
+  return apiPatch<UserAccount>(`/staff/${staffId}/account`, payload);
 }
 
 export async function resetStaffPassword(

@@ -3,6 +3,7 @@ import type { InternalAxiosRequestConfig } from 'axios';
 import { API_BASE_URL } from '../../constants/api';
 import { ApiError } from './ApiError';
 import type { ApiEnvelope, RefreshResponse } from '../../types';
+import { transformRequestPayload, transformResponsePayload, transformQueryParams } from './transformers';
 
 let accessToken: string | null = null;
 
@@ -45,6 +46,15 @@ apiClient.interceptors.request.use((config) => {
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
+  
+  if (config.data) {
+    config.data = transformRequestPayload(config.data);
+  }
+  
+  if (config.params) {
+    config.params = transformQueryParams(config.params);
+  }
+  
   return config;
 });
 
@@ -58,7 +68,9 @@ apiClient.interceptors.response.use(
     if (envelope && envelope.error) {
       throw new ApiError(envelope.error.message, envelope.error.code, response.status);
     }
-    response.data = envelope ? envelope.data : response.data;
+    
+    const data = envelope ? envelope.data : response.data;
+    response.data = transformResponsePayload(data);
     return response;
   },
   async (error: AxiosError<ApiEnvelope<unknown>>) => {
