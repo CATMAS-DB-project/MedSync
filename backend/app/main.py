@@ -38,6 +38,8 @@ register_exception_handlers(app)
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(reference_router, prefix="/api/v1")
 app.include_router(staff_router, prefix="/api/v1")
+app.include_router(appointment_router, prefix="/api/v1")
+app.include_router(appointment_treatment_router, prefix="/api/v1")
 app.include_router(treatment_catalogue_router, prefix="/api/v1")
 
 
