@@ -9,6 +9,11 @@ from app.core.exceptions import register_exception_handlers
 from app.domains.auth.router import router as auth_router
 from app.domains.reference.router import router as reference_router
 from app.domains.staff.router import router as staff_router
+from app.domains.branches.router import router as branches_router
+from app.domains.patients.router import router as patients_router
+from app.domains.guardians.router import router as guardians_router
+from app.domains.billing.router import router as billing_router
+from app.domains.audit.router import router as audit_router
 
 settings = get_settings()
 
@@ -33,6 +38,11 @@ register_exception_handlers(app)
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(reference_router, prefix="/api/v1")
 app.include_router(staff_router, prefix="/api/v1")
+app.include_router(branches_router, prefix="/api/v1")
+app.include_router(patients_router, prefix="/api/v1")
+app.include_router(guardians_router, prefix="/api/v1")
+app.include_router(billing_router, prefix="/api/v1")
+app.include_router(audit_router, prefix="/api/v1")
 
 
 @app.get("/api/health")
