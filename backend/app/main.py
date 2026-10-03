@@ -12,6 +12,7 @@ from app.domains.appointment_treatment.router import (
 )
 from app.domains.auth.router import router as auth_router
 from app.domains.reference.router import router as reference_router
+from app.domains.report.router import router as report_router
 from app.domains.staff.router import router as staff_router
 from app.domains.treatment_catalogue.router import router as treatment_catalogue_router
 
@@ -37,6 +38,7 @@ app.add_middleware(
 register_exception_handlers(app)
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(reference_router, prefix="/api/v1")
+app.include_router(report_router, prefix="/api/v1")
 app.include_router(staff_router, prefix="/api/v1")
 app.include_router(appointment_router, prefix="/api/v1")
 app.include_router(appointment_treatment_router, prefix="/api/v1")
