@@ -29,7 +29,7 @@ export async function refreshAccessToken(): Promise<string> {
     if (envelope.error || !envelope.data) {
       throw new ApiError(envelope.error?.message ?? 'Session expired', 'SESSION_EXPIRED', response.status);
     }
-    accessToken = envelope.data.accessToken;
+    accessToken = envelope.data.access_token;
     return accessToken;
   } catch {
     throw new ApiError('Session expired', 'SESSION_EXPIRED', 401);
