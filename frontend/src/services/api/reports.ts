@@ -1,66 +1,82 @@
 import { apiGet } from './client';
 
+export interface ReportQueryParams {
+  branchId?: number;
+  category?: string;
+  from?: string;
+  to?: string;
+}
+
 export interface AppointmentSummaryReportItem {
-  date: string;
-  scheduled: number;
-  completed: number;
-  cancelled: number;
+  appointmentDate: string;
+  totalCount: number;
+  scheduledCount: number;
+  completedCount: number;
+  cancelledCount: number;
 }
 
 export interface DoctorRevenueReportItem {
-  doctorId: number;
-  doctorName: string;
   branchId: number;
+  branchName: string;
+  doctorStaffId: number;
+  doctorName: string;
+  appointmentCount: number;
   revenue: number;
-  rank?: number;
+  revenueRank: number;
 }
 
 export interface OutstandingBalanceReportItem {
+  invoiceId: number;
+  appointmentId: number;
   patientId: number;
   patientName: string;
-  branchId?: number;
-  outstanding: number;
+  branchId: number;
+  branchName: string;
+  payableAmount: number;
+  amountPaid: number;
+  outstandingAmount: number;
 }
 
 export interface TreatmentFrequencyReportItem {
+  serviceCode: string;
   treatmentName: string;
-  category?: string;
-  count: number;
+  category: string;
+  treatmentCount: number;
 }
 
-export interface InsuranceVsOutOfPocketReportItem {
-  branchId: number;
+export interface InsuranceVsOutOfPocketReport {
+  invoiceCount: number;
+  subtotalAmount: number;
   insuranceAmount: number;
   outOfPocketAmount: number;
-  date?: string;
 }
 
 export async function fetchAppointmentsSummary(
-  params?: Record<string, unknown>,
+  params?: ReportQueryParams,
 ): Promise<AppointmentSummaryReportItem[]> {
   return apiGet<AppointmentSummaryReportItem[]>('/reports/appointments-summary', params);
 }
 
 export async function fetchDoctorRevenue(
-  params?: Record<string, unknown>,
+  params?: ReportQueryParams,
 ): Promise<DoctorRevenueReportItem[]> {
   return apiGet<DoctorRevenueReportItem[]>('/reports/doctor-revenue', params);
 }
 
 export async function fetchOutstandingBalances(
-  params?: Record<string, unknown>,
+  params?: Pick<ReportQueryParams, 'branchId'>,
 ): Promise<OutstandingBalanceReportItem[]> {
   return apiGet<OutstandingBalanceReportItem[]>('/reports/outstanding-balances', params);
 }
 
 export async function fetchTreatmentFrequency(
-  params?: Record<string, unknown>,
+  params?: Pick<ReportQueryParams, 'category' | 'from' | 'to'>,
 ): Promise<TreatmentFrequencyReportItem[]> {
   return apiGet<TreatmentFrequencyReportItem[]>('/reports/treatment-frequency', params);
 }
 
 export async function fetchInsuranceVsOutOfPocket(
-  params?: Record<string, unknown>,
-): Promise<InsuranceVsOutOfPocketReportItem[]> {
-  return apiGet<InsuranceVsOutOfPocketReportItem[]>('/reports/insurance-vs-outofpocket', params);
+  params?: ReportQueryParams,
+): Promise<InsuranceVsOutOfPocketReport> {
+  return apiGet<InsuranceVsOutOfPocketReport>('/reports/insurance-vs-outofpocket', params);
 }
