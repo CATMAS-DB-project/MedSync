@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Annotated
 
 from asyncpg.pool import PoolConnectionProxy
@@ -8,7 +7,13 @@ from app.core.db import get_conn, with_transaction
 from app.core.deps import require_role
 from app.core.pagination import pagination
 from app.domains.auth.models import UserIdentity
-from app.domains.billing.schemas import ClaimCreate, InvoiceFinalize, PaymentCreate
+from app.domains.billing.schemas import (
+    ClaimCreate,
+    ClaimStatus,
+    InvoiceFinalize,
+    InvoiceStatus,
+    PaymentCreate,
+)
 
 router = APIRouter(tags=["billing"])
 BILLING_READ = Depends(require_role("Receptionist", "Admin", "Branch Manager"))
@@ -24,7 +29,7 @@ def _success_list(items: list, total: int, page: int, page_size: int) -> dict:
 
 
 @router.get("/invoices")
-async def list_invoices(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, BILLING_READ], paging: Annotated[dict[str, int], Depends(pagination)], status_filter: str | None = Query(default=None, alias="status"), branch_id: int | None = Query(default=None, ge=1), patient_id: int | None = Query(default=None, ge=1)):
+async def list_invoices(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, BILLING_READ], paging: Annotated[dict[str, int], Depends(pagination)], status_filter: InvoiceStatus | None = Query(default=None, alias="status"), branch_id: int | None = Query(default=None, ge=1), patient_id: int | None = Query(default=None, ge=1)):
     rows = await conn.fetch("""SELECT v.*, a.patient_id, a.branch_id, COUNT(*) OVER() AS total
         FROM v_invoice_outstanding v JOIN appointment a USING(appointment_id)
         WHERE ($1::text IS NULL OR v.status::text=$1) AND ($2::int IS NULL OR a.branch_id=$2)
@@ -63,6 +68,17 @@ async def finalize_invoice(invoice_id: int, body: InvoiceFinalize, conn: Annotat
             if exists["status"] != "Draft":
                 raise HTTPException(409, "Only Draft invoices can be finalized")
             raise HTTPException(422, "Deductions and discount cannot exceed the invoice subtotal")
+        if body.insurance_deduction > 0:
+            approved_amount = await tx.fetchval(
+                """SELECT approved_amount FROM insurance_claim
+                   WHERE invoice_id=$1 AND verification_status='Approved'
+                   FOR UPDATE""",
+                invoice_id,
+            )
+            if approved_amount is None:
+                raise HTTPException(409, "An approved insurance claim is required for this deduction")
+            if body.insurance_deduction > approved_amount:
+                raise HTTPException(422, "Insurance deduction exceeds the approved claim amount")
         result = await tx.fetchrow("SELECT * FROM v_invoice_outstanding WHERE invoice_id=$1", invoice_id)
     return _success(dict(result))
 
@@ -94,7 +110,7 @@ async def create_payment(invoice_id: int, body: PaymentCreate, conn: Annotated[P
 
 
 @router.get("/payments/{payment_id}")
-async def get_payment(payment_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, BILLING_READ]):
+async def get_payment(payment_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, Depends(require_role("Receptionist", "Admin"))]):
     row = await conn.fetchrow("SELECT payment_id,invoice_id,amount_paid,payment_method,payment_date,processed_by_staff_id FROM payment WHERE payment_id=$1", payment_id)
     if not row:
         raise HTTPException(404, "Payment not found")
@@ -102,7 +118,7 @@ async def get_payment(payment_id: int, conn: Annotated[PoolConnectionProxy, Depe
 
 
 @router.get("/insurance-claims")
-async def list_claims(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, BILLING_READ], paging: Annotated[dict[str, int], Depends(pagination)], status_filter: str | None = Query(default=None, alias="status"), branch_id: int | None = Query(default=None, ge=1)):
+async def list_claims(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, BILLING_READ], paging: Annotated[dict[str, int], Depends(pagination)], status_filter: ClaimStatus | None = Query(default=None, alias="status"), branch_id: int | None = Query(default=None, ge=1)):
     rows = await conn.fetch("""SELECT c.*, i.appointment_id, a.branch_id, a.patient_id,
         COUNT(*) OVER() AS total FROM insurance_claim c JOIN invoice i USING(invoice_id)
         JOIN appointment a USING(appointment_id)
@@ -113,12 +129,28 @@ async def list_claims(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _
 
 
 @router.post("/invoices/{invoice_id}/claim", status_code=status.HTTP_201_CREATED)
-async def create_claim(invoice_id: int, body: ClaimCreate, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, RECEPTION]):
-    row = await conn.fetchrow("""INSERT INTO insurance_claim(invoice_id,policy_id,claimed_amount)
-        SELECT $1,$2,$3 WHERE EXISTS(SELECT 1 FROM invoice WHERE invoice_id=$1)
-        RETURNING claim_id,invoice_id,policy_id,claimed_amount,approved_amount,verification_status,verification_date""", invoice_id, body.policy_id, body.claimed_amount)
-    if not row:
-        raise HTTPException(404, "Invoice not found")
+async def create_claim(invoice_id: int, body: ClaimCreate, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, RECEPTION]):
+    async with with_transaction(staff_id=user.staff_id) as tx:
+        invoice = await tx.fetchrow("""SELECT i.invoice_id,i.subtotal_amount,i.status,
+            a.patient_id FROM invoice i JOIN appointment a USING(appointment_id)
+            WHERE i.invoice_id=$1 FOR UPDATE OF i""", invoice_id)
+        if not invoice:
+            raise HTTPException(404, "Invoice not found")
+        if invoice["status"] != "Draft":
+            raise HTTPException(409, "Claims can only be created for Draft invoices")
+        if body.claimed_amount > invoice["subtotal_amount"]:
+            raise HTTPException(422, "Claimed amount cannot exceed the invoice subtotal")
+        policy = await tx.fetchrow("""SELECT policy_id FROM insurance
+            WHERE policy_id=$1 AND patient_id=$2 AND status='Active'""",
+            body.policy_id, invoice["patient_id"])
+        if not policy:
+            raise HTTPException(422, "Policy must be active and belong to the invoice patient")
+        if await tx.fetchval("SELECT 1 FROM insurance_claim WHERE invoice_id=$1", invoice_id):
+            raise HTTPException(409, "An insurance claim already exists for this invoice")
+        row = await tx.fetchrow("""INSERT INTO insurance_claim(invoice_id,policy_id,claimed_amount)
+            VALUES($1,$2,$3)
+            RETURNING claim_id,invoice_id,policy_id,claimed_amount,approved_amount,verification_status,verification_date""",
+            invoice_id, body.policy_id, body.claimed_amount)
     return _success(dict(row))
 
 
