@@ -3,28 +3,26 @@ import type { CurrentUser, LoginCredentials, LoginResponse } from '../../types';
 
 interface AuthMeResponseRaw {
   staff_id: number;
-  first_name: string;
-  last_name: string;
+  username: string;
   role: CurrentUser['role'];
   branch_id: number;
-  branch_name: string;
 }
 
 function mapAuthMeResponse(raw: AuthMeResponseRaw): CurrentUser {
   return {
     staffId: raw.staff_id,
-    firstName: raw.first_name,
-    lastName: raw.last_name,
+    firstName: '',
+    lastName: '',
     role: raw.role,
     branchId: raw.branch_id,
-    branchName: raw.branch_name,
+    branchName: '',
   };
 }
 
 /** POST /auth/login - stores the returned access token in memory. */
 export async function login(credentials: LoginCredentials): Promise<LoginResponse> {
   const result = await apiPost<LoginResponse>('/auth/login', credentials);
-  setAccessToken(result.accessToken);
+  setAccessToken(result.access_token);
   return result;
 }
 

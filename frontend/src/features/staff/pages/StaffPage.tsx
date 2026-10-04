@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Pagination } from '../../../components/common/Pagination';
 import { Drawer, DrawerSection } from '../../../components/layout/Drawer';
-import { mockStaff } from '../../../services/mock/staff';
+import { fetchStaff } from '../../../services/api/staff';
+import type { Staff } from '../../../types';
 import { formatDate, formatFullName, getInitials } from '../../../utils/formatters';
 import { EMPLOYMENT_STATUS_TONE } from '../statusStyles';
 
@@ -30,17 +31,48 @@ export function StaffPage() {
   const [jobTitle, setJobTitle] = useState('all');
   const [page, setPage] = useState(1);
   const [isDrawerOpen, setDrawerOpen] = useState(false);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    return mockStaff.filter((staff) => {
-      const fullName = formatFullName(staff.firstName, staff.lastName);
-      const matchesQuery = query.trim() === '' || fullName.toLowerCase().includes(query.toLowerCase());
-      const matchesJobTitle = jobTitle === 'all' || staff.jobTitle === jobTitle;
-      return matchesQuery && matchesJobTitle;
-    });
-  }, [query, jobTitle]);
+  useEffect(() => {
+    let cancelled = false;
 
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    async function loadStaff() {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetchStaff({
+          page,
+          pageSize: PAGE_SIZE,
+          search: query.trim() || undefined,
+          jobTitle: jobTitle === 'all' ? undefined : jobTitle,
+        });
+
+        if (cancelled) return;
+
+        setStaff(response.items);
+        setTotalItems(response.total);
+      } catch {
+        if (!cancelled) {
+          setStaff([]);
+          setTotalItems(0);
+          setError('Unable to load staff data right now.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadStaff();
+    return () => {
+      cancelled = true;
+    };
+  }, [jobTitle, page, query]);
 
   return (
     <div className="max-w-7xl mx-auto h-full flex flex-col gap-4">
@@ -109,48 +141,53 @@ export function StaffPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant text-table-data text-on-surface bg-surface-container-lowest">
-              {paginated.map((staff) => {
-                const fullName = formatFullName(staff.firstName, staff.lastName);
-                const specialtyNames = staff.doctor?.specialties
-                  .map((specialty) => specialty.specialtyName)
-                  .join(', ');
-                return (
-                  <tr key={staff.staffId} className="hover:bg-surface-container-high transition-colors h-10">
-                    <td className="py-1.5 px-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-[10px] font-bold shrink-0">
-                          {getInitials(fullName)}
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-on-surface-variant">
+                    Loading staff...
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-error">
+                    {error}
+                  </td>
+                </tr>
+              ) : staff.length > 0 ? (
+                staff.map((member) => {
+                  const fullName = formatFullName(member.firstName, member.lastName);
+                  return (
+                    <tr key={member.staffId} className="hover:bg-surface-container-high transition-colors h-10">
+                      <td className="py-1.5 px-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-[10px] font-bold shrink-0">
+                            {getInitials(fullName)}
+                          </div>
+                          <div>
+                            <div className="font-medium">{fullName}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-medium">{fullName}</div>
-                          {specialtyNames && (
-                            <div className="text-[11px] text-on-surface-variant">{specialtyNames}</div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-1.5 px-3 text-on-surface-variant">{staff.jobTitle}</td>
-                    <td className="py-1.5 px-3 text-on-surface-variant">
-                      {staff.userAccount?.role ?? (
+                      </td>
+                      <td className="py-1.5 px-3 text-on-surface-variant">{member.jobTitle}</td>
+                      <td className="py-1.5 px-3 text-on-surface-variant">
                         <span className="text-outline italic">No login</span>
-                      )}
-                    </td>
-                    <td className="py-1.5 px-3 text-on-surface-variant">{staff.branchName}</td>
-                    <td className="py-1.5 px-3 text-on-surface-variant">
-                      {staff.phones?.[0]?.phoneNumber ?? '—'}
-                    </td>
-                    <td className="py-1.5 px-3 text-on-surface-variant">
-                      {formatDate(staff.hireDate)}
-                    </td>
-                    <td className="py-1.5 px-3">
-                      <Badge tone={EMPLOYMENT_STATUS_TONE[staff.employmentStatus]}>
-                        {staff.employmentStatus}
-                      </Badge>
-                    </td>
-                  </tr>
-                );
-              })}
-              {paginated.length === 0 && (
+                      </td>
+                      <td className="py-1.5 px-3 text-on-surface-variant">{member.branchName}</td>
+                      <td className="py-1.5 px-3 text-on-surface-variant">
+                        {member.phones?.[0]?.phoneNumber ?? '—'}
+                      </td>
+                      <td className="py-1.5 px-3 text-on-surface-variant">
+                        {formatDate(member.hireDate)}
+                      </td>
+                      <td className="py-1.5 px-3">
+                        <Badge tone={EMPLOYMENT_STATUS_TONE[member.employmentStatus]}>
+                          {member.employmentStatus}
+                        </Badge>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-on-surface-variant">
                     No staff match your search.
@@ -164,7 +201,7 @@ export function StaffPage() {
         <Pagination
           page={page}
           pageSize={PAGE_SIZE}
-          totalItems={filtered.length}
+          totalItems={totalItems}
           onPageChange={setPage}
         />
       </div>
