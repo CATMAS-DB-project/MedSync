@@ -49,6 +49,8 @@ app.include_router(guardians_router, prefix="/api/v1")
 app.include_router(billing_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")
 app.include_router(treatment_catalogue_router, prefix="/api/v1")
+app.include_router(appointment_router, prefix="/api/v1")
+app.include_router(appointment_treatment_router, prefix="/api/v1")
 
 
 @app.get("/api/health")

@@ -111,11 +111,21 @@ CREATE OR REPLACE FUNCTION fn_auto_create_invoice()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_consultation_fee NUMERIC(10, 2);
 BEGIN
-    -- Only fire on the transition into 'Completed'
     IF NEW.status = 'Completed' AND OLD.status IS DISTINCT FROM 'Completed' THEN
+        SELECT consultation_fee
+        INTO v_consultation_fee
+        FROM doctor
+        WHERE staff_id = NEW.doctor_staff_id;
+
         INSERT INTO invoice (appointment_id, subtotal_amount, status)
-        VALUES (NEW.appointment_id, 0, 'Draft')
+        VALUES (
+            NEW.appointment_id,
+            COALESCE(v_consultation_fee, 0),
+            'Draft'
+        )
         ON CONFLICT (appointment_id) DO NOTHING;
     END IF;
     RETURN NEW;
@@ -128,7 +138,31 @@ CREATE TRIGGER trg_auto_create_invoice
     EXECUTE FUNCTION fn_auto_create_invoice();
 
 -- -----------------------------------------------------------------------------
--- TRIGGER 2: trg_claim_amount_check_insert (BR-4)
+-- TRIGGER 2: trg_add_treatment_to_invoice
+-- Adds each treatment snapshot to the draft invoice for the completed visit.
+-- -----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION fn_add_treatment_to_invoice()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE invoice
+    SET subtotal_amount = subtotal_amount + NEW.price_at_time
+    WHERE appointment_id = NEW.appointment_id
+      AND status = 'Draft';
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_add_treatment_to_invoice
+    AFTER INSERT ON appointment_treatment
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_add_treatment_to_invoice();
+
+-- -----------------------------------------------------------------------------
+-- TRIGGER 3: trg_claim_amount_check_insert (BR-4)
 -- Rejects any claim insert where approved_amount > claimed_amount.
 -- -----------------------------------------------------------------------------
 
