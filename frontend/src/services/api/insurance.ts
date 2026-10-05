@@ -1,26 +1,49 @@
 import { apiGet, apiPatch, apiPost } from './client';
-import type { InsurancePolicy } from '../../types';
+import { rethrowUniqueViolation } from './serviceErrors';
+import type { InsurancePolicy, InsuranceStatus, PagedResult } from '../../types';
+
+export interface AddInsuranceInput {
+  policyId: string;
+  providerName: string;
+  coverageLevel: string;
+  status?: InsuranceStatus;
+}
+
+export interface UpdateInsuranceInput {
+  status?: InsuranceStatus;
+  coverageLevel?: string;
+}
 
 export async function fetchPatientInsurance(patientId: number): Promise<InsurancePolicy[]> {
-  return apiGet<InsurancePolicy[]>(`/patients/${patientId}/insurance`);
+  const result = await apiGet<PagedResult<InsurancePolicy>>(`/patients/${patientId}/insurance`, {
+    pageSize: 100,
+  });
+  return result.items;
 }
 
 export async function addPatientInsurance(
   patientId: number,
-  input: {
-    policyId: string;
-    providerName: string;
-    coverageLevel: string;
-    status?: 'Active' | 'Inactive';
-  },
+  input: AddInsuranceInput,
 ): Promise<InsurancePolicy> {
-  return apiPost<InsurancePolicy>(`/patients/${patientId}/insurance`, input);
+  try {
+    return await apiPost<InsurancePolicy>(`/patients/${patientId}/insurance`, {
+      policyId: input.policyId.trim(),
+      providerName: input.providerName.trim(),
+      coverageLevel: input.coverageLevel.trim(),
+      status: input.status,
+    });
+  } catch (error) {
+    rethrowUniqueViolation(error, 'This insurance policy ID is already registered.');
+  }
 }
 
 export async function updatePatientInsurance(
   patientId: number,
   policyId: string,
-  updates: Partial<Omit<InsurancePolicy, 'policyId' | 'patientId'>>,
+  updates: UpdateInsuranceInput,
 ): Promise<InsurancePolicy> {
-  return apiPatch<InsurancePolicy>(`/patients/${patientId}/insurance/${policyId}`, updates);
+  return apiPatch<InsurancePolicy>(
+    `/patients/${patientId}/insurance/${encodeURIComponent(policyId)}`,
+    updates,
+  );
 }
