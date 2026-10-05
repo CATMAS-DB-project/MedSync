@@ -12,6 +12,8 @@ export interface Patient {
   registeredBranchName?: string;
   createdAt: string;
   phones?: Phone[];
+  guardians?: PatientGuardianLink[];
+  insurance?: InsurancePolicy[];
 }
 
 export interface Guardian {
@@ -24,11 +26,18 @@ export interface Guardian {
   phones?: Phone[];
 }
 
+export interface GuardianSummary {
+  guardianId: number;
+  firstName: string;
+  lastName: string;
+  nic?: string;
+}
+
 export interface PatientGuardianLink {
   patientId: number;
   guardianId: number;
   relationship: string;
-  guardian?: Guardian;
+  guardian?: GuardianSummary;
 }
 
 export type InsuranceStatus = 'Active' | 'Inactive';
