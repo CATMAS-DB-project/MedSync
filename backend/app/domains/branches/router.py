@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.db import get_conn
 from app.core.deps import get_current_user, require_role
+from app.core.pagination import list_response, pagination
 from app.domains.auth.models import UserIdentity
 from app.domains.branches import service
 from app.domains.branches.schemas import BranchCreate, BranchUpdate
@@ -20,9 +21,14 @@ def _success(data: object) -> dict:
 async def list_branches(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
     _user: Annotated[UserIdentity, Depends(get_current_user)],
+    paging: Annotated[dict[str, int], Depends(pagination)],
 ) -> dict:
-    items = await service.list_branches(conn)
-    return _success({"items": items, "total": len(items)})
+    items, total = await service.list_branches(
+        conn, paging["offset"], paging["limit"]
+    )
+    return _success(
+        list_response(items, total, paging["page"], paging["page_size"])
+    )
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

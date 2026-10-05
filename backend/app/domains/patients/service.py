@@ -1,5 +1,6 @@
 from asyncpg.exceptions import UniqueViolationError
 from asyncpg.pool import PoolConnectionProxy
+import json
 
 from app.core.db import get_pool, with_transaction
 
@@ -94,23 +95,23 @@ async def list_patients(
 async def get_patient(conn: PoolConnectionProxy, patient_id: int) -> dict | None:
     row = await conn.fetchrow(
         """
-        SELECT p.patient_id, p.nic_passport_no, p.first_name, p.last_name,
-               p.date_of_birth, p.gender::text AS gender, p.address,
-               p.registered_branch_id, b.branch_name AS registered_branch,
-               p.created_at
-        FROM patient AS p
-        JOIN branch AS b ON b.branch_id = p.registered_branch_id
-        WHERE p.patient_id = $1
+        SELECT patient_id, nic_passport_no, first_name, last_name,
+               date_of_birth, gender::text AS gender, address,
+               registered_branch_id, registered_branch_name AS registered_branch,
+               created_at, phones, guardians, insurance_policies AS insurance
+        FROM v_patient_profile
+        WHERE patient_id = $1
         """,
         patient_id,
     )
     if row is None:
         return None
-
     patient = dict(row)
-    patient["phones"] = await list_patient_phones(conn, patient_id, 0, 100)
-    patient["guardians"] = await list_patient_guardians(conn, patient_id, 0, 100)
-    patient["insurance"] = await list_patient_insurance(conn, patient_id, 0, 100)
+    # asyncpg normally decodes JSONB, but support string values from alternate
+    # connection codecs while preserving the existing response keys.
+    for key in ("phones", "guardians", "insurance"):
+        if isinstance(patient[key], str):
+            patient[key] = json.loads(patient[key])
     return patient
 
 
