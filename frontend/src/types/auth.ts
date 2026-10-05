@@ -6,13 +6,24 @@ export interface LoginCredentials {
 }
 
 export interface LoginResponse {
-  accessToken: string;
-  staffId: number;
-  role: Role;
-  branchId: number;
+  access_token: string;
+  token_type: string;
+  user: {
+    staff_id: number;
+    username: string;
+    role: Role;
+    branch_id: number;
+  };
 }
 
 /** Matches POST /auth/refresh's response - just a new access token. */
 export interface RefreshResponse {
-  accessToken: string;
+  access_token: string;
+  token_type: string;
+  user: {
+    staff_id: number;
+    username: string;
+    role: Role;
+    branch_id: number;
+  };
 }
