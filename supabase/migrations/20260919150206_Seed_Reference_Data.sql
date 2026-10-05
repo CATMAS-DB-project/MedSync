@@ -42,6 +42,137 @@ INSERT INTO treatment_catalogue (service_code, treatment_name, unit_price, categ
     ('DRG-001', 'Wound Dressing',           1000.00, 'Procedure')
 ON CONFLICT (service_code) DO NOTHING;
 
+-- Stable accounts used by backend integration tests.
+-- Password for all seeded test accounts: admin123
+DO $$
+DECLARE
+    v_manager_role_id role.role_id%TYPE;
+    v_doctor_role_id role.role_id%TYPE;
+    v_qa_role_id role.role_id%TYPE;
+    v_colombo_branch_id branch.branch_id%TYPE;
+    v_test_branch_id branch.branch_id%TYPE;
+    v_manager_staff_id staff.staff_id%TYPE;
+    v_doctor_staff_id staff.staff_id%TYPE;
+    v_qa_staff_id staff.staff_id%TYPE;
+    v_password_hash CONSTANT TEXT :=
+        '$argon2id$v=19$m=65536,t=3,p=4$Exu+4bUXbDcdtEUOfOOsgQ$xJAZ2zNoh+BwAKDHAOKUqO89nSUA0Hh8CRuwGNPYgOo';
+BEGIN
+    SELECT role_id INTO v_manager_role_id
+    FROM role
+    WHERE role_name = 'Branch Manager';
+
+    SELECT role_id INTO v_doctor_role_id
+    FROM role
+    WHERE role_name = 'Doctor';
+
+    SELECT role_id INTO v_qa_role_id
+    FROM role
+    WHERE role_name = 'QA Tester';
+
+    SELECT branch_id INTO v_test_branch_id
+    FROM branch
+    WHERE branch_name = 'Test Branch';
+
+    SELECT branch_id INTO v_colombo_branch_id
+    FROM branch
+    WHERE branch_name = 'Colombo';
+
+    INSERT INTO staff (
+        nic, first_name, last_name, date_of_birth, gender, address,
+        branch_id, job_title, employment_status, hire_date
+    )
+    VALUES (
+        'TEST-NIMAL-001', 'Nimal', 'Perera', DATE '1987-04-12',
+        'Male', 'Automated testing environment', v_colombo_branch_id,
+        'Nurse', 'Active', DATE '2024-01-01'
+    )
+    ON CONFLICT (nic) DO NOTHING;
+
+    INSERT INTO staff (
+        nic, first_name, last_name, date_of_birth, gender, address,
+        branch_id, job_title, employment_status, hire_date
+    )
+    VALUES (
+        'TEST-BM-001', 'Test', 'Branch Manager', DATE '1985-02-14',
+        'Female', 'Automated testing environment', v_test_branch_id,
+        'Branch Manager', 'Active', DATE '2024-01-01'
+    )
+    ON CONFLICT (nic) DO NOTHING;
+
+    SELECT staff_id INTO v_manager_staff_id
+    FROM staff
+    WHERE nic = 'TEST-BM-001';
+
+    INSERT INTO user_account (staff_id, username, password_hash, role_id)
+    VALUES (
+        v_manager_staff_id, 'bm', v_password_hash, v_manager_role_id
+    )
+    ON CONFLICT (username) DO NOTHING;
+
+    UPDATE branch
+    SET manager_staff_id = v_manager_staff_id
+    WHERE branch_id = v_test_branch_id;
+
+    INSERT INTO staff (
+        nic, first_name, last_name, date_of_birth, gender, address,
+        branch_id, job_title, employment_status, hire_date
+    )
+    VALUES (
+        'TEST-DOCTOR-001', 'Test', 'Doctor', DATE '1980-08-08',
+        'Male', 'Automated testing environment', v_test_branch_id,
+        'Doctor', 'Active', DATE '2024-01-01'
+    )
+    ON CONFLICT (nic) DO NOTHING;
+
+    SELECT staff_id INTO v_doctor_staff_id
+    FROM staff
+    WHERE nic = 'TEST-DOCTOR-001';
+
+    INSERT INTO doctor (
+        staff_id, license_no, years_of_experience, consultation_fee,
+        qualifications
+    )
+    VALUES (
+        v_doctor_staff_id, 'TEST-LIC-001', 10, 2500.00,
+        'MBBS - Automated Test Doctor'
+    )
+    ON CONFLICT (staff_id) DO NOTHING;
+
+    INSERT INTO doctor_specialty (staff_id, specialty_id)
+    SELECT v_doctor_staff_id, specialty_id
+    FROM specialty
+    WHERE specialty_name IN ('General Medicine', 'Cardiology')
+    ON CONFLICT (staff_id, specialty_id) DO NOTHING;
+
+    INSERT INTO user_account (staff_id, username, password_hash, role_id)
+    VALUES (
+        v_doctor_staff_id, 'doctor', v_password_hash, v_doctor_role_id
+    )
+    ON CONFLICT (username) DO NOTHING;
+
+    INSERT INTO staff (
+        nic, first_name, last_name, date_of_birth, gender, address,
+        branch_id, job_title, employment_status, hire_date
+    )
+    VALUES (
+        'TEST-QA-001', 'Test', 'QA', DATE '1993-03-03',
+        'Other', 'Automated testing environment', v_test_branch_id,
+        'QA Tester', 'Active', DATE '2024-01-01'
+    )
+    ON CONFLICT (nic) DO NOTHING;
+
+    SELECT staff_id INTO v_qa_staff_id
+    FROM staff
+    WHERE nic = 'TEST-QA-001';
+
+    INSERT INTO user_account (staff_id, username, password_hash, role_id)
+    VALUES (
+        v_qa_staff_id, 'qa', v_password_hash, v_qa_role_id
+    )
+    ON CONFLICT (username) DO NOTHING;
+END;
+$$;
+
 ANALYZE role;
 ANALYZE branch;
 ANALYZE specialty;
