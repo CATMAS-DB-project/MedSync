@@ -5,25 +5,18 @@ export interface LoginCredentials {
   password: string;
 }
 
-export interface LoginResponse {
-  access_token: string;
-  token_type: string;
-  user: {
-    staff_id: number;
-    username: string;
-    role: Role;
-    branch_id: number;
-  };
+export interface AuthUser {
+  staffId: number;
+  username: string;
+  role: Role;
+  branchId: number;
 }
 
-/** Matches POST /auth/refresh's response - just a new access token. */
-export interface RefreshResponse {
-  access_token: string;
-  token_type: string;
-  user: {
-    staff_id: number;
-    username: string;
-    role: Role;
-    branch_id: number;
-  };
+/** POST /auth/login and POST /auth/refresh (same shape for both). */
+export interface LoginResponse {
+  accessToken: string;
+  tokenType: string;
+  user: AuthUser;
 }
+
+export type RefreshResponse = LoginResponse;
