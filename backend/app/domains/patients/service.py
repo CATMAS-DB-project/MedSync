@@ -419,9 +419,13 @@ async def list_patient_appointments(
     patient_id: int,
     offset: int,
     limit: int,
+    branch_id: int | None = None,
 ) -> tuple[list[dict], int]:
     total = await conn.fetchval(
-        "SELECT count(*) FROM appointment WHERE patient_id = $1", patient_id
+        "SELECT count(*) FROM appointment "
+        "WHERE patient_id = $1 AND ($2::int IS NULL OR branch_id = $2)",
+        patient_id,
+        branch_id,
     )
     rows = await conn.fetch(
         """
@@ -434,10 +438,12 @@ async def list_patient_appointments(
         JOIN staff AS s ON s.staff_id = a.doctor_staff_id
         JOIN branch AS b ON b.branch_id = a.branch_id
         WHERE a.patient_id = $1
+          AND ($2::int IS NULL OR a.branch_id = $2)
         ORDER BY a.appointment_date DESC, a.appointment_time DESC
-        LIMIT $2 OFFSET $3
+        LIMIT $3 OFFSET $4
         """,
         patient_id,
+        branch_id,
         limit,
         offset,
     )

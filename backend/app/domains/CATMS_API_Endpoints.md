@@ -79,7 +79,7 @@ retirement is ever needed, rather than deleting.
 
 | Method | Path | Description | Roles |
 |---|---|---|---|
-| GET | `/staff` | list, filter `?branch_id=&job_title=&employment_status=&search=` | A, BM |
+| GET | `/staff` | list, filter `?branch_id=&job_title=&employment_status=&search=`; BM is restricted to their assigned branch | A, BM |
 | POST | `/staff` | create staff record (HR profile only, no login yet) | A, BM |
 | GET | `/staff/{staff_id}` | full profile incl. phones, doctor/account subtype flags | A, BM, self |
 | PATCH | `/staff/{staff_id}` | update HR fields | A, BM |

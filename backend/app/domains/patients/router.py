@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 
 from app.core.db import get_conn
-from app.core.deps import get_current_user, require_role
+from app.core.deps import require_role
 from app.core.pagination import pagination
 from app.domains.auth.models import UserIdentity
 from app.domains.patients import service
@@ -45,19 +45,35 @@ def _duplicate_nic(patient_id: int) -> JSONResponse:
     )
 
 
-async def _require_patient(conn: PoolConnectionProxy, patient_id: int) -> None:
-    if not await service.patient_exists(conn, patient_id):
+async def _require_patient(
+    conn: PoolConnectionProxy, patient_id: int, user: UserIdentity | None = None
+) -> None:
+    branch_id = await conn.fetchval(
+        "SELECT registered_branch_id FROM patient WHERE patient_id = $1",
+        patient_id,
+    )
+    if branch_id is None:
         raise HTTPException(status_code=404, detail="Patient not found")
+    if user and user.role == "Branch Manager" and (
+        user.branch_id is None or branch_id != user.branch_id
+    ):
+        raise HTTPException(status_code=403, detail="Patient is outside your branch")
 
 
 @router.get("/patients")
 async def list_patients(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role(*PATIENT_READ))],
+    user: Annotated[UserIdentity, Depends(require_role(*PATIENT_READ))],
     paging: Annotated[dict[str, int], Depends(pagination)],
     search: str | None = Query(default=None, max_length=100),
     branch_id: int | None = Query(default=None, ge=1),
 ) -> dict:
+    if user.role == "Branch Manager":
+        if user.branch_id is None:
+            raise HTTPException(status_code=403, detail="Branch Manager is not assigned to a branch")
+        if branch_id is not None and branch_id != user.branch_id:
+            raise HTTPException(status_code=403, detail="Branch Manager can only list patients from their branch")
+        branch_id = user.branch_id
     items, total = await service.list_patients(
         conn,
         search.strip() if search and search.strip() else None,
@@ -84,8 +100,9 @@ async def create_patient(
 async def get_patient(
     patient_id: int,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role(*PATIENT_READ))],
+    user: Annotated[UserIdentity, Depends(require_role(*PATIENT_READ))],
 ) -> dict:
+    await _require_patient(conn, patient_id, user)
     patient = await service.get_patient(conn, patient_id)
     if patient is None:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -113,13 +130,13 @@ async def patch_patient(
 async def list_patient_phones(
     patient_id: int,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[
+    user: Annotated[
         UserIdentity,
         Depends(require_role("Receptionist", "Doctor", "Admin")),
     ],
     paging: Annotated[dict[str, int], Depends(pagination)],
 ) -> dict:
-    await _require_patient(conn, patient_id)
+    await _require_patient(conn, patient_id, user)
     items = await service.list_patient_phones(
         conn, patient_id, paging["offset"], paging["limit"]
     )
@@ -255,14 +272,18 @@ async def patch_patient_insurance(
 async def list_patient_appointments(
     patient_id: int,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[
+    user: Annotated[
         UserIdentity,
         Depends(require_role("Receptionist", "Doctor", "Admin", "Branch Manager")),
     ],
     paging: Annotated[dict[str, int], Depends(pagination)],
 ) -> dict:
-    await _require_patient(conn, patient_id)
+    await _require_patient(conn, patient_id, user)
     items, total = await service.list_patient_appointments(
-        conn, patient_id, paging["offset"], paging["limit"]
+        conn,
+        patient_id,
+        paging["offset"],
+        paging["limit"],
+        user.branch_id if user.role == "Branch Manager" else None,
     )
     return _success_list(items, total, paging["page"], paging["page_size"])

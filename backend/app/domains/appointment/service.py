@@ -53,11 +53,13 @@ async def list_appointments(
 
 
 async def get_appointment(
-    conn: PoolConnectionProxy, appointment_id: int
+    conn: PoolConnectionProxy, appointment_id: int, branch_id: int | None = None
 ) -> dict | None:
     row = await conn.fetchrow(
-        "SELECT * FROM v_appointment_detail WHERE appointment_id = $1",
+        "SELECT * FROM v_appointment_detail "
+        "WHERE appointment_id = $1 AND ($2::int IS NULL OR branch_id = $2)",
         appointment_id,
+        branch_id,
     )
     return dict(row) if row else None
 

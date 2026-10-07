@@ -19,7 +19,7 @@ settings = get_settings()
 @router.get("/appointments")
 async def list_appointments(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[
+    user: Annotated[
         UserIdentity,
         Depends(require_role("Receptionist", "Doctor", "Admin", "Branch Manager")),
     ],
@@ -33,6 +33,12 @@ async def list_appointments(
     ] = None,
     patient_id: Annotated[int | None, Query(gt=0)] = None,
 ) -> dict:
+    if user.role == "Branch Manager":
+        if user.branch_id is None:
+            raise HTTPException(status_code=403, detail="Branch Manager is not assigned to a branch")
+        if branch_id is not None and branch_id != user.branch_id:
+            raise HTTPException(status_code=403, detail="Branch Manager can only list appointments from their branch")
+        branch_id = user.branch_id
     items, total = await service.list_appointments(
         conn,
         branch_id=branch_id,
@@ -85,12 +91,18 @@ async def get_availability(
 async def get_appointment(
     appointment_id: int,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[
+    user: Annotated[
         UserIdentity,
         Depends(require_role("Receptionist", "Doctor", "Admin", "Branch Manager")),
     ],
 ) -> dict:
-    data = await service.get_appointment(conn, appointment_id)
+    if user.role == "Branch Manager" and user.branch_id is None:
+        raise HTTPException(status_code=403, detail="Branch Manager is not assigned to a branch")
+    data = await service.get_appointment(
+        conn,
+        appointment_id,
+        user.branch_id if user.role == "Branch Manager" else None,
+    )
     if data is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"

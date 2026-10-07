@@ -29,7 +29,13 @@ def _success_list(items: list, total: int, page: int, page_size: int) -> dict:
 
 
 @router.get("/invoices")
-async def list_invoices(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, BILLING_READ], paging: Annotated[dict[str, int], Depends(pagination)], status_filter: InvoiceStatus | None = Query(default=None, alias="status"), branch_id: int | None = Query(default=None, ge=1), patient_id: int | None = Query(default=None, ge=1)):
+async def list_invoices(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, BILLING_READ], paging: Annotated[dict[str, int], Depends(pagination)], status_filter: InvoiceStatus | None = Query(default=None, alias="status"), branch_id: int | None = Query(default=None, ge=1), patient_id: int | None = Query(default=None, ge=1)):
+    if user.role == "Branch Manager":
+        if user.branch_id is None:
+            raise HTTPException(403, "Branch Manager is not assigned to a branch")
+        if branch_id is not None and branch_id != user.branch_id:
+            raise HTTPException(403, "Branch Manager can only list invoices from their branch")
+        branch_id = user.branch_id
     rows = await conn.fetch("""SELECT v.*, a.patient_id, a.branch_id, COUNT(*) OVER() AS total
         FROM v_invoice_outstanding v JOIN appointment a USING(appointment_id)
         WHERE ($1::text IS NULL OR v.status::text=$1) AND ($2::int IS NULL OR a.branch_id=$2)
@@ -39,9 +45,13 @@ async def list_invoices(conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
 
 
 @router.get("/invoices/{invoice_id}")
-async def get_invoice(invoice_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, BILLING_READ]):
+async def get_invoice(invoice_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, BILLING_READ]):
+    if user.role == "Branch Manager" and user.branch_id is None:
+        raise HTTPException(403, "Branch Manager is not assigned to a branch")
     row = await conn.fetchrow("""SELECT v.*, a.patient_id, a.branch_id, a.appointment_date
-        FROM v_invoice_outstanding v JOIN appointment a USING(appointment_id) WHERE v.invoice_id=$1""", invoice_id)
+        FROM v_invoice_outstanding v JOIN appointment a USING(appointment_id)
+        WHERE v.invoice_id=$1 AND ($2::int IS NULL OR a.branch_id=$2)""",
+        invoice_id, user.branch_id if user.role == "Branch Manager" else None)
     if not row:
         raise HTTPException(404, "Invoice not found")
     data = dict(row)
@@ -118,7 +128,13 @@ async def get_payment(payment_id: int, conn: Annotated[PoolConnectionProxy, Depe
 
 
 @router.get("/insurance-claims")
-async def list_claims(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, BILLING_READ], paging: Annotated[dict[str, int], Depends(pagination)], status_filter: ClaimStatus | None = Query(default=None, alias="status"), branch_id: int | None = Query(default=None, ge=1)):
+async def list_claims(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, BILLING_READ], paging: Annotated[dict[str, int], Depends(pagination)], status_filter: ClaimStatus | None = Query(default=None, alias="status"), branch_id: int | None = Query(default=None, ge=1)):
+    if user.role == "Branch Manager":
+        if user.branch_id is None:
+            raise HTTPException(403, "Branch Manager is not assigned to a branch")
+        if branch_id is not None and branch_id != user.branch_id:
+            raise HTTPException(403, "Branch Manager can only list claims from their branch")
+        branch_id = user.branch_id
     rows = await conn.fetch("""SELECT c.*, i.appointment_id, a.branch_id, a.patient_id,
         COUNT(*) OVER() AS total FROM insurance_claim c JOIN invoice i USING(invoice_id)
         JOIN appointment a USING(appointment_id)
@@ -173,10 +189,14 @@ async def verify_claim(claim_id: int, conn: Annotated[PoolConnectionProxy, Depen
 
 
 @router.get("/insurance-claims/{claim_id}")
-async def get_claim(claim_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, BILLING_READ]):
+async def get_claim(claim_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, BILLING_READ]):
+    if user.role == "Branch Manager" and user.branch_id is None:
+        raise HTTPException(403, "Branch Manager is not assigned to a branch")
     row = await conn.fetchrow("""SELECT c.*, i.appointment_id, a.patient_id, a.branch_id
         FROM insurance_claim c JOIN invoice i USING(invoice_id)
-        JOIN appointment a USING(appointment_id) WHERE c.claim_id=$1""", claim_id)
+        JOIN appointment a USING(appointment_id)
+        WHERE c.claim_id=$1 AND ($2::int IS NULL OR a.branch_id=$2)""",
+        claim_id, user.branch_id if user.role == "Branch Manager" else None)
     if not row:
         raise HTTPException(404, "Insurance claim not found")
     return _success(dict(row))
