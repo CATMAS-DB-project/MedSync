@@ -17,6 +17,7 @@ async def list_appointments(
     patient_id: int | None,
     limit: int,
     offset: int,
+    doctor_scope: int | None = None,
 ) -> tuple[list[dict], int]:
     filters: list[str] = []
     values: list[object] = []
@@ -27,6 +28,7 @@ async def list_appointments(
         ("appointment_date", appointment_date),
         ("status", status),
         ("patient_id", patient_id),
+        ("doctor_staff_id", doctor_scope),
     ):
         if value is not None:
             values.append(value)
@@ -53,11 +55,16 @@ async def list_appointments(
 
 
 async def get_appointment(
-    conn: PoolConnectionProxy, appointment_id: int
+    conn: PoolConnectionProxy, appointment_id: int, branch_id: int | None = None,
+    doctor_scope: int | None = None,
 ) -> dict | None:
     row = await conn.fetchrow(
-        "SELECT * FROM v_appointment_detail WHERE appointment_id = $1",
+        "SELECT * FROM v_appointment_detail "
+        "WHERE appointment_id = $1 AND ($2::int IS NULL OR branch_id = $2) "
+        "AND ($3::int IS NULL OR doctor_staff_id = $3)",
         appointment_id,
+        branch_id,
+        doctor_scope,
     )
     return dict(row) if row else None
 
@@ -66,7 +73,26 @@ async def create_appointment(
     conn: PoolConnectionProxy,
     body: AppointmentCreate,
     booked_by_staff_id: int,
+    branch_id: int | None = None,
 ) -> dict:
+    effective_branch = body.branch_id if branch_id is None else branch_id
+    doctor_branch = await conn.fetchval(
+        "SELECT s.branch_id FROM doctor d JOIN staff s ON s.staff_id = d.staff_id "
+        "WHERE d.staff_id = $1", body.doctor_staff_id
+    )
+    patient_branch = await conn.fetchval(
+        "SELECT registered_branch_id FROM patient WHERE patient_id = $1",
+        body.patient_id,
+    )
+    if doctor_branch is None:
+        raise ValueError("Doctor not found")
+    if patient_branch is None:
+        raise ValueError("Patient not found")
+    # Patients may receive emergency or walk-in care at another branch.  The
+    # appointment branch must still be the doctor's branch, but it need not be
+    # the patient's registered branch.
+    if doctor_branch != effective_branch:
+        raise ValueError("Doctor must belong to the appointment branch")
     row = await conn.fetchrow(
         "INSERT INTO appointment ("
         "patient_id, doctor_staff_id, branch_id, booked_by_staff_id, "
@@ -75,7 +101,7 @@ async def create_appointment(
         "RETURNING appointment_id",
         body.patient_id,
         body.doctor_staff_id,
-        body.branch_id,
+        effective_branch,
         booked_by_staff_id,
         body.appointment_date,
         body.appointment_time,
@@ -103,13 +129,15 @@ async def cancel_appointment(
 
 
 async def complete_appointment(
-    conn: PoolConnectionProxy, appointment_id: int
+    conn: PoolConnectionProxy, appointment_id: int, doctor_id: int | None = None
 ) -> dict | None:
     row = await conn.fetchrow(
         "UPDATE appointment SET status = 'Completed' "
         "WHERE appointment_id = $1 AND status = 'Scheduled' "
+        "AND ($2::int IS NULL OR doctor_staff_id = $2) "
         "RETURNING appointment_id",
         appointment_id,
+        doctor_id,
     )
     if not row:
         return None

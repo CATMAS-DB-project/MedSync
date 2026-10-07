@@ -24,17 +24,43 @@ router = APIRouter(tags=["staff"])
 
 MANAGERS = ("Admin", "Branch Manager")
 
+async def _require_staff_branch(
+    conn: PoolConnectionProxy, user: UserIdentity, staff_id: int
+) -> None:
+    branch_id = await conn.fetchval(
+        "SELECT branch_id FROM staff WHERE staff_id = $1", staff_id
+    )
+    if branch_id is None:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    if user.role == "Branch Manager" and (
+        user.branch_id is None or branch_id != user.branch_id
+    ):
+        raise HTTPException(status_code=403, detail="Staff is outside your branch")
+
 
 @router.get("/staff")
 async def list_staff(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
+    user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
     pg: Annotated[dict[str, int], Depends(pagination)],
     branch_id: int | None = Query(None, gt=0),
     job_title: str | None = Query(None),
     employment_status: EmploymentStatus | None = Query(None),
     search: str | None = Query(None),
 ) -> dict:
+    if user.role == "Branch Manager":
+        if user.branch_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Branch Manager is not assigned to a branch",
+            )
+        if branch_id is not None and branch_id != user.branch_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Branch Manager can only list staff from their branch",
+            )
+        branch_id = user.branch_id
+
     items, total = await service.list_staff(
         conn,
         pg["offset"],
@@ -54,8 +80,13 @@ async def list_staff(
 async def create_staff(
     body: StaffCreate,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
+    user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
 ) -> dict:
+    if user.role == "Branch Manager":
+        if user.branch_id is None:
+            raise HTTPException(status_code=403, detail="Branch Manager is not assigned to a branch")
+        if body.branch_id != user.branch_id:
+            raise HTTPException(status_code=403, detail="Staff must belong to your branch")
     data = await service.create_staff(conn, body.model_dump())
     return {"data": data, "error": None}
 
@@ -66,7 +97,9 @@ async def get_staff(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
     user: Annotated[UserIdentity, Depends(get_current_user)],
 ) -> dict:
-    if user.role not in MANAGERS and user.staff_id != staff_id:
+    if user.role in MANAGERS:
+        await _require_staff_branch(conn, user, staff_id)
+    elif user.staff_id != staff_id:
         raise HTTPException(status_code=403, detail="Forbidden")
     data = await service.get_staff(conn, staff_id)
     if data is None:
@@ -79,8 +112,11 @@ async def update_staff(
     staff_id: int,
     body: StaffUpdate,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
+    user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
 ) -> dict:
+    await _require_staff_branch(conn, user, staff_id)
+    if user.role == "Branch Manager" and body.branch_id is not None and body.branch_id != user.branch_id:
+        raise HTTPException(status_code=403, detail="Staff must belong to your branch")
     data = await service.update_staff(
         conn,
         staff_id,
@@ -97,7 +133,9 @@ async def list_phones(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
     user: Annotated[UserIdentity, Depends(get_current_user)],
 ) -> dict:
-    if user.role not in MANAGERS and user.staff_id != staff_id:
+    if user.role in MANAGERS:
+        await _require_staff_branch(conn, user, staff_id)
+    elif user.staff_id != staff_id:
         raise HTTPException(status_code=403, detail="Forbidden")
     return {"data": await service.list_phones(conn, staff_id), "error": None}
 
@@ -112,7 +150,9 @@ async def add_phone(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
     user: Annotated[UserIdentity, Depends(get_current_user)],
 ) -> dict:
-    if user.role not in MANAGERS and user.staff_id != staff_id:
+    if user.role in MANAGERS:
+        await _require_staff_branch(conn, user, staff_id)
+    elif user.staff_id != staff_id:
         raise HTTPException(status_code=403, detail="Forbidden")
     data = await service.add_phone(conn, staff_id, body.model_dump())
     return {"data": data, "error": None}
@@ -128,7 +168,9 @@ async def delete_phone(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
     user: Annotated[UserIdentity, Depends(get_current_user)],
 ) -> None:
-    if user.role not in MANAGERS and user.staff_id != staff_id:
+    if user.role in MANAGERS:
+        await _require_staff_branch(conn, user, staff_id)
+    elif user.staff_id != staff_id:
         raise HTTPException(status_code=403, detail="Forbidden")
     deleted = await service.delete_phone(conn, staff_id, phone_id)
     if not deleted:
@@ -143,8 +185,9 @@ async def promote_to_doctor(
     staff_id: int,
     body: DoctorPromote,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
+    user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
 ) -> dict:
+    await _require_staff_branch(conn, user, staff_id)
     data = await service.promote_to_doctor(conn, staff_id, body.model_dump())
     return {"data": data, "error": None}
 
@@ -153,8 +196,10 @@ async def promote_to_doctor(
 async def get_doctor(
     staff_id: int,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(get_current_user)],
+    user: Annotated[UserIdentity, Depends(get_current_user)],
 ) -> dict:
+    if user.role == "Branch Manager":
+        await _require_staff_branch(conn, user, staff_id)
     data = await service.get_doctor(conn, staff_id)
     if data is None:
         raise HTTPException(status_code=404, detail="Doctor not found")
@@ -169,8 +214,9 @@ async def link_specialty(
     staff_id: int,
     body: SpecialtyLink,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
+    user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
 ) -> dict:
+    await _require_staff_branch(conn, user, staff_id)
     await service.link_specialty(conn, staff_id, body.specialty_id)
     return {
         "data": {"staff_id": staff_id, "specialty_id": body.specialty_id},
@@ -186,8 +232,9 @@ async def unlink_specialty(
     staff_id: int,
     specialty_id: int,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
+    user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
 ) -> None:
+    await _require_staff_branch(conn, user, staff_id)
     deleted = await service.unlink_specialty(conn, staff_id, specialty_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Link not found")
@@ -196,7 +243,7 @@ async def unlink_specialty(
 @router.get("/doctors")
 async def list_doctors(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(get_current_user)],
+    user: Annotated[UserIdentity, Depends(get_current_user)],
     branch_id: int | None = Query(None, gt=0),
     specialty_id: int | None = Query(None, gt=0),
 ) -> dict:

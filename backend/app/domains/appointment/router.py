@@ -19,7 +19,7 @@ settings = get_settings()
 @router.get("/appointments")
 async def list_appointments(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[
+    user: Annotated[
         UserIdentity,
         Depends(require_role("Receptionist", "Doctor", "Admin", "Branch Manager")),
     ],
@@ -33,6 +33,11 @@ async def list_appointments(
     ] = None,
     patient_id: Annotated[int | None, Query(gt=0)] = None,
 ) -> dict:
+    doctor_scope = None
+    if user.role == "Doctor":
+        if doctor_id is not None and doctor_id != user.staff_id:
+            raise HTTPException(status_code=403, detail="Doctors can only list their own appointments")
+        doctor_scope = user.staff_id
     items, total = await service.list_appointments(
         conn,
         branch_id=branch_id,
@@ -40,6 +45,7 @@ async def list_appointments(
         appointment_date=appointment_date,
         status=appointment_status,
         patient_id=patient_id,
+        doctor_scope=doctor_scope,
         limit=page_options["limit"],
         offset=page_options["offset"],
     )
@@ -55,7 +61,18 @@ async def create_appointment(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
     user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
 ) -> dict:
-    data = await service.create_appointment(conn, body, user.staff_id)
+    if user.branch_id is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Authenticated user is not assigned to a branch",
+        )
+    branch_id = user.branch_id
+    try:
+        data = await service.create_appointment(
+            conn, body, user.staff_id, branch_id=branch_id
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
     return {"data": data, "error": None}
 
 
@@ -85,12 +102,18 @@ async def get_availability(
 async def get_appointment(
     appointment_id: int,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[
+    user: Annotated[
         UserIdentity,
         Depends(require_role("Receptionist", "Doctor", "Admin", "Branch Manager")),
     ],
 ) -> dict:
-    data = await service.get_appointment(conn, appointment_id)
+    doctor_scope = user.staff_id if user.role == "Doctor" else None
+    data = await service.get_appointment(
+        conn,
+        appointment_id,
+        None,
+        doctor_scope,
+    )
     if data is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"
@@ -120,7 +143,7 @@ async def complete_appointment(
     _user: Annotated[UserIdentity, Depends(require_role("Doctor"))],
 ) -> dict:
     async with with_transaction(staff_id=_user.staff_id) as conn:
-        data = await service.complete_appointment(conn, appointment_id)
+        data = await service.complete_appointment(conn, appointment_id, _user.staff_id)
         if data is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

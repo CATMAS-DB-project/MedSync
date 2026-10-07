@@ -36,8 +36,9 @@ req() {
     code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
     if [[ ! "$code" =~ ^2 ]]; then
-        fail "HTTP $code on $method $path
-  body: $body"
+        printf '%b✗ HTTP %s on %s %s%b\n  body: %s\n' \
+            "$RED" "$code" "$method" "$path" "$NC" "$body" >&2
+        exit 1
     fi
     echo "$body"
 }
@@ -48,6 +49,17 @@ TOKEN_ADMIN=$(login admin "$SEED_PASSWORD")
 [[ "$TOKEN_ADMIN" != "null" && -n "$TOKEN_ADMIN" ]] || fail "admin login failed"
 ok "admin token acquired"
 
+# The appointment branch is derived from the receptionist's authenticated
+# branch, and the test doctor must be created in that same branch.
+step "1. Login as receptionist"
+TOKEN_RECEP=$(login reception "$SEED_PASSWORD")
+[[ "$TOKEN_RECEP" != "null" && -n "$TOKEN_RECEP" ]] || fail "reception login failed"
+RECEPTION_PROFILE=$(req "$TOKEN_RECEP" GET /auth/me)
+RECEPTION_BRANCH=$(echo "$RECEPTION_PROFILE" | jq -r '.branch_id // .data.branch_id')
+[[ "$RECEPTION_BRANCH" != "null" && -n "$RECEPTION_BRANCH" ]] ||
+    fail "could not determine receptionist branch"
+ok "reception branch=$RECEPTION_BRANCH"
+
 # ---------- 2. create staff ----------
 step "2. Create new staff member"
 STAFF=$(req "$TOKEN_ADMIN" POST /staff -d "{
@@ -56,7 +68,7 @@ STAFF=$(req "$TOKEN_ADMIN" POST /staff -d "{
     \"last_name\": \"Doctor\",
     \"date_of_birth\": \"1988-06-15\",
     \"gender\": \"Male\",
-    \"branch_id\": 1,
+    \"branch_id\": $RECEPTION_BRANCH,
     \"job_title\": \"Doctor\",
     \"hire_date\": \"2026-01-01\"
 }")
@@ -97,12 +109,6 @@ TOKEN_DOCTOR=$(login "$USERNAME" "$USERPASS")
 [[ "$TOKEN_DOCTOR" != "null" && -n "$TOKEN_DOCTOR" ]] || fail "doctor login failed"
 ok "doctor token acquired"
 
-# ---------- 7. login as receptionist ----------
-step "7. Login as receptionist"
-TOKEN_RECEP=$(login reception "$SEED_PASSWORD")
-[[ "$TOKEN_RECEP" != "null" && -n "$TOKEN_RECEP" ]] || fail "reception login failed"
-ok "reception token acquired"
-
 # ---------- 8. create patient ----------
 step "8. Register a patient"
 PATIENT=$(req "$TOKEN_RECEP" POST /patients -d "{
@@ -111,7 +117,7 @@ PATIENT=$(req "$TOKEN_RECEP" POST /patients -d "{
     \"last_name\": \"Patient\",
     \"date_of_birth\": \"1995-04-20\",
     \"gender\": \"Female\",
-    \"registered_branch_id\": 1
+    \"registered_branch_id\": $RECEPTION_BRANCH
 }")
 PATIENT_ID=$(echo "$PATIENT" | jq -r .data.patient_id)
 [[ "$PATIENT_ID" != "null" ]] || fail "patient creation failed: $PATIENT"
@@ -123,7 +129,7 @@ APPT_DATE=$(date -d "+2 days" +%Y-%m-%d)
 APPT=$(req "$TOKEN_RECEP" POST /appointments -d "{
     \"patient_id\": $PATIENT_ID,
     \"doctor_staff_id\": $STAFF_ID,
-    \"branch_id\": 1,
+    \"branch_id\": $RECEPTION_BRANCH,
     \"appointment_date\": \"$APPT_DATE\",
     \"appointment_time\": \"10:30:00\",
     \"is_walk_in\": false
@@ -140,7 +146,7 @@ DUP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE/appointments" \
     -d "{
         \"patient_id\": $PATIENT_ID,
         \"doctor_staff_id\": $STAFF_ID,
-        \"branch_id\": 1,
+        \"branch_id\": $RECEPTION_BRANCH,
         \"appointment_date\": \"$APPT_DATE\",
         \"appointment_time\": \"10:30:00\",
         \"is_walk_in\": false
@@ -225,14 +231,44 @@ NULL_ACTORS=$(echo "$AUDIT" | jq '[.data.items[] | select(.staff_id == null)] | 
 ok "audit rows — patient: $PATIENT_AUDIT, invoice: $INVOICE_AUDIT, treatment: $TREATMENT_AUDIT"
 ok "unattributed rows: $NULL_ACTORS (informational, not a failure)"
 
-# ---------- 19. verify report ----------
-step "19. Verify doctor-revenue report includes the new doctor"
+# ---------- 19. reports ----------
+step "19. Verify reports include the new appointment and doctor"
 FROM=$(date -d "-30 days" +%Y-%m-%d)
 TO=$(date -d "+30 days" +%Y-%m-%d)
-REPORT=$(req "$TOKEN_ADMIN" GET "/reports/doctor-revenue?branch_id=1&from=$FROM&to=$TO")
-IN_REPORT=$(echo "$REPORT" | jq --arg sid "$STAFF_ID" '[.data[] | select(.doctor_staff_id == ($sid | tonumber))] | length')
-[[ "$IN_REPORT" -ge 1 ]] || fail "new doctor not in revenue report"
-ok "doctor appears in revenue report"
+
+SUMMARY=$(req "$TOKEN_ADMIN" GET \
+    "/reports/appointments-summary?branch_id=$RECEPTION_BRANCH&from=$FROM&to=$TO")
+SUMMARY_COUNT=$(echo "$SUMMARY" | jq \
+    --arg date "$APPT_DATE" \
+    '[.data[] | select(.appointment_date == $date)] | length')
+[[ "$SUMMARY_COUNT" -ge 1 ]] ||
+    fail "appointment summary does not include $APPT_DATE"
+
+REVENUE=$(req "$TOKEN_ADMIN" GET \
+    "/reports/doctor-revenue?branch_id=$RECEPTION_BRANCH&from=$FROM&to=$TO")
+IN_REVENUE=$(echo "$REVENUE" | jq \
+    --arg sid "$STAFF_ID" \
+    '[.data[] | select(.doctor_staff_id == ($sid | tonumber))] | length')
+[[ "$IN_REVENUE" -ge 1 ]] ||
+    fail "new doctor not in doctor-revenue report"
+
+OUTSTANDING_REPORT=$(req "$TOKEN_ADMIN" GET \
+    "/reports/outstanding-balances?branch_id=$RECEPTION_BRANCH")
+echo "$OUTSTANDING_REPORT" | jq -e '(.data | type) == "array"' > /dev/null ||
+    fail "outstanding-balances report did not return an array"
+
+FREQUENCY=$(req "$TOKEN_ADMIN" GET \
+    "/reports/treatment-frequency?from=$FROM&to=$TO")
+IN_FREQUENCY=$(echo "$FREQUENCY" | jq \
+    '[.data[] | select(.service_code == "XR-001")] | length')
+[[ "$IN_FREQUENCY" -ge 1 ]] ||
+    fail "XR-001 not in treatment-frequency report"
+
+PAYMENT_MIX=$(req "$TOKEN_ADMIN" GET \
+    "/reports/insurance-vs-outofpocket?branch_id=$RECEPTION_BRANCH&from=$FROM&to=$TO")
+echo "$PAYMENT_MIX" | jq -e '(.data | type) == "object"' > /dev/null ||
+    fail "insurance-vs-outofpocket report did not return an object"
+ok "all five report endpoints returned expected results"
 
 # ---------- done ----------
 echo ""
