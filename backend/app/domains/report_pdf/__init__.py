@@ -1,5 +1,7 @@
-"""Report PDF generation domain for MedSync."""
+# """Report PDF generation domain for MedSync."""
 
-from app.domains.report_pdf.router import router
+# from app.domains.report_pdf.router import router
 
-__all__ = ["router"]
+# __all__ = ["router"]
+
+
