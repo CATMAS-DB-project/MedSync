@@ -232,11 +232,43 @@ ok "audit rows — patient: $PATIENT_AUDIT, invoice: $INVOICE_AUDIT, treatment: 
 ok "unattributed rows: $NULL_ACTORS (informational, not a failure)"
 
 # ---------- 19. reports ----------
-# The report routes are documented but are not registered in app/main.py yet.
-# Keep this integration flow focused on currently implemented endpoints instead
-# of turning a missing, unrelated feature into a misleading test failure.
-step "19. Reports"
-ok "report verification skipped (report router is not registered)"
+step "19. Verify reports include the new appointment and doctor"
+FROM=$(date -d "-30 days" +%Y-%m-%d)
+TO=$(date -d "+30 days" +%Y-%m-%d)
+
+SUMMARY=$(req "$TOKEN_ADMIN" GET \
+    "/reports/appointments-summary?branch_id=$RECEPTION_BRANCH&from=$FROM&to=$TO")
+SUMMARY_COUNT=$(echo "$SUMMARY" | jq \
+    --arg date "$APPT_DATE" \
+    '[.data[] | select(.appointment_date == $date)] | length')
+[[ "$SUMMARY_COUNT" -ge 1 ]] ||
+    fail "appointment summary does not include $APPT_DATE"
+
+REVENUE=$(req "$TOKEN_ADMIN" GET \
+    "/reports/doctor-revenue?branch_id=$RECEPTION_BRANCH&from=$FROM&to=$TO")
+IN_REVENUE=$(echo "$REVENUE" | jq \
+    --arg sid "$STAFF_ID" \
+    '[.data[] | select(.doctor_staff_id == ($sid | tonumber))] | length')
+[[ "$IN_REVENUE" -ge 1 ]] ||
+    fail "new doctor not in doctor-revenue report"
+
+OUTSTANDING_REPORT=$(req "$TOKEN_ADMIN" GET \
+    "/reports/outstanding-balances?branch_id=$RECEPTION_BRANCH")
+echo "$OUTSTANDING_REPORT" | jq -e '(.data | type) == "array"' > /dev/null ||
+    fail "outstanding-balances report did not return an array"
+
+FREQUENCY=$(req "$TOKEN_ADMIN" GET \
+    "/reports/treatment-frequency?from=$FROM&to=$TO")
+IN_FREQUENCY=$(echo "$FREQUENCY" | jq \
+    '[.data[] | select(.service_code == "XR-001")] | length')
+[[ "$IN_FREQUENCY" -ge 1 ]] ||
+    fail "XR-001 not in treatment-frequency report"
+
+PAYMENT_MIX=$(req "$TOKEN_ADMIN" GET \
+    "/reports/insurance-vs-outofpocket?branch_id=$RECEPTION_BRANCH&from=$FROM&to=$TO")
+echo "$PAYMENT_MIX" | jq -e '(.data | type) == "object"' > /dev/null ||
+    fail "insurance-vs-outofpocket report did not return an object"
+ok "all five report endpoints returned expected results"
 
 # ---------- done ----------
 echo ""
