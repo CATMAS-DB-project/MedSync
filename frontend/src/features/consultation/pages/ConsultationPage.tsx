@@ -13,7 +13,6 @@ const activePatientName = formatFullName(activePatient.firstName, activePatient.
 export function ConsultationPage() {
   const [notes, setNotes] = useState('');
   const [catalogueQuery, setCatalogueQuery] = useState('');
-  // Keyed by service_code, matching appointment_treatment.service_code.
   const [selectedCodes, setSelectedCodes] = useState<Set<string>>(
     () => new Set(['CONS-STD', 'IMG-MRI']),
   );
@@ -45,7 +44,6 @@ export function ConsultationPage() {
 
   return (
     <div className="max-w-7xl mx-auto h-full flex flex-col gap-6">
-      {/* Patient Header */}
       <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-elevated">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-headline-sm font-bold border border-outline-variant shrink-0">
@@ -78,9 +76,7 @@ export function ConsultationPage() {
         </div>
       </div>
 
-      {/* Working Area */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
-        {/* Clinical Notes */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           <div className="bg-surface-container-lowest border border-outline-variant rounded-lg flex-1 flex flex-col overflow-hidden">
             <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
@@ -108,7 +104,6 @@ export function ConsultationPage() {
           </div>
         </div>
 
-        {/* Treatment Catalogue & Billing */}
         <div className="flex flex-col bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden h-full">
           <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low">
             <h2 className="text-headline-sm text-on-surface flex items-center gap-2">

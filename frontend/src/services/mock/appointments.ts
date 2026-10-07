@@ -78,8 +78,6 @@ export const mockAppointments: Appointment[] = [
     isWalkIn: false,
     createdAt: '2026-09-11T09:00:00Z',
   },
-  // Historical completed visits - these are what have invoices (an invoice
-  // is only auto-created once an appointment transitions to Completed).
   {
     appointmentId: 6,
     patientId: 1,

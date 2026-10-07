@@ -130,7 +130,6 @@ export function LoginPage() {
           </Button>
         </form>
 
-        {/* Security Message */}
         <div className="mt-8 flex items-center justify-center gap-2">
           <Icon name="lock" size={14} className="text-slate-400" />
           <p className="text-xs text-slate-500">

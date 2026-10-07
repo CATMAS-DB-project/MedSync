@@ -23,8 +23,6 @@ const TYPE_OPTIONS = [
   { label: 'Lab Test', value: 'Lab Test' },
 ];
 
-// Slots booked ~30% of the time, deterministic by index so the grid doesn't
-// shuffle on every render.
 function isSlotBooked(index: number) {
   return (index * 7) % 5 === 0;
 }
@@ -80,8 +78,6 @@ export function AppointmentBookingPage() {
 
   const handleSubmit = () => {
     if (!canSubmit) return;
-    // Backend isn't ready yet - once it is, this becomes a real POST and
-    // redirect using the created appointment's id.
     navigate(ROUTES.APPOINTMENTS);
   };
 
@@ -98,7 +94,6 @@ export function AppointmentBookingPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-element-gap">
-        {/* Left Column */}
         <div className="lg:col-span-5 flex flex-col gap-element-gap">
           <div className="bg-surface-container-lowest border border-outline-variant p-6 rounded shadow-sm">
             <h3 className="text-headline-sm text-on-surface mb-4">Patient Information</h3>
@@ -176,7 +171,6 @@ export function AppointmentBookingPage() {
           </div>
         </div>
 
-        {/* Right Column */}
         <div className="lg:col-span-7 flex flex-col gap-element-gap">
           <div className="bg-surface-container-lowest border border-outline-variant p-6 rounded shadow-sm h-full flex flex-col">
             <div className="mb-6 pb-6 border-b border-outline-variant">

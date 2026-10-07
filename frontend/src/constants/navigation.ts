@@ -9,7 +9,6 @@ export interface NavItem {
   comingSoon?: boolean;
 }
 
-/** Full navigation, shown in the persistent left sidebar on tablet/desktop. */
 export const SIDEBAR_NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', path: ROUTES.DASHBOARD, icon: 'dashboard' },
   { label: 'Appointments', path: ROUTES.APPOINTMENTS, icon: 'calendar_today' },
@@ -20,7 +19,6 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
   { label: 'Reports', path: ROUTES.REPORTS, icon: 'analytics' },
 ];
 
-/** Condensed navigation for the mobile bottom bar (4 primary destinations + More). */
 export const BOTTOM_NAV_ITEMS: NavItem[] = [
   { label: 'Home', path: ROUTES.DASHBOARD, icon: 'home' },
   { label: 'Schedule', path: ROUTES.APPOINTMENTS, icon: 'event' },

@@ -2,10 +2,8 @@ import type { CSSProperties } from 'react';
 import { cn } from '../../utils/cn';
 
 export interface IconProps {
-  /** Material Symbols icon name, e.g. "dashboard", "calendar_today". */
   name: string;
   className?: string;
-  /** Renders the filled variant of the glyph (used for active/selected states). */
   filled?: boolean;
   size?: number;
 }

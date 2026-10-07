@@ -40,7 +40,6 @@ export function BillingPage() {
 
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  // Outstanding = payable minus paid, for every invoice that isn't fully Paid.
   const outstandingTotal = mockInvoices
     .filter((invoice) => invoice.status !== 'Paid')
     .reduce((sum, invoice) => sum + calculateOutstandingBalance(invoice, mockPayments), 0);

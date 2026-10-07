@@ -8,7 +8,6 @@ export type ButtonSize = 'sm' | 'md';
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
-  /** Material Symbols icon name to render before the label. */
   icon?: string;
   isLoading?: boolean;
   children?: ReactNode;

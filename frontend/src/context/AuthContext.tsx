@@ -9,7 +9,6 @@ import type { CurrentUser, LoginCredentials } from '../types';
 
 interface AuthContextValue {
   currentUser: CurrentUser | null;
-  /** True only during the initial silent-refresh-on-load check. */
   isBootstrapping: boolean;
   isAuthenticated: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
@@ -34,14 +33,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // On first load (including a hard refresh), try to silently resume a
-  // session using the httpOnly refresh cookie. No token is ever read from
-  // localStorage - if there's no valid cookie, this just fails quietly and
-  // the app falls through to the login screen.
   useEffect(() => {
     if (DEV_BYPASS_AUTH) {
-      // No backend yet - log straight in as the mock user, skip the
-      // network entirely. See constants/api.ts for how to turn this off.
       setCurrentUser(mockCurrentUser);
       setIsBootstrapping(false);
       return;
@@ -67,8 +60,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Registered with the API client so a refresh failure mid-session (not
-  // just on load) also clears the logged-in state here.
   useEffect(() => {
     setSessionExpiredHandler(() => setCurrentUser(null));
     return () => setSessionExpiredHandler(null);

@@ -8,6 +8,5 @@ export interface AuditLogEntry {
   tableAffected: string;
   recordIdAffected: string;
   logTimestamp: string;
-  /** JSONB old/new diff. */
   details?: Record<string, unknown>;
 }

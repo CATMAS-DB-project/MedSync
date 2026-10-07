@@ -1,4 +1,3 @@
-// Central API export point for the frontend service layer.
 export * from './ApiError';
 export * from './accounts';
 export * from './appointments';

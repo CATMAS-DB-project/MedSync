@@ -28,8 +28,6 @@ export function WalkInPage() {
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     setIsSubmitting(true);
-    // Simulated booking delay - will become a real API call once the
-    // backend is ready.
     setTimeout(() => {
       setIsSubmitting(false);
       setIsRegistered(true);

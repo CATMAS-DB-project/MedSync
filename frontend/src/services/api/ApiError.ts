@@ -13,17 +13,14 @@ export class ApiError extends Error {
     this.details = details;
   }
 
-  /** 403 - logged in, but the role is not allowed to do this. */
   get isForbidden(): boolean {
     return this.status === 403;
   }
 
-  /** 409 - unique violation, overlapping appointment, duplicate NIC, etc. */
   get isConflict(): boolean {
     return this.status === 409;
   }
 
-  /** 422 - request body or query failed validation. */
   get isValidation(): boolean {
     return this.status === 422;
   }
