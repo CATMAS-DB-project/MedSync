@@ -12,6 +12,10 @@ setup-frontend:
 
 dev:
 	npx supabase start
+	$(COMPOSE) up -d
+
+dev-build:
+	npx supabase start
 	$(COMPOSE) up -d --build
 
 down:
