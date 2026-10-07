@@ -18,6 +18,23 @@ project, so query design matters as much as the endpoint shape.
 **RBAC legend:** A = Admin, BM = Branch Manager, R = Receptionist,
 D = Doctor, QA = QA Tester. "Any" = any authenticated role.
 
+### Authorization and branch-ownership rules
+
+- Cross-branch reads of patient, guardian, and doctor data are intentional.
+  `REQ-PM-2`, `SAFE-5`, and `BR-5` require staff to find and treat patients
+  at any branch, including emergency and walk-in care.
+- Patient registration and appointment creation derive branch ownership from
+  the authenticated Receptionist instead of trusting request-body branch IDs.
+- A patient may be registered at one branch and receive an appointment at
+  another. The appointment branch must match the selected doctor's branch;
+  the patient's registered branch does not need to match.
+- Receptionist writes to patient demographics, phones, guardians, and
+  insurance require the patient to belong to the Receptionist's branch.
+- Doctors may list, view, complete, and edit treatments or notes only for
+  appointments assigned to themselves.
+- Receptionist billing writes are restricted to the related appointment or
+  invoice branch. Admin is not implicitly added to R-only or D-only routes.
+
 ---
 
 ## 0. Authentication

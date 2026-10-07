@@ -54,9 +54,22 @@ async def _require_patient(
     )
     if branch_id is None:
         raise HTTPException(status_code=404, detail="Patient not found")
-    if user and user.role == "Branch Manager" and (
-        user.branch_id is None or branch_id != user.branch_id
-    ):
+
+
+async def _require_patient_write(
+    conn: PoolConnectionProxy, patient_id: int, user: UserIdentity
+) -> None:
+    if user.branch_id is None:
+        raise HTTPException(
+            status_code=403, detail="Receptionist is not assigned to a branch"
+        )
+    branch_id = await conn.fetchval(
+        "SELECT registered_branch_id FROM patient WHERE patient_id = $1",
+        patient_id,
+    )
+    if branch_id is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if branch_id != user.branch_id:
         raise HTTPException(status_code=403, detail="Patient is outside your branch")
 
 
@@ -68,15 +81,9 @@ async def list_patients(
     search: str | None = Query(default=None, max_length=100),
     branch_id: int | None = Query(default=None, ge=1),
 ) -> dict:
-    if user.role == "Branch Manager":
-        if user.branch_id is None:
-            raise HTTPException(status_code=403, detail="Branch Manager is not assigned to a branch")
-        if branch_id is not None and branch_id != user.branch_id:
-            raise HTTPException(status_code=403, detail="Branch Manager can only list patients from their branch")
-        branch_id = user.branch_id
     items, total = await service.list_patients(
         conn,
-        search.strip() if search and search.strip() else None,
+        search.strip() if isinstance(search, str) and search.strip() else None,
         branch_id,
         paging["offset"],
         paging["limit"],
@@ -89,8 +96,15 @@ async def create_patient(
     body: PatientCreate,
     user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
 ) -> Any:
+    fields = body.model_dump()
+    if user.branch_id is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Authenticated user is not assigned to a branch",
+        )
+    fields["registered_branch_id"] = user.branch_id
     try:
-        patient = await service.create_patient(body.model_dump(), user.staff_id)
+        patient = await service.create_patient(fields, user.staff_id)
     except service.DuplicatePatientNIC as error:
         return _duplicate_nic(error.patient_id)
     return _success(patient)
@@ -113,11 +127,16 @@ async def get_patient(
 async def patch_patient(
     patient_id: int,
     body: PatientUpdate,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
     user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
 ) -> Any:
+    await _require_patient_write(conn, patient_id, user)
     try:
         patient = await service.update_patient(
-            patient_id, body.model_dump(exclude_unset=True), user.staff_id
+            patient_id,
+            body.model_dump(exclude_unset=True),
+            user.staff_id,
+            branch_id=user.branch_id,
         )
     except service.DuplicatePatientNIC as error:
         return _duplicate_nic(error.patient_id)
@@ -149,8 +168,9 @@ async def add_patient_phone(
     patient_id: int,
     body: PhoneCreate,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
+    user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
 ) -> dict:
+    await _require_patient_write(conn, patient_id, user)
     phone = await service.add_patient_phone(conn, patient_id, body.model_dump())
     if phone is None:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -162,8 +182,9 @@ async def delete_patient_phone(
     patient_id: int,
     phone_id: int,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
+    user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
 ) -> dict:
+    await _require_patient_write(conn, patient_id, user)
     removed = await service.remove_patient_phone(conn, patient_id, phone_id)
     if not removed:
         raise HTTPException(status_code=404, detail="Patient phone not found")
@@ -192,8 +213,9 @@ async def link_guardian(
     patient_id: int,
     body: PatientGuardianLink,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
+    user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
 ) -> dict:
+    await _require_patient_write(conn, patient_id, user)
     link = await service.link_patient_guardian(
         conn, patient_id, body.model_dump(exclude_none=True)
     )
@@ -212,8 +234,9 @@ async def unlink_guardian(
     patient_id: int,
     guardian_id: int,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
+    user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
 ) -> dict:
+    await _require_patient_write(conn, patient_id, user)
     removed = await service.unlink_patient_guardian(conn, patient_id, guardian_id)
     if not removed:
         raise HTTPException(status_code=404, detail="Patient guardian link not found")
@@ -242,8 +265,9 @@ async def add_patient_insurance(
     patient_id: int,
     body: InsuranceCreate,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
+    user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
 ) -> dict:
+    await _require_patient_write(conn, patient_id, user)
     policy = await service.add_patient_insurance(
         conn, patient_id, body.model_dump()
     )
@@ -258,8 +282,9 @@ async def patch_patient_insurance(
     policy_id: str,
     body: InsuranceUpdate,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
+    user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
 ) -> dict:
+    await _require_patient_write(conn, patient_id, user)
     policy = await service.update_patient_insurance(
         conn, patient_id, policy_id, body.model_dump(exclude_unset=True)
     )

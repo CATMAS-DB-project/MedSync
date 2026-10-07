@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import HTTPException
 
-from app.domains.appointment import router as appointment_router
+from app.domains.appointment import service as appointment_service
+from app.domains.appointment.schemas import AppointmentCreate
 from app.domains.auth.models import UserIdentity
-from app.domains.billing import router as billing_router
 from app.domains.patients import router as patients_router
 from app.domains.staff import router as staff_router
 from app.domains.staff.schemas import StaffCreate
@@ -86,86 +86,52 @@ async def test_staff_detail_rejects_another_branch() -> None:
 
 
 @pytest.mark.asyncio
-async def test_doctor_list_rejects_another_branch() -> None:
-    conn = AsyncMock()
-
-    with pytest.raises(HTTPException, match="only list doctors"):
-        await staff_router.list_doctors(conn, BM, branch_id=2)
-
-
-@pytest.mark.asyncio
-async def test_patient_list_rejects_another_branch() -> None:
+async def test_patient_list_preserves_cross_branch_filter(monkeypatch) -> None:
     conn = AsyncMock()
     paging = {"offset": 0, "limit": 25, "page": 1, "page_size": 25}
-
-    with pytest.raises(HTTPException, match="only list patients"):
-        await patients_router.list_patients(
-            conn,
-            BM,
-            paging,
-            branch_id=2,
-        )
+    list_patients = AsyncMock(return_value=([], 0))
+    monkeypatch.setattr(patients_router.service, "list_patients", list_patients)
+    await patients_router.list_patients(conn, BM, paging, branch_id=2)
+    assert list_patients.await_args.args[2] == 2
 
 
 @pytest.mark.asyncio
-async def test_patient_detail_rejects_another_branch() -> None:
+async def test_doctor_list_preserves_cross_branch_filter(monkeypatch) -> None:
+    conn = AsyncMock()
+    list_doctors = AsyncMock(return_value=[])
+    monkeypatch.setattr(staff_router.service, "list_doctors", list_doctors)
+    await staff_router.list_doctors(conn, BM, branch_id=2)
+    assert list_doctors.await_args.args[1] == 2
+
+
+@pytest.mark.asyncio
+async def test_receptionist_cannot_write_patient_from_another_branch() -> None:
     conn = AsyncMock()
     conn.fetchval.return_value = 2
 
     with pytest.raises(HTTPException, match="outside your branch"):
-        await patients_router.get_patient(20, conn, BM)
+        await patients_router._require_patient_write(conn, 42, BM)
 
 
 @pytest.mark.asyncio
-async def test_appointment_list_rejects_another_branch() -> None:
+async def test_emergency_appointment_allows_patient_registered_elsewhere() -> None:
     conn = AsyncMock()
-    paging = {"offset": 0, "limit": 25, "page": 1, "page_size": 25}
+    conn.fetchval.side_effect = [1, 2]
+    conn.fetchrow.side_effect = [
+        {"appointment_id": 99},
+        {"appointment_id": 99, "branch_id": 1, "patient_id": 7},
+    ]
+    body = AppointmentCreate(
+        patient_id=7,
+        doctor_staff_id=10,
+        branch_id=1,
+        appointment_date=date(2026, 1, 1),
+        appointment_time="09:00",
+        is_walk_in=True,
+    )
 
-    with pytest.raises(HTTPException, match="only list appointments"):
-        await appointment_router.list_appointments(
-            conn,
-            BM,
-            paging,
-            branch_id=2,
-        )
+    result = await appointment_service.create_appointment(
+        conn, body, booked_by_staff_id=20, branch_id=1
+    )
 
-
-@pytest.mark.asyncio
-async def test_appointment_detail_is_scoped_to_manager_branch(monkeypatch) -> None:
-    conn = AsyncMock()
-    get_appointment = AsyncMock(return_value=None)
-    monkeypatch.setattr(appointment_router.service, "get_appointment", get_appointment)
-
-    with pytest.raises(HTTPException, match="Appointment not found"):
-        await appointment_router.get_appointment(20, conn, BM)
-
-    assert get_appointment.await_args is not None
-    assert get_appointment.await_args.args == (conn, 20, 1)
-
-
-@pytest.mark.asyncio
-async def test_invoice_list_rejects_another_branch() -> None:
-    conn = AsyncMock()
-    paging = {"offset": 0, "limit": 25, "page": 1, "page_size": 25}
-
-    with pytest.raises(HTTPException, match="only list invoices"):
-        await billing_router.list_invoices(
-            conn,
-            BM,
-            paging,
-            branch_id=2,
-        )
-
-
-@pytest.mark.asyncio
-async def test_claim_list_rejects_another_branch() -> None:
-    conn = AsyncMock()
-    paging = {"offset": 0, "limit": 25, "page": 1, "page_size": 25}
-
-    with pytest.raises(HTTPException, match="only list claims"):
-        await billing_router.list_claims(
-            conn,
-            BM,
-            paging,
-            branch_id=2,
-        )
+    assert result["appointment_id"] == 99

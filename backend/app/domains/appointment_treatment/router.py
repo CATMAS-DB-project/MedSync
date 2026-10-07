@@ -20,11 +20,13 @@ router = APIRouter(tags=["appointment-treatments"])
 async def list_appointment_treatments(
     appointment_id: int,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[
+    user: Annotated[
         UserIdentity, Depends(require_role("Doctor", "Receptionist"))
     ],
 ) -> dict:
-    data = await service.list_treatments(conn, appointment_id)
+    data = await service.list_treatments(
+        conn, appointment_id, user.staff_id if user.role == "Doctor" else None
+    )
     if data is None:
         raise HTTPException(status_code=404, detail="Appointment not found")
     return {"data": data, "error": None}
@@ -40,7 +42,9 @@ async def create_appointment_treatment(
     user: Annotated[UserIdentity, Depends(require_role("Doctor"))],
 ) -> dict:
     async with with_transaction(staff_id=user.staff_id) as conn:
-        data = await service.create_treatment(conn, appointment_id, body)
+        data = await service.create_treatment(
+            conn, appointment_id, body, doctor_id=user.staff_id
+        )
         if data is None:
             raise HTTPException(
                 status_code=404,
@@ -60,7 +64,7 @@ async def amend_appointment_treatment(
 ) -> dict:
     async with with_transaction(staff_id=user.staff_id) as conn:
         data = await service.amend_treatment(
-            conn, appointment_treatment_id, body
+            conn, appointment_treatment_id, body, doctor_id=user.staff_id
         )
         if data is None:
             raise HTTPException(
@@ -77,7 +81,9 @@ async def update_appointment_notes(
     user: Annotated[UserIdentity, Depends(require_role("Doctor"))],
 ) -> dict:
     async with with_transaction(staff_id=user.staff_id) as conn:
-        data = await service.update_notes(conn, appointment_id, body)
+        data = await service.update_notes(
+            conn, appointment_id, body, doctor_id=user.staff_id
+        )
         if data is None:
             raise HTTPException(status_code=404, detail="Appointment not found")
     return {"data": data, "error": None}

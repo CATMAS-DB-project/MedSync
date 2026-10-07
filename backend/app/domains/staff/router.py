@@ -247,12 +247,6 @@ async def list_doctors(
     branch_id: int | None = Query(None, gt=0),
     specialty_id: int | None = Query(None, gt=0),
 ) -> dict:
-    if user.role == "Branch Manager":
-        if user.branch_id is None:
-            raise HTTPException(status_code=403, detail="Branch Manager is not assigned to a branch")
-        if branch_id is not None and branch_id != user.branch_id:
-            raise HTTPException(status_code=403, detail="Branch Manager can only list doctors from their branch")
-        branch_id = user.branch_id
     data = await service.list_doctors(conn, branch_id, specialty_id)
     return {"data": data, "error": None}
 

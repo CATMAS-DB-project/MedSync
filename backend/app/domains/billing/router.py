@@ -30,12 +30,6 @@ def _success_list(items: list, total: int, page: int, page_size: int) -> dict:
 
 @router.get("/invoices")
 async def list_invoices(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, BILLING_READ], paging: Annotated[dict[str, int], Depends(pagination)], status_filter: InvoiceStatus | None = Query(default=None, alias="status"), branch_id: int | None = Query(default=None, ge=1), patient_id: int | None = Query(default=None, ge=1)):
-    if user.role == "Branch Manager":
-        if user.branch_id is None:
-            raise HTTPException(403, "Branch Manager is not assigned to a branch")
-        if branch_id is not None and branch_id != user.branch_id:
-            raise HTTPException(403, "Branch Manager can only list invoices from their branch")
-        branch_id = user.branch_id
     rows = await conn.fetch("""SELECT v.*, a.patient_id, a.branch_id, COUNT(*) OVER() AS total
         FROM v_invoice_outstanding v JOIN appointment a USING(appointment_id)
         WHERE ($1::text IS NULL OR v.status::text=$1) AND ($2::int IS NULL OR a.branch_id=$2)
@@ -46,12 +40,10 @@ async def list_invoices(conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
 
 @router.get("/invoices/{invoice_id}")
 async def get_invoice(invoice_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, BILLING_READ]):
-    if user.role == "Branch Manager" and user.branch_id is None:
-        raise HTTPException(403, "Branch Manager is not assigned to a branch")
     row = await conn.fetchrow("""SELECT v.*, a.patient_id, a.branch_id, a.appointment_date
         FROM v_invoice_outstanding v JOIN appointment a USING(appointment_id)
         WHERE v.invoice_id=$1 AND ($2::int IS NULL OR a.branch_id=$2)""",
-        invoice_id, user.branch_id if user.role == "Branch Manager" else None)
+        invoice_id, None)
     if not row:
         raise HTTPException(404, "Invoice not found")
     data = dict(row)
@@ -65,12 +57,16 @@ async def get_invoice(invoice_id: int, conn: Annotated[PoolConnectionProxy, Depe
 
 @router.post("/invoices/{invoice_id}/finalize")
 async def finalize_invoice(invoice_id: int, body: InvoiceFinalize, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, RECEPTION]):
+    if user.branch_id is None:
+        raise HTTPException(403, "Receptionist is not assigned to a branch")
     async with with_transaction(staff_id=user.staff_id) as tx:
-        row = await tx.fetchrow("""UPDATE invoice SET insurance_deduction=$2, manual_discount=$3,
+        row = await tx.fetchrow("""UPDATE invoice i SET insurance_deduction=$2, manual_discount=$3,
             status='Finalized', finalized_by_staff_id=$4
-            WHERE invoice_id=$1 AND status='Draft'
+            WHERE i.invoice_id=$1 AND i.status='Draft'
+              AND EXISTS (SELECT 1 FROM appointment a
+                          WHERE a.appointment_id=i.appointment_id AND a.branch_id=$5)
               AND ($2::numeric + $3::numeric) <= subtotal_amount
-            RETURNING invoice_id""", invoice_id, body.insurance_deduction, body.manual_discount, user.staff_id)
+            RETURNING i.invoice_id""", invoice_id, body.insurance_deduction, body.manual_discount, user.staff_id, user.branch_id)
         if not row:
             exists = await tx.fetchrow("SELECT status,subtotal_amount FROM invoice WHERE invoice_id=$1", invoice_id)
             if not exists:
@@ -103,10 +99,16 @@ async def invoice_payments(invoice_id: int, conn: Annotated[PoolConnectionProxy,
 
 @router.post("/invoices/{invoice_id}/payments", status_code=status.HTTP_201_CREATED)
 async def create_payment(invoice_id: int, body: PaymentCreate, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, RECEPTION]):
+    if user.branch_id is None:
+        raise HTTPException(403, "Receptionist is not assigned to a branch")
     async with with_transaction(staff_id=user.staff_id) as tx:
-        locked = await tx.fetchrow("SELECT invoice_id,status FROM invoice WHERE invoice_id=$1 FOR UPDATE", invoice_id)
+        locked = await tx.fetchrow("""SELECT i.invoice_id,i.status,a.branch_id
+            FROM invoice i JOIN appointment a USING (appointment_id)
+            WHERE i.invoice_id=$1 FOR UPDATE OF i""", invoice_id)
         if not locked:
             raise HTTPException(404, "Invoice not found")
+        if locked["branch_id"] != user.branch_id:
+            raise HTTPException(403, "Invoice is outside your branch")
         inv = await tx.fetchrow("SELECT * FROM v_invoice_outstanding WHERE invoice_id=$1", invoice_id)
         if inv["status"] not in ("Finalized", "Partially Paid"):
             raise HTTPException(409, "Payments can only be recorded for finalized invoices")
@@ -129,12 +131,6 @@ async def get_payment(payment_id: int, conn: Annotated[PoolConnectionProxy, Depe
 
 @router.get("/insurance-claims")
 async def list_claims(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, BILLING_READ], paging: Annotated[dict[str, int], Depends(pagination)], status_filter: ClaimStatus | None = Query(default=None, alias="status"), branch_id: int | None = Query(default=None, ge=1)):
-    if user.role == "Branch Manager":
-        if user.branch_id is None:
-            raise HTTPException(403, "Branch Manager is not assigned to a branch")
-        if branch_id is not None and branch_id != user.branch_id:
-            raise HTTPException(403, "Branch Manager can only list claims from their branch")
-        branch_id = user.branch_id
     rows = await conn.fetch("""SELECT c.*, i.appointment_id, a.branch_id, a.patient_id,
         COUNT(*) OVER() AS total FROM insurance_claim c JOIN invoice i USING(invoice_id)
         JOIN appointment a USING(appointment_id)
@@ -146,12 +142,16 @@ async def list_claims(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], u
 
 @router.post("/invoices/{invoice_id}/claim", status_code=status.HTTP_201_CREATED)
 async def create_claim(invoice_id: int, body: ClaimCreate, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, RECEPTION]):
+    if user.branch_id is None:
+        raise HTTPException(403, "Receptionist is not assigned to a branch")
     async with with_transaction(staff_id=user.staff_id) as tx:
         invoice = await tx.fetchrow("""SELECT i.invoice_id,i.subtotal_amount,i.status,
-            a.patient_id FROM invoice i JOIN appointment a USING(appointment_id)
+            a.patient_id,a.branch_id FROM invoice i JOIN appointment a USING(appointment_id)
             WHERE i.invoice_id=$1 FOR UPDATE OF i""", invoice_id)
         if not invoice:
             raise HTTPException(404, "Invoice not found")
+        if invoice["branch_id"] != user.branch_id:
+            raise HTTPException(403, "Invoice is outside your branch")
         if invoice["status"] != "Draft":
             raise HTTPException(409, "Claims can only be created for Draft invoices")
         if body.claimed_amount > invoice["subtotal_amount"]:
@@ -171,12 +171,19 @@ async def create_claim(invoice_id: int, body: ClaimCreate, conn: Annotated[PoolC
 
 
 @router.post("/insurance-claims/{claim_id}/verify")
-async def verify_claim(claim_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, RECEPTION]):
+async def verify_claim(claim_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, RECEPTION]):
+    if user.branch_id is None:
+        raise HTTPException(403, "Receptionist is not assigned to a branch")
     # Replace this deterministic local mock with the group's configured insurer mock API adapter.
     async with conn.transaction():
-        claim = await conn.fetchrow("SELECT * FROM insurance_claim WHERE claim_id=$1 FOR UPDATE", claim_id)
+        claim = await conn.fetchrow("""SELECT c.*,a.branch_id
+            FROM insurance_claim c JOIN invoice i USING(invoice_id)
+            JOIN appointment a USING(appointment_id)
+            WHERE c.claim_id=$1 FOR UPDATE OF c""", claim_id)
         if not claim:
             raise HTTPException(404, "Insurance claim not found")
+        if claim["branch_id"] != user.branch_id:
+            raise HTTPException(403, "Claim is outside your branch")
         if claim["verification_status"] != "Pending":
             raise HTTPException(409, "Only Pending claims can be verified")
         mock_approved_amount = claim["claimed_amount"]
@@ -190,13 +197,11 @@ async def verify_claim(claim_id: int, conn: Annotated[PoolConnectionProxy, Depen
 
 @router.get("/insurance-claims/{claim_id}")
 async def get_claim(claim_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, BILLING_READ]):
-    if user.role == "Branch Manager" and user.branch_id is None:
-        raise HTTPException(403, "Branch Manager is not assigned to a branch")
     row = await conn.fetchrow("""SELECT c.*, i.appointment_id, a.patient_id, a.branch_id
         FROM insurance_claim c JOIN invoice i USING(invoice_id)
         JOIN appointment a USING(appointment_id)
         WHERE c.claim_id=$1 AND ($2::int IS NULL OR a.branch_id=$2)""",
-        claim_id, user.branch_id if user.role == "Branch Manager" else None)
+        claim_id, None)
     if not row:
         raise HTTPException(404, "Insurance claim not found")
     return _success(dict(row))

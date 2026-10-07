@@ -1,6 +1,7 @@
+import json
+
 from asyncpg.exceptions import UniqueViolationError
 from asyncpg.pool import PoolConnectionProxy
-import json
 
 from app.core.db import get_pool, with_transaction
 
@@ -153,7 +154,7 @@ async def create_patient(fields: dict, staff_id: int) -> dict:
 
 
 async def update_patient(
-    patient_id: int, fields: dict, staff_id: int
+    patient_id: int, fields: dict, staff_id: int, branch_id: int | None = None
 ) -> dict | None:
     allowed_columns = {
         "nic_passport_no": "nic_passport_no",
@@ -186,10 +187,15 @@ async def update_patient(
             row = await conn.fetchrow(
                 "UPDATE patient SET " + ", ".join(assignments)
                 + f" WHERE patient_id = ${len(values)}"
+                + (
+                    f" AND registered_branch_id = ${len(values) + 1}"
+                    if branch_id is not None
+                    else ""
+                )
                 + " RETURNING patient_id, nic_passport_no, first_name, last_name,"
                 + " date_of_birth, gender::text AS gender, address,"
                 + " registered_branch_id, created_at",
-                *values,
+                *(values + ([branch_id] if branch_id is not None else [])),
             )
         return dict(row) if row else None
     except DuplicatePatientNIC:
