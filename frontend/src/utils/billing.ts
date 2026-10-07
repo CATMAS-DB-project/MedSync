@@ -1,11 +1,9 @@
 import type { Invoice, Payment } from '../types';
 
-/** Matches: subtotal_amount - insurance_deduction - manual_discount. */
 export function calculatePayableAmount(invoice: Invoice): number {
   return invoice.subtotalAmount - invoice.insuranceDeduction - invoice.manualDiscount;
 }
 
-/** Matches the outstanding-balance query: payable - SUM(payment.amount_paid). */
 export function calculateOutstandingBalance(invoice: Invoice, payments: Payment[]): number {
   const totalPaid = payments
     .filter((payment) => payment.invoiceId === invoice.invoiceId)

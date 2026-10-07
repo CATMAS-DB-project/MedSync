@@ -12,7 +12,6 @@ export interface AuthUser {
   branchId: number;
 }
 
-/** POST /auth/login and POST /auth/refresh (same shape for both). */
 export interface LoginResponse {
   accessToken: string;
   tokenType: string;

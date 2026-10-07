@@ -36,7 +36,6 @@ function isEnvelope(body: unknown): body is ApiEnvelope<unknown> {
   );
 }
 
-/** Login and refresh must never trigger the "refresh and retry" logic. */
 function isAuthBootstrapUrl(url: string | undefined): boolean {
   return !!url && (url.includes('/auth/login') || url.includes('/auth/refresh'));
 }
@@ -45,16 +44,12 @@ function toApiError(error: AxiosError<unknown>): ApiError {
   const status = error.response?.status ?? 0;
   const body = error.response?.data;
 
-  // Normal backend error: { data: null, error: { code, message, ...extras } }
   if (isEnvelope(body) && body.error) {
     const { code, message, ...extras } = body.error;
-    // Extras (e.g. patient_id on the duplicate-NIC 409) come through the
-    // error path, so they are not camelCased yet.
     const details = transformResponsePayload(extras) as ApiErrorDetails;
     return new ApiError(message, code, status, details);
   }
 
-  // No usable body: backend down, proxy error, timeout, etc.
   if (status === 0) {
     return new ApiError('Cannot reach the server. Check your connection.', 'NETWORK_ERROR', 0);
   }
@@ -102,7 +97,6 @@ apiClient.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
 
-  // camelCase -> snake_case for the backend.
   if (config.data) {
     config.data = transformRequestPayload(config.data);
   }
@@ -121,7 +115,6 @@ apiClient.interceptors.response.use(
   (response) => {
     const body: unknown = response.data;
 
-    // 204 No Content (e.g. logout): nothing to parse.
     if (response.status === 204 || body === '' || body === undefined) {
       response.data = null;
       return response;
@@ -131,17 +124,14 @@ apiClient.interceptors.response.use(
       if (body.error) {
         throw new ApiError(body.error.message, body.error.code, response.status);
       }
-      // snake_case -> camelCase for the app.
       response.data = transformResponsePayload(body.data);
       return response;
     }
 
-    // Plain JSON (auth endpoints).
     response.data = transformResponsePayload(body);
     return response;
   },
   async (error: AxiosError<unknown>) => {
-    // Already converted by the success handler above.
     if (error instanceof ApiError) {
       throw error;
     }

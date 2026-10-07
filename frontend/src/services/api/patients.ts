@@ -4,7 +4,6 @@ import type { PatientRaw } from './mappers';
 import type { Gender, PagedResult, Patient } from '../../types';
 
 export interface PatientListParams {
-  /** Matches name, NIC/passport number or phone number, across all branches. */
   search?: string;
   branchId?: number;
   page?: number;

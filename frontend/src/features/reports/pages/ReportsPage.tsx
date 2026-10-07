@@ -60,7 +60,6 @@ export function ReportsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Appointment Volume */}
         <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-5 col-span-1 lg:col-span-2 flex flex-col gap-4">
           <div className="flex justify-between items-center border-b border-outline-variant pb-2">
             <h2 className="text-headline-sm text-on-surface">Appointment Volume</h2>
@@ -98,7 +97,6 @@ export function ReportsPage() {
           </div>
         </div>
 
-        {/* Aging Balances */}
         <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-5 flex flex-col gap-4">
           <div className="flex justify-between items-center border-b border-outline-variant pb-2">
             <h2 className="text-headline-sm text-on-surface">Aging Balances</h2>
@@ -121,7 +119,6 @@ export function ReportsPage() {
           </div>
         </div>
 
-        {/* Revenue by Provider */}
         <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-5 col-span-1 lg:col-span-3 flex flex-col gap-4">
           <div className="flex justify-between items-center border-b border-outline-variant pb-2">
             <h2 className="text-headline-sm text-on-surface">Revenue by Provider</h2>

@@ -58,13 +58,11 @@ function toGuardian(raw: GuardianRaw): Guardian {
   };
 }
 
-/** An empty string would fail backend validation; treat it as "not provided". */
 function blankToUndefined(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
 }
 
-/** For updates: an empty string means "clear the value". */
 function blankToNull(value: string | null | undefined): string | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
@@ -75,7 +73,6 @@ function blankToNull(value: string | null | undefined): string | null | undefine
 const NIC_TAKEN_MESSAGE =
   'A guardian with this NIC already exists. Search for them and link the existing guardian instead.';
 
-/** GET /guardians - Receptionist only. */
 export async function fetchGuardians(params?: GuardianListParams): Promise<PagedResult<Guardian>> {
   const queryParams: Record<string, unknown> = {};
 

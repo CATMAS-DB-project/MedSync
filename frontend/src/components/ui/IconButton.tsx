@@ -7,7 +7,6 @@ export type IconButtonVariant = 'ghost' | 'filled' | 'danger';
 export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   icon: string;
   variant?: IconButtonVariant;
-  /** Accessible label; required since the button has no visible text. */
   'aria-label': string;
   size?: number;
 }

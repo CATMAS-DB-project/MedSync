@@ -6,7 +6,6 @@ export type BadgeTone = 'primary' | 'success' | 'warning' | 'error' | 'neutral' 
 export interface BadgeProps {
   children: ReactNode;
   tone?: BadgeTone;
-  /** Fully rounded pill shape instead of the default 4px radius. */
   pill?: boolean;
   className?: string;
 }

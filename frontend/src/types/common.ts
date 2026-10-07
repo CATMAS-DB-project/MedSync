@@ -19,7 +19,6 @@ export interface Branch {
   branchName: string;
   address: string;
   contactNumber?: string;
-  /** FK to user_account.staff_id, nullable. */
   managerStaffId?: number;
 }
 
@@ -30,6 +29,7 @@ export interface Specialty {
 
 export interface CurrentUser {
   staffId: number;
+  username?: string;
   firstName: string;
   lastName: string;
   role: Role;

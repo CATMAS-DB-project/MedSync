@@ -1,7 +1,6 @@
 import { apiGet, apiPost, setAccessToken } from './client';
 import type { AuthUser, CurrentUser, LoginCredentials, LoginResponse, Staff } from '../../types';
 
-/** POST /auth/login - stores the returned access token in memory. */
 export async function login(credentials: LoginCredentials): Promise<LoginResponse> {
   const result = await apiPost<LoginResponse>('/auth/login', credentials);
   setAccessToken(result.accessToken);
@@ -35,6 +34,7 @@ export async function fetchCurrentUser(): Promise<CurrentUser> {
 
   return {
     staffId: me.staffId,
+    username: me.username,
     firstName,
     lastName,
     role: me.role,
