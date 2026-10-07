@@ -8,6 +8,18 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class StaffProfile(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    staff_id: int
+    first_name: str
+    last_name: str
+    job_title: str
+    email: str | None = None
+    branch_id: int | None = None
+    branch_name: str | None = None
+
+
 class UserIdentity(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -15,6 +27,16 @@ class UserIdentity(BaseModel):
     username: str
     role: str | None = None
     branch_id: int | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    job_title: str | None = None
+    email: str | None = None
+    branch_name: str | None = None
+    staff: StaffProfile | None = None
+
+
+class UserProfile(UserIdentity):
+    pass
 
 
 class LoginResponse(BaseModel):
