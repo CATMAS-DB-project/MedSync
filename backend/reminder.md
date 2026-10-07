@@ -1,168 +1,146 @@
-# Authentication Integration Reminder
+# CATMS Backend & API Integration Reminder
 
-## Current Status
+## 1. Overview & Current Status
 
-The frontend login handler is implemented and the request reaches the backend successfully. The remaining problem is an API contract mismatch between the frontend and backend authentication code.
+A complete backend scan was conducted against the specification in [`app/domains/CATMS_API_Endpoints.md`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/CATMS_API_Endpoints.md).
 
-## Main Mismatch
+### Completed Fixes
+- [x] **Registered 5 Unmounted Routers in [`app/main.py`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/main.py):**
+  - `branches_router` (`/api/v1/branches`)
+  - `patients_router` (`/api/v1/patients`)
+  - `guardians_router` (`/api/v1/guardians`)
+  - `billing_router` (`/api/v1/invoices`, `/api/v1/payments`, `/api/v1/insurance-claims`)
+  - `audit_router` (`/api/v1/audit-logs`)
+- [x] **Removed Duplicate Router Import in [`app/main.py`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/main.py):**
+  - Removed duplicate `from app.domains.report.router import router as report_router`.
+- [x] **Verified Code Quality:**
+  - Ran `uv run ruff check app/main.py` (0 errors).
+- [x] **Task 4: Update `user_account.last_login` on Login:**
+  - Implemented in [`DatabaseCredentialValidator.authenticate`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/auth/service.py) to atomically execute `UPDATE user_account SET last_login = NOW() WHERE staff_id = $1` in the same transaction as credential verification.
+- [x] **Task 5: Return Linked Staff Record in `GET /auth/me`:**
+  - Added [`StaffProfile`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/auth/models.py) and [`UserProfile`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/auth/models.py).
+  - Updated [`DatabaseCredentialValidator.get_user_profile`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/auth/service.py) and [`GET /auth/me`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/auth/router.py) to query and return linked staff record fields (`first_name`, `last_name`, `job_title`, `email`, `branch_name`, and nested `staff`).
+  - Unit tests added in [`tests/test_auth.py`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/tests/test_auth.py) (all 8 tests passing).
 
-The backend currently returns direct JSON with snake_case fields:
+---
 
-```json
-{
-  "access_token": "...",
-  "token_type": "bearer",
-  "user": {
-    "staff_id": 1,
-    "username": "dev-admin",
-    "role": "Admin",
-    "branch_id": 1
-  }
-}
-```
+## 2. Outstanding Route & Logic TODOs
 
-The frontend currently expects an envelope and camelCase fields:
+### High Priority: Missing Endpoints
 
-```json
-{
-  "data": {
-    "accessToken": "..."
-  },
-  "error": null
-}
-```
+#### [ ] 1. Appointment Reschedule (`PATCH /appointments/{appointment_id}`)
+- **Specification:** Role `Receptionist`. Updates date and time, triggers BR-7 overlap check and records reason.
+- **Database Trigger:** [`trg_appointment_overlap_update`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/supabase/migrations/20260918113917_gayan.sql#L104) is already active in Postgres:
+  - Raises `unique_violation` on time collision.
+  - Raises `check_violation` if appointment is already marked `Completed`.
+- **Action Required:**
+  1. Add `AppointmentReschedule` schema in [`app/domains/appointment/schemas.py`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/appointment/schemas.py) with fields: `appointment_date`, `appointment_time`, `reason`.
+  2. Implement `reschedule_appointment()` in [`app/domains/appointment/service.py`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/appointment/service.py) setting date, time, and `cancel_reschedule_reason`.
+  3. Add `@router.patch("/appointments/{appointment_id}")` in [`app/domains/appointment/router.py`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/appointment/router.py) restricted to `Receptionist`.
 
-Because of this, the frontend does not store the access token correctly after login. The following `/auth/me` request is then sent without valid authentication.
+#### [ ] 2. Appointment Reschedule History (`GET /appointments/{appointment_id}/reschedule-history`)
+- **Specification:** Role `Receptionist, Doctor, Admin`.
+- **Database Note:** Per migration comments ([`20260918113917_gayan.sql:216`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/supabase/migrations/20260918113917_gayan.sql#L216)), the standalone `appointment_reschedule_log` table was removed from the final ERD.
+- **Action Required:**
+  - Either query the centralized `audit_log` table for `table_affected = 'appointment'` and `action_type = 'UPDATE'`, OR return the latest reschedule reason from `appointment.cancel_reschedule_reason`.
 
-## Required Fixes
+---
 
-### 1. Login response
+### Medium Priority: Authentication & Envelope Alignment
 
-Align `frontend/src/services/api/auth.ts` and `frontend/src/types/auth.ts` with the backend response, or change the backend to return the frontend envelope contract.
+#### [ ] 3. Standard Response Envelope on Auth Routes
+- **Specification:** All endpoints should follow `{ "data": ..., "error": null }`.
+- **Current Status:**
+  - `POST /auth/login` returns `LoginResponse` directly without `{ "data": ... }`.
+  - `POST /auth/refresh` returns `LoginResponse` directly without `{ "data": ... }`.
+  - `GET /auth/me` returns `UserIdentity` directly without `{ "data": ... }`.
+  - `POST /auth/logout` returns `204 No Content` without JSON body.
+- **Action Required:**
+  - Align with frontend expectations in `frontend/src/services/api/auth.ts` or wrap auth endpoints with standard envelope helper `_success(...)`.
 
-The contract must consistently define:
+#### [x] 4. Update `user_account.last_login` on Login
+- **Specification:** *"login updates `user_account.last_login` — do this as part of the same query/transaction that verifies the password hash, not a separate round trip."*
+- **Current Status:** Completed. [`DatabaseCredentialValidator.authenticate`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/auth/service.py) executes `UPDATE user_account SET last_login = NOW() WHERE staff_id = $1` in the same transaction as credential verification.
+- **Action Required:**
+  - Update `user_account.last_login = NOW()` in `authenticate()` after validating password hash.
 
-- `access_token` versus `accessToken`
-- Direct response versus `{ data, error }` envelope
-- Nested `user` object versus flat user fields
+#### [x] 5. Return Linked Staff Record in `GET /auth/me`
+- **Specification:** *"current user's profile + role + linked staff record"*.
+- **Current Status:** Completed. Added [`StaffProfile`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/auth/models.py) and [`UserProfile`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/auth/models.py). [`GET /auth/me`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/auth/router.py) queries and returns staff profile details (`first_name`, `last_name`, `job_title`, `email`, `branch_name`, and nested `staff`).
+- **Action Required:**
+  - Query and return staff profile details (`first_name`, `last_name`, `job_title`, `email`, `branch_name`) in `GET /auth/me`.
 
-### 2. Refresh response
+---
 
-The backend currently returns the same direct response shape as login. The frontend refresh handler expects:
+### Audit Attribution Context (`app.current_staff_id`)
 
-```json
-{
-  "data": {
-    "accessToken": "..."
-  },
-  "error": null
-}
-```
+Database audit triggers ([`trg_audit_patient`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/supabase/migrations/20260918204343_arun.sql#L283), `trg_audit_appointment_treatment`, `trg_audit_invoice`) require session variable `app.current_staff_id` to be populated via `with_transaction(staff_id=...)`.
 
-The refresh response handling must be updated to match the selected contract.
+- [x] Correctly configured:
+  - Patient creations/updates: [`patients/service.py`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/patients/service.py)
+  - Invoice finalization & payments: [`billing/router.py`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/billing/router.py)
+  - Treatments logging & amending: [`appointment_treatment/router.py`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/appointment_treatment/router.py)
+  - Appointment completion: [`appointment/router.py`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/appointment/router.py)
+- [ ] Needs transaction context wrapping:
+  - [ ] `create_branch` and `patch_branch` in [`branches/router.py`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/branches/router.py)
+  - [ ] `create_appointment` and `cancel_appointment` in [`appointment/router.py`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/domains/appointment/router.py)
 
-### 3. `/auth/me` response
+---
 
-The backend currently returns approximately:
+## 3. Frontend-Backend Contract Alignment
 
-```json
-{
-  "staff_id": 1,
-  "username": "dev-admin",
-  "role": "Admin",
-  "branch_id": 1
-}
-```
+Ensure frontend and backend agree on the following conventions:
 
-The frontend currently expects additional fields:
+1. **Token Field Naming:**
+   - Backend returns `access_token` (snake_case).
+   - Frontend API client may expect `accessToken` (camelCase) or `access_token`. Confirm alignment in `frontend/src/types/auth.ts`.
+2. **Cookie Handling:**
+   - Refresh token is stored in an `HttpOnly` cookie (`catms_refresh_token`).
+   - Frontend fetch calls must include `credentials: 'include'`.
+3. **Error Payload Structure:**
+   - Global handler in [`app/core/exceptions.py`](file:///C:/Users/gthar/OneDrive/Documents/Uni_Tutes/Projects/DB/MedSync/backend/app/core/exceptions.py) formats all errors as:
+     ```json
+     {
+       "data": null,
+       "error": {
+         "code": "unique_violation",
+         "message": "..."
+       }
+     }
+     ```
+   - For duplicate patient NIC, response includes structured `patient_id`:
+     ```json
+     {
+       "data": null,
+       "error": {
+         "code": "patient_already_registered",
+         "message": "...",
+         "patient_id": 12
+       }
+     }
+     ```
 
-```json
-{
-  "staff_id": 1,
-  "first_name": "...",
-  "last_name": "...",
-  "role": "Admin",
-  "branch_id": 1,
-  "branch_name": "..."
-}
-```
+---
 
-Either the backend must return the complete profile, or the frontend mapper must accept the smaller current response.
+## 4. Verification & Testing Commands
 
-### 4. Logout response
-
-The backend returns `204 No Content` from `/auth/logout`.
-
-The frontend API client currently always calls `response.json()`. It must handle `204` without trying to parse an empty response body.
-
-### 5. Cookies
-
-The frontend correctly sends:
-
-```ts
-credentials: 'include'
-```
-
-The backend refresh token is stored in an HttpOnly cookie, so this behavior must remain enabled for login, refresh, and logout requests.
-
-### 6. API base URL and proxy
-
-The frontend uses:
-
-```text
-/api/v1
-```
-
-The Vite development proxy forwards `/api` to:
-
-```text
-http://backend:8000
-```
-
-This works inside the Docker development environment. Direct browser calls to `localhost:8000` from the Vite frontend may require CORS configuration in FastAPI.
-
-## Files Involved
-
-- `frontend/src/services/api/auth.ts`
-- `frontend/src/services/api/client.ts`
-- `frontend/src/types/auth.ts`
-- `frontend/src/types/common.ts`
-- `frontend/src/context/AuthContext.tsx`
-- `backend/app/domains/auth/router.py`
-- `backend/app/domains/auth/models.py`
-
-## Recommended Decision
-
-Use one shared API contract across login, refresh, `/auth/me`, errors, and logout.
-
-The current backend uses direct JSON and snake_case. The frontend should either be adapted to that contract or the backend should consistently provide the frontend envelope and camelCase contract. Do not maintain two response formats.
-
-## Manual Verification
-
-Open the frontend login page and use:
-
-```text
-username: dev-admin
-password: password
-```
-
-Then inspect the browser Network tab:
-
-1. `POST /api/v1/auth/login` should return HTTP 200.
-2. The response should contain an access token.
-3. A refresh-token cookie should be set.
-4. `GET /api/v1/auth/me` should include an Authorization header.
-5. `/auth/me` should return the fields expected by the frontend.
-6. `POST /api/v1/auth/refresh` should return a new access token after expiry.
-7. `POST /api/v1/auth/logout` should return HTTP 204 without a JSON parsing error.
-
-## Validation Commands
-
+### Backend Validation
 ```powershell
+# In backend directory
 cd backend
-uv run pytest
+
+# Run Ruff linter
 uv run ruff check .
 
-cd ../frontend
+# Run pytest (requires running PostgreSQL instance)
+uv run pytest
+```
+
+### Frontend Validation
+```powershell
+# In frontend directory
+cd frontend
+
+# Build frontend to check for type and API contract errors
 npm run build
 ```

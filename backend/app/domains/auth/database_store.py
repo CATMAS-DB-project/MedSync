@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 import asyncpg
 
-from app.domains.auth.models import RefreshRecord, UserIdentity
+from app.domains.auth.models import RefreshRecord, StaffProfile, UserIdentity
 
 
 class DatabaseRefreshTokenStore:
@@ -18,6 +18,23 @@ class DatabaseRefreshTokenStore:
 
     @staticmethod
     def _record(row: asyncpg.Record) -> RefreshRecord:
+        first_name = row["first_name"]
+        last_name = row["last_name"]
+        job_title = row["job_title"]
+        branch_name = row["branch_name"]
+        staff_info = (
+            StaffProfile(
+                staff_id=row["staff_id"],
+                first_name=first_name,
+                last_name=last_name,
+                job_title=job_title,
+                email=None,
+                branch_id=row["branch_id"],
+                branch_name=branch_name,
+            )
+            if first_name and last_name and job_title
+            else None
+        )
         return RefreshRecord(
             token_hash=row["token_hash"],
             user=UserIdentity(
@@ -25,6 +42,12 @@ class DatabaseRefreshTokenStore:
                 username=row["username"],
                 role=row["role"],
                 branch_id=row["branch_id"],
+                first_name=first_name,
+                last_name=last_name,
+                job_title=job_title,
+                email=None,
+                branch_name=branch_name,
+                staff=staff_info,
             ),
             expires_at=row["expires_at"],
             family_id=str(row["family_id"]),
@@ -54,11 +77,13 @@ class DatabaseRefreshTokenStore:
                        rt.replaced_by_hash, rt.revoked_at,
                        ua.staff_id, ua.username,
                        r.role_name::text AS role,
-                       s.branch_id
+                       s.branch_id, s.first_name, s.last_name, s.job_title,
+                       b.branch_name
                 FROM refresh_token rt
                 JOIN user_account ua ON ua.staff_id = rt.staff_id
                 JOIN staff s ON s.staff_id = ua.staff_id
                 JOIN role r ON r.role_id = ua.role_id
+                LEFT JOIN branch b ON b.branch_id = s.branch_id
                 WHERE rt.token_hash = $1
                   AND rt.expires_at > NOW()
                 """,
@@ -96,11 +121,13 @@ class DatabaseRefreshTokenStore:
                            rt.replaced_by_hash, rt.revoked_at,
                            ua.staff_id, ua.username,
                            r.role_name::text AS role,
-                           s.branch_id
+                           s.branch_id, s.first_name, s.last_name, s.job_title,
+                           b.branch_name
                     FROM refresh_token rt
                     JOIN user_account ua ON ua.staff_id = rt.staff_id
                     JOIN staff s ON s.staff_id = ua.staff_id
                     JOIN role r ON r.role_id = ua.role_id
+                    LEFT JOIN branch b ON b.branch_id = s.branch_id
                     WHERE rt.token_hash = $1
                     FOR UPDATE OF rt
                     """,
