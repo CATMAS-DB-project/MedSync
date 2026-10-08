@@ -1,8 +1,8 @@
 import { apiGet, apiPatch, apiPost } from './client';
-import type { Branch } from '../../types';
+import type { Branch, PagedResult } from '../../types';
 
-export async function fetchBranches(): Promise<Branch[]> {
-  return apiGet<Branch[]>('/branches');
+export async function fetchBranches(page = 1, pageSize = 25): Promise<PagedResult<Branch>> {
+  return apiGet<PagedResult<Branch>>('/branches', { page, pageSize });
 }
 
 export async function fetchBranchById(branchId: number): Promise<Branch> {

@@ -1,10 +1,11 @@
 import { apiGet } from './client';
+import type { PagedResult } from '../../types';
 
 export interface RoleOption {
-  roleId?: string;
+  roleId?: number;
   roleName: string;
 }
 
-export async function fetchRoles(): Promise<RoleOption[]> {
-  return apiGet<RoleOption[]>('/roles');
+export async function fetchRoles(page = 1, pageSize = 25): Promise<PagedResult<RoleOption>> {
+  return apiGet<PagedResult<RoleOption>>('/roles', { page, pageSize });
 }

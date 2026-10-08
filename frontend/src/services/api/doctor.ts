@@ -1,5 +1,5 @@
 import { apiDelete, apiGet, apiPost } from './client';
-import type { Doctor, PagedResult, Specialty } from '../../types';
+import type { Doctor, Specialty } from '../../types';
 
 export interface DoctorListParams {
   branchId?: number;
@@ -8,7 +8,7 @@ export interface DoctorListParams {
   pageSize?: number;
 }
 
-export async function fetchDoctors(params?: DoctorListParams): Promise<PagedResult<Doctor>> {
+export async function fetchDoctors(params?: DoctorListParams): Promise<Doctor[]> {
   const queryParams: Record<string, unknown> = {};
 
   if (params) {
@@ -19,7 +19,7 @@ export async function fetchDoctors(params?: DoctorListParams): Promise<PagedResu
     });
   }
 
-  return apiGet<PagedResult<Doctor>>('/doctors', queryParams);
+  return apiGet<Doctor[]>('/doctors', queryParams);
 }
 
 export async function fetchDoctorByStaffId(staffId: number): Promise<Doctor> {

@@ -1,8 +1,8 @@
 import { apiGet, apiPatch, apiPost } from './client';
-import type { Specialty } from '../../types';
+import type { Specialty, PagedResult } from '../../types';
 
-export async function fetchSpecialties(): Promise<Specialty[]> {
-  return apiGet<Specialty[]>('/specialties');
+export async function fetchSpecialties(page = 1, pageSize = 25): Promise<PagedResult<Specialty>> {
+  return apiGet<PagedResult<Specialty>>('/specialties', { page, pageSize });
 }
 
 export async function createSpecialty(input: { specialtyName: string }): Promise<Specialty> {
