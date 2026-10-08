@@ -18,6 +18,7 @@ from app.domains.guardians.router import router as guardians_router
 from app.domains.patients.router import router as patients_router
 from app.domains.reference.router import router as reference_router
 from app.domains.report.router import router as report_router
+from app.domains.report_pdf.router import router as report_pdf_router
 from app.domains.staff.router import router as staff_router
 from app.domains.treatment_catalogue.router import (
     router as treatment_catalogue_router,
@@ -54,6 +55,7 @@ app.include_router(appointment_router, prefix="/api/v1")
 app.include_router(appointment_treatment_router, prefix="/api/v1")
 app.include_router(billing_router, prefix="/api/v1")
 app.include_router(report_router, prefix="/api/v1")
+app.include_router(report_pdf_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")
 
 
