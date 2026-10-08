@@ -12,7 +12,9 @@ from app.domains.report import service
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 
-def _effective_branch_id(user: UserIdentity, requested_branch_id: int | None) -> int | None:
+def _effective_branch_id(
+    user: UserIdentity, requested_branch_id: int | None
+) -> int | None:
     if user.role != "Branch Manager":
         return requested_branch_id
     if user.branch_id is None:
@@ -75,16 +77,22 @@ async def doctor_revenue(
 @router.get("/outstanding-balances")
 async def outstanding_balances(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[
+    user: Annotated[
         UserIdentity,
         Depends(require_role("Admin", "Branch Manager", "Receptionist")),
     ],
     branch_id: Annotated[int | None, Query(gt=0)] = None,
+    patient_id: Annotated[int | None, Query(gt=0)] = None,
 ) -> dict:
-    effective_branch_id = branch_id
-    if _user.role == "Branch Manager":
-        effective_branch_id = _effective_branch_id(_user, branch_id)
-    data = await service.outstanding_balances(conn, branch_id=effective_branch_id)
+    if user.role == "Receptionist" and patient_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Receptionists must provide patient_id",
+        )
+    effective_branch_id = _effective_branch_id(user, branch_id)
+    data = await service.outstanding_balances(
+        conn, branch_id=effective_branch_id, patient_id=patient_id
+    )
     return {"data": data, "error": None}
 
 
@@ -92,6 +100,7 @@ async def outstanding_balances(
 async def treatment_frequency(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
     user: Annotated[UserIdentity, Depends(require_role("Admin", "Branch Manager"))],
+    branch_id: Annotated[int | None, Query(gt=0)] = None,
     category: Annotated[str | None, Query(min_length=1, max_length=50)] = None,
     from_date: Annotated[date | None, Query(alias="from")] = None,
     to_date: Annotated[date | None, Query(alias="to")] = None,
@@ -99,7 +108,7 @@ async def treatment_frequency(
     _validate_dates(from_date, to_date)
     data = await service.treatment_frequency(
         conn,
-        branch_id=_effective_branch_id(user, None),
+        branch_id=_effective_branch_id(user, branch_id),
         category=category,
         from_date=from_date,
         to_date=to_date,
