@@ -18,6 +18,6 @@
   },
   "homepage": "https://github.com/CATMAS-DB-project/MedSync#readme",
   "devDependencies": {
-    "supabase": "^2.118.0"
+    "supabase": "^2.120.0"
   }
 }

@@ -12,13 +12,18 @@ export interface AppointmentListParams
   pageSize?: number;
 }
 
+/**
+ * Matches the backend's AppointmentCreate schema.
+ * `bookedByStaffId` is NOT sent: the backend takes it from the logged-in user.
+ * `branchId` IS required by the backend.
+ */
 export interface BookAppointmentInput {
   patientId: number;
   doctorStaffId: number;
-  appointmentDate: string;
-  appointmentTime: string;
+  branchId: number;
+  appointmentDate: string; // YYYY-MM-DD
+  appointmentTime: string; // HH:MM
   isWalkIn?: boolean;
-  bookedByStaffId: number;
 }
 
 export async function fetchAppointments(params?: AppointmentListParams): Promise<PagedResult<Appointment>> {
@@ -33,6 +38,10 @@ export async function bookAppointment(input: BookAppointmentInput): Promise<Appo
   return apiPost<Appointment>('/appointments', input);
 }
 
+/**
+ * NOTE: the backend does not have this route yet (no PATCH /appointments/{id}),
+ * so calling it will fail until the backend adds it.
+ */
 export async function rescheduleAppointment(
   appointmentId: number,
   input: {

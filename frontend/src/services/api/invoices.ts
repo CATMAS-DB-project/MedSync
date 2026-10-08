@@ -1,5 +1,12 @@
 import { apiGet, apiPost } from './client';
-import type { Invoice, InvoiceStatus, PagedResult, Payment } from '../../types';
+import type {
+  Invoice,
+  InvoiceDetail,
+  InvoiceLineItem,
+  InvoiceStatus,
+  PagedResult,
+  Payment,
+} from '../../types';
 
 export interface InvoiceListParams
   extends Record<string, string | number | boolean | undefined> {
@@ -10,12 +17,35 @@ export interface InvoiceListParams
   pageSize?: number;
 }
 
-export async function fetchInvoices(params?: InvoiceListParams): Promise<PagedResult<Invoice>> {
-  return apiGet<PagedResult<Invoice>>('/invoices', params);
+// Money columns can arrive as strings (Postgres numeric); make them numbers.
+function toInvoice<T extends Invoice>(raw: T): T {
+  return {
+    ...raw,
+    subtotalAmount: Number(raw.subtotalAmount),
+    insuranceDeduction: Number(raw.insuranceDeduction),
+    manualDiscount: Number(raw.manualDiscount),
+    payableAmount: raw.payableAmount === undefined ? undefined : Number(raw.payableAmount),
+    amountPaid: raw.amountPaid === undefined ? undefined : Number(raw.amountPaid),
+    outstandingAmount: raw.outstandingAmount === undefined ? undefined : Number(raw.outstandingAmount),
+  };
 }
 
-export async function fetchInvoiceById(invoiceId: number): Promise<Invoice> {
-  return apiGet<Invoice>(`/invoices/${invoiceId}`);
+function toPayment(raw: Payment): Payment {
+  return { ...raw, amountPaid: Number(raw.amountPaid) };
+}
+
+export async function fetchInvoices(params?: InvoiceListParams): Promise<PagedResult<Invoice>> {
+  const result = await apiGet<PagedResult<Invoice>>('/invoices', params);
+  return { ...result, items: result.items.map(toInvoice) };
+}
+
+export async function fetchInvoiceById(invoiceId: number): Promise<InvoiceDetail> {
+  const raw = await apiGet<InvoiceDetail>(`/invoices/${invoiceId}`);
+  const lineItems: InvoiceLineItem[] = (raw.lineItems ?? []).map((item) => ({
+    ...item,
+    priceAtTime: Number(item.priceAtTime),
+  }));
+  return { ...toInvoice(raw), lineItems };
 }
 
 export async function finalizeInvoice(
@@ -25,9 +55,14 @@ export async function finalizeInvoice(
     manualDiscount?: number;
   },
 ): Promise<Invoice> {
-  return apiPost<Invoice>(`/invoices/${invoiceId}/finalize`, input ?? {});
+  const raw = await apiPost<Invoice>(`/invoices/${invoiceId}/finalize`, input ?? {});
+  return toInvoice(raw);
 }
 
+/** The backend returns a paged list here, not a bare array. */
 export async function fetchInvoicePayments(invoiceId: number): Promise<Payment[]> {
-  return apiGet<Payment[]>(`/invoices/${invoiceId}/payments`);
+  const result = await apiGet<PagedResult<Payment>>(`/invoices/${invoiceId}/payments`, {
+    pageSize: 100,
+  });
+  return result.items.map(toPayment);
 }

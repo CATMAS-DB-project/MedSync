@@ -1,5 +1,5 @@
 import { apiGet, apiPatch, apiPost } from './client';
-import type { TreatmentCatalogueItem } from '../../types';
+import type { TreatmentCatalogueItem, PagedResult } from '../../types';
 
 export interface CreateTreatmentInput {
   serviceCode: string;
@@ -8,9 +8,8 @@ export interface CreateTreatmentInput {
   category: string;
 }
 
-export async function fetchTreatments(category?: string): Promise<TreatmentCatalogueItem[]> {
-  const params = category ? { category } : undefined;
-  return apiGet<TreatmentCatalogueItem[]>('/treatments', params);
+export async function fetchTreatments(category?: string, page = 1, pageSize = 25): Promise<PagedResult<TreatmentCatalogueItem>> {
+  return apiGet<PagedResult<TreatmentCatalogueItem>>('/treatments', { category, page, pageSize });
 }
 
 export async function fetchTreatmentByCode(serviceCode: string): Promise<TreatmentCatalogueItem> {
