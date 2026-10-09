@@ -210,9 +210,9 @@ export function PatientRegistrationDrawer({
       }
     >
       {registered && (
-        <div className="rounded border border-tertiary/40 bg-tertiary/10 p-3 text-body-sm text-on-surface">
+        <div className="rounded-xl border border-tertiary/30 bg-tertiary/10 p-4 text-body-sm text-on-surface">
           <p className="font-medium">Patient registered, but some details were not saved:</p>
-          <ul className="list-disc pl-5 mt-1">
+          <ul className="mt-2 list-disc space-y-1 pl-5">
             {failures.map((failure) => (
               <li key={failure.step + failure.message}>{failure.message}</li>
             ))}
@@ -226,12 +226,12 @@ export function PatientRegistrationDrawer({
       {!registered && (
         <form id="patient-registration-form" onSubmit={handleSubmit} noValidate className="contents">
           {submitError && (
-            <div className="rounded border border-error/40 bg-error/10 p-3 text-body-sm text-error">
+            <div role="alert" className="rounded-xl border border-error/30 bg-error-container/50 p-4 text-body-sm text-on-error-container">
               <p>{submitError}</p>
               {existingPatientId !== null && (
                 <button
                   type="button"
-                  className="mt-1 underline font-medium"
+                  className="mt-2 font-semibold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error"
                   onClick={() => onViewExisting(existingPatientId)}
                 >
                   View existing patient profile

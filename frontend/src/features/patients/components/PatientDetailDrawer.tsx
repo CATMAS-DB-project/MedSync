@@ -52,14 +52,20 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
       }
     >
       {isLoading && !patient && (
-        <p className="text-body-sm text-on-surface-variant">Loading patient…</p>
+        <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 text-body-sm text-on-surface-variant">
+          Loading patient details…
+        </div>
       )}
-      {error && <p className="text-body-sm text-error">{error}</p>}
+      {error && (
+        <p role="alert" className="rounded-xl border border-error/30 bg-error-container/50 p-4 text-body-sm text-on-error-container">
+          {error}
+        </p>
+      )}
 
       {patient && (
         <>
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-headline-sm font-bold shrink-0">
+          <div className="flex items-center gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary-fixed text-headline-sm font-bold text-primary">
               {getInitials(fullName)}
             </div>
             <div>
@@ -72,16 +78,16 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
 
           <DrawerSection title="Demographics" icon="badge">
             <div className="grid grid-cols-2 gap-4 text-body-sm">
-              <div>
-                <div className="text-on-surface-variant text-label-md">Date of Birth</div>
+              <div className="rounded-lg bg-surface-container-low p-3">
+                <div className="text-label-md text-on-surface-variant">Date of Birth</div>
                 <div className="text-on-surface">{formatDate(patient.dateOfBirth)}</div>
               </div>
-              <div>
-                <div className="text-on-surface-variant text-label-md">Registered Branch</div>
+              <div className="rounded-lg bg-surface-container-low p-3">
+                <div className="text-label-md text-on-surface-variant">Registered Branch</div>
                 <div className="text-on-surface">{patient.registeredBranchName ?? '—'}</div>
               </div>
-              <div>
-                <div className="text-on-surface-variant text-label-md">Registered On</div>
+              <div className="rounded-lg bg-surface-container-low p-3">
+                <div className="text-label-md text-on-surface-variant">Registered On</div>
                 <div className="text-on-surface">{formatDate(patient.createdAt)}</div>
               </div>
             </div>
@@ -91,7 +97,7 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
             <div className="grid grid-cols-2 gap-4 text-body-sm">
               {patient.phones && patient.phones.length > 0 ? (
                 patient.phones.map((phone) => (
-                  <div key={phone.phoneId}>
+                  <div key={phone.phoneId} className="rounded-lg bg-surface-container-low p-3">
                     <div className="text-on-surface-variant text-label-md">{phone.phoneType}</div>
                     <div className="text-on-surface">{phone.phoneNumber}</div>
                   </div>
@@ -100,7 +106,7 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
                 <div className="text-on-surface-variant col-span-2">No phone numbers on file.</div>
               )}
               {patient.address && (
-                <div className="col-span-2">
+                <div className="col-span-2 rounded-lg bg-surface-container-low p-3">
                   <div className="text-on-surface-variant text-label-md">Address</div>
                   <div className="text-on-surface">{patient.address}</div>
                 </div>
@@ -112,7 +118,7 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
             {patient.guardians && patient.guardians.length > 0 ? (
               <ul className="flex flex-col gap-2 text-body-sm">
                 {patient.guardians.map((link) => (
-                  <li key={link.guardianId} className="flex items-center justify-between">
+                  <li key={link.guardianId} className="flex items-center justify-between gap-3 rounded-lg bg-surface-container-low p-3">
                     <span className="text-on-surface">
                       {link.guardian
                         ? formatFullName(link.guardian.firstName, link.guardian.lastName)
@@ -131,7 +137,7 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
             {patient.insurance && patient.insurance.length > 0 ? (
               <ul className="flex flex-col gap-2 text-body-sm">
                 {patient.insurance.map((policy) => (
-                  <li key={policy.policyId} className="flex items-center justify-between">
+                  <li key={policy.policyId} className="flex items-center justify-between gap-3 rounded-lg bg-surface-container-low p-3">
                     <span className="text-on-surface">
                       {policy.providerName} · {policy.coverageLevel}
                       <span className="block font-mono text-xs text-on-surface-variant">
