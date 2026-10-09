@@ -1,6 +1,6 @@
 import { apiGet } from './client';
 
-export interface ReportQueryParams {
+export interface ReportQueryParams extends Record<string, unknown> {
   branchId?: number;
   category?: string;
   from?: string;

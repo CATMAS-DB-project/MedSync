@@ -1,8 +1,12 @@
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
+
+function makeId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+}
 
 export interface DrawerProps {
   isOpen: boolean;
@@ -14,16 +18,64 @@ export interface DrawerProps {
 }
 
 export function Drawer({ isOpen, onClose, title, subtitle, children, footer }: DrawerProps) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const trapRef = useRef<((event: KeyboardEvent) => void) | null>(null);
+  const titleId = useRef(makeId('drawer-title'));
+
   useEffect(() => {
     if (!isOpen) return;
+
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
     };
+
+    const handleFocus = () => {
+      const panel = dialogRef.current;
+      if (!panel) return;
+
+      const focusables = panel.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) {
+        panel.focus();
+        return;
+      }
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (document.activeElement && !panel.contains(document.activeElement)) {
+        first.focus();
+      }
+
+      const trap = (event: KeyboardEvent) => {
+        if (event.key !== 'Tab' || !panel.contains(document.activeElement)) return;
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      };
+
+      trapRef.current = trap;
+      document.addEventListener('keydown', trap);
+    };
+
     document.addEventListener('keydown', handleKey);
     document.body.style.overflow = 'hidden';
+    const focusTimer = window.setTimeout(() => handleFocus(), 0);
+
     return () => {
       document.removeEventListener('keydown', handleKey);
       document.body.style.overflow = '';
+      window.clearTimeout(focusTimer);
+      if (trapRef.current) {
+        document.removeEventListener('keydown', trapRef.current);
+      }
     };
   }, [isOpen, onClose]);
 
@@ -37,19 +89,21 @@ export function Drawer({ isOpen, onClose, title, subtitle, children, footer }: D
         aria-hidden="true"
       />
       <aside
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
-        className="fixed right-0 top-0 h-full w-full sm:w-drawer-width bg-surface z-50 shadow-drawer border-l border-outline-variant flex flex-col transition-transform duration-300 ease-in-out"
+        aria-labelledby={titleId.current}
+        className="fixed right-0 top-0 h-full w-full sm:w-drawer-width bg-surface z-50 shadow-drawer border-l border-outline-variant flex flex-col transition-transform duration-300 ease-in-out focus-visible:outline-none"
+        tabIndex={-1}
       >
         <div className="px-6 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-bright shrink-0">
           <div>
-            <h2 className="text-headline-sm text-on-surface">{title}</h2>
+            <h2 id={titleId.current} className="text-headline-sm text-on-surface">{title}</h2>
             {subtitle && (
               <p className="text-label-md text-on-surface-variant mt-0.5">{subtitle}</p>
             )}
           </div>
-          <IconButton icon="close" aria-label="Close" onClick={onClose} />
+          <IconButton icon="close" aria-label="Close drawer" onClick={onClose} />
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8 bg-background">

@@ -21,7 +21,6 @@ export function Sidebar({ currentUser }: SidebarProps) {
     navigate(ROUTES.LOGIN, { replace: true });
   };
 
-  // Defensive filter — prefer removing the item from SIDEBAR_NAV_ITEMS instead.
   const navItems = filterNavItemsByRole(SIDEBAR_NAV_ITEMS, currentUser.role).filter(
     (item) =>
       item.label.toLowerCase() !== 'inventory' &&

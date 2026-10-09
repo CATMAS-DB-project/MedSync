@@ -14,9 +14,10 @@ import { fetchBranches } from '../../../services/api/branches';
 import { fetchDoctorOptions } from '../../../services/api/doctorOptions';
 import { fetchPatientById, fetchPatients } from '../../../services/api/patients';
 import { fetchSpecialties } from '../../../services/api/specialties';
-import { formatDate, formatFullName, formatTime, getInitials } from '../../../utils/formatters';
-import { nowHHMM, toIsoDate, todayIso } from '../../../utils/dates';
+import { formatFullName, formatTime, getInitials } from '../../../utils/formatters';
+import { toIsoDate, todayIso } from '../../../utils/dates';
 import { ROUTES } from '../../../constants/routes';
+import { useToast } from '../../../components/common/ToastProvider';
 import type { Patient } from '../../../types';
 
 const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
@@ -37,6 +38,7 @@ export function AppointmentBookingPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useAuth();
+  const toast = useToast();
   const today = todayIso();
 
   // Patient
@@ -158,24 +160,24 @@ export function AppointmentBookingPage() {
         appointmentTime: selectedTime,
         isWalkIn,
       });
+      toast.success('Appointment booked successfully.');
       navigate(ROUTES.APPOINTMENTS);
     } catch (err) {
       if (err instanceof ApiError && err.isConflict) {
-        // The overlap rule rejected it: someone took that slot first.
         setSubmitError('That time slot was just taken. Please pick another one.');
         setSelectedTime(null);
         availability.reload();
       } else if (err instanceof ApiError) {
         setSubmitError(err.message);
+        toast.error(err.message);
       } else {
         setSubmitError('Could not book the appointment. Please try again.');
+        toast.error('Could not book the appointment. Please try again.');
       }
     } finally {
       setSubmitting(false);
     }
   }
-
-  const nowTime = nowHHMM();
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -258,171 +260,143 @@ export function AppointmentBookingPage() {
             <div className="flex flex-col gap-4">
               <Select
                 label="Branch"
+                placeholder="Select branch"
                 options={branchOptions}
                 value={branchId}
-                onChange={(event) => {
-                  setBranchId(event.target.value);
-                  setDoctorId('');
-                  setSelectedTime(null);
-                }}
+                onChange={(event) => setBranchId(event.target.value)}
               />
               <Select
                 label="Specialty"
+                placeholder="All specialties"
                 options={specialtyOptions}
                 value={specialtyId}
                 onChange={(event) => setSpecialtyId(event.target.value)}
               />
               <Select
                 label="Doctor"
-                placeholder={doctors.isLoading ? 'Loading doctors…' : 'Select a doctor'}
+                placeholder="Select a doctor"
                 options={doctorOptions}
                 value={doctorId}
-                onChange={(event) => {
-                  setDoctorId(event.target.value);
-                  setSelectedTime(null);
-                }}
+                onChange={(event) => setDoctorId(event.target.value)}
+                disabled={doctorOptions.length === 0}
               />
-              {!doctors.isLoading && doctorOptions.length === 0 && (
-                <p className="text-body-sm text-on-surface-variant">No doctors match this branch and specialty.</p>
-              )}
             </div>
           </div>
         </div>
 
-        <div className="lg:col-span-7 flex flex-col gap-element-gap">
-          <div className="bg-surface-container-lowest border border-outline-variant p-6 rounded shadow-sm h-full flex flex-col">
-            <div className="mb-6 pb-6 border-b border-outline-variant">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-headline-sm text-on-surface">Select Date</h3>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={isWalkIn || monthOffset === 0}
-                    onClick={() => setMonthOffset((m) => m - 1)}
-                    className="w-8 h-8 flex items-center justify-center rounded border border-outline-variant hover:bg-surface-container-low text-on-surface-variant disabled:opacity-40"
-                  >
-                    <Icon name="chevron_left" size={18} />
-                  </button>
-                  <span className="text-body-md font-medium flex items-center">{monthLabel}</span>
-                  <button
-                    type="button"
-                    disabled={isWalkIn}
-                    onClick={() => setMonthOffset((m) => m + 1)}
-                    className="w-8 h-8 flex items-center justify-center rounded border border-outline-variant hover:bg-surface-container-low text-on-surface-variant disabled:opacity-40"
-                  >
-                    <Icon name="chevron_right" size={18} />
-                  </button>
+        <div className="lg:col-span-7">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-headline-sm text-on-surface">Schedule</h3>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setMonthOffset((prev) => prev - 1)}>
+                  <Icon name="chevron_left" size={18} />
+                </Button>
+                <span className="text-body-sm text-on-surface-variant">{monthLabel}</span>
+                <Button variant="ghost" size="sm" onClick={() => setMonthOffset((prev) => prev + 1)}>
+                  <Icon name="chevron_right" size={18} />
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-2 mb-4">
+              {WEEKDAY_LABELS.map((label) => (
+                <div key={label} className="text-center text-label-md text-on-surface-variant">
+                  {label}
                 </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+              {calendarDays.map((day, index) => {
+                if (!day) {
+                  return <div key={`empty-${index}`} className="h-16 rounded border border-transparent" />;
+                }
+
+                const iso = toIsoDate(day);
+                const isSelected = iso === selectedDate;
+                const isPast = iso < today;
+                const isAvailable = availability.data?.some((slot) => slot.available) ?? false;
+
+                return (
+                  <button
+                    key={iso}
+                    type="button"
+                    onClick={() => !isPast && setSelectedDate(iso)}
+                    disabled={isPast}
+                    className={[
+                      'h-16 rounded border text-left p-2 transition-colors',
+                      isSelected ? 'border-primary bg-primary-container text-on-primary-container' : 'border-outline-variant bg-surface-container-low text-on-surface',
+                      isPast ? 'opacity-40 cursor-not-allowed' : 'hover:bg-surface-container-high',
+                    ].join(' ')}
+                  >
+                    <div className="text-label-md font-medium">{day.getDate()}</div>
+                    {isAvailable && <div className="mt-1 h-1.5 w-1.5 rounded-full bg-green-500" />}
+                  </button>
+                );
+              })}
+            </div>
+
+            {submitError && (
+              <div className="mt-4 rounded border border-error/40 bg-error/10 p-3 text-body-sm text-error">
+                {submitError}
               </div>
-              <div className="grid grid-cols-7 gap-1 text-center mb-2">
-                {WEEKDAY_LABELS.map((label) => (
-                  <div key={label} className="text-label-md text-outline">
-                    {label}
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-1 text-center">
-                {calendarDays.map((day, index) => {
-                  if (day === null) return <div key={index} />;
-                  const iso = toIsoDate(day);
-                  const isPast = iso < today;
-                  const disabled = isPast || (isWalkIn && iso !== today);
-                  const isSelected = iso === effectiveDate;
+            )}
+
+            {doctorId && availability.isLoading && (
+              <div className="mt-4 text-body-sm text-on-surface-variant">Loading slots…</div>
+            )}
+
+            {doctorId && availability.data && slotGroups.length > 0 && (
+              <div className="mt-4 space-y-3">
+                {slotGroups.map(([label, slots]) => {
                   return (
-                    <button
-                      key={index}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => {
-                        setSelectedDate(iso);
-                        setSelectedTime(null);
-                      }}
-                      className={`py-1 text-body-md rounded ${
-                        disabled
-                          ? 'text-outline cursor-not-allowed'
-                          : isSelected
-                            ? 'bg-primary-container text-on-primary-container font-medium'
-                            : 'text-on-surface hover:bg-surface-container-low'
-                      }`}
-                    >
-                      {day.getDate()}
-                    </button>
+                    <div key={label} className="rounded border border-outline-variant bg-surface-container-low p-3">
+                      <div className="mb-2 text-label-md text-on-surface-variant">{label}</div>
+                      <div className="flex flex-wrap gap-2">
+                        {slots.map((slot) => {
+                          const active = selectedTime === slot.time;
+                          return (
+                            <button
+                              key={slot.time}
+                              type="button"
+                              disabled={!slot.available}
+                              onClick={() => setSelectedTime(slot.time)}
+                              className={[
+                                'rounded px-3 py-1.5 text-label-md transition-colors',
+                                slot.available
+                                  ? active
+                                    ? 'bg-primary-container text-on-primary-container'
+                                    : 'bg-surface text-on-surface hover:bg-surface-container-high'
+                                  : 'bg-surface-container-low text-on-surface-variant cursor-not-allowed',
+                            ].join(' ')}
+                            >
+                              {slot.available ? 'Available' : 'Booked'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   );
                 })}
               </div>
-            </div>
+            )}
 
-            <div className="flex-1 flex flex-col">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-headline-sm text-on-surface">Available Slots</h3>
-                <span className="text-label-md text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded">
-                  {formatDate(effectiveDate)}
-                </span>
+            {doctorId && !availability.isLoading && availability.data && slotGroups.length === 0 && (
+              <div className="mt-4 rounded border border-outline-variant bg-surface-container-low p-3 text-body-sm text-on-surface-variant">
+                No available slots for this date.
               </div>
-
-              {!doctorId && (
-                <p className="text-body-sm text-on-surface-variant">Select a doctor to see available times.</p>
-              )}
-              {doctorId && availability.isLoading && (
-                <p className="text-body-sm text-on-surface-variant">Loading slots…</p>
-              )}
-              {availability.error && (
-                <p className="text-body-sm text-error">
-                  {availability.error}{' '}
-                  <button type="button" className="underline" onClick={availability.reload}>
-                    Retry
-                  </button>
-                </p>
-              )}
-
-              <div className="grid grid-cols-4 gap-2 overflow-y-auto pr-2 max-h-[300px]">
-                {slotGroups.map(([label, slots]) => (
-                  <div key={label} className="col-span-4">
-                    <div className="text-label-md text-outline mt-2 mb-1">{label}</div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {slots.map((slot) => {
-                        const inPast = effectiveDate === today && slot.time < nowTime;
-                        const unavailable = !slot.available || (inPast && !isWalkIn);
-                        const isSelected = selectedTime === slot.time;
-                        return (
-                          <button
-                            key={slot.time}
-                            type="button"
-                            disabled={unavailable}
-                            onClick={() => setSelectedTime(slot.time)}
-                            className={`py-2 rounded text-body-md border transition-colors ${
-                              unavailable
-                                ? 'bg-surface-container-low border-outline-variant text-outline cursor-not-allowed opacity-60'
-                                : isSelected
-                                  ? 'bg-primary border-primary text-on-primary font-medium shadow-sm'
-                                  : 'bg-surface-container-lowest border-outline-variant text-on-surface hover:border-primary'
-                            }`}
-                          >
-                            {slot.time}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
 
-      {submitError && (
-        <div className="mt-4 rounded border border-error/40 bg-error/10 p-3 text-body-sm text-error">
-          {submitError}
-        </div>
-      )}
-
-      <div className="flex justify-end gap-3 mt-6">
-        <Button variant="secondary" onClick={() => navigate(ROUTES.APPOINTMENTS)} disabled={isSubmitting}>
+      <div className="mt-6 flex justify-end gap-3">
+        <Button variant="secondary" onClick={() => navigate(ROUTES.APPOINTMENTS)}>
           Cancel
         </Button>
-        <Button variant="primary" icon="event_available" disabled={!canSubmit} onClick={handleSubmit}>
-          {isSubmitting ? 'Booking…' : 'Confirm Booking'}
+        <Button variant="primary" onClick={handleSubmit} disabled={!canSubmit} isLoading={isSubmitting}>
+          {isSubmitting ? 'Booking…' : 'Confirm Appointment'}
         </Button>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../../../components/ui/Icon';
@@ -6,9 +6,10 @@ import { Button } from '../../../components/ui/Button';
 import { useAuth } from '../../../context/AuthContext';
 import { ApiError } from '../../../services/api/ApiError';
 import { ROUTES } from '../../../constants/routes';
+import { ROLE_HOME } from '../../../constants/roleAccess';
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, currentUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -17,24 +18,31 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loginSucceeded, setLoginSucceeded] = useState(false);
 
   const redirectTo =
     (location.state as { from?: string } | null)?.from ?? ROUTES.DASHBOARD;
+
+  useEffect(() => {
+    if (!loginSucceeded || !currentUser) return;
+    navigate(ROLE_HOME[currentUser.role] ?? redirectTo, { replace: true });
+  }, [currentUser, loginSucceeded, navigate, redirectTo]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
+    setLoginSucceeded(false);
 
     try {
       await login({ username, password });
-      navigate(redirectTo, { replace: true });
+      setLoginSucceeded(true);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(
           err.code === 'SESSION_EXPIRED'
             ? 'Session expired. Please log in again.'
-            : err.message
+            : err.message,
         );
       } else {
         setError('Something went wrong. Please try again.');

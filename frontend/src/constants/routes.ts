@@ -1,6 +1,8 @@
 export const ROUTES = {
   LOGIN: '/login',
   DASHBOARD: '/',
+  RECEPTION_HOME: '/home/reception',
+  DOCTOR_HOME: '/home/doctor',
   APPOINTMENTS: '/appointments',
   APPOINTMENT_BOOKING: '/appointments/book',
   PATIENTS: '/patients',

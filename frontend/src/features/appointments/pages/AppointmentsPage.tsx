@@ -5,6 +5,9 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Pagination } from '../../../components/common/Pagination';
+import { PageSkeleton } from '../../../components/common/PageSkeleton';
+import { EmptyState } from '../../../components/common/EmptyState';
+import { ErrorBanner } from '../../../components/common/ErrorBanner';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchAppointments } from '../../../services/api/appointments';
@@ -141,12 +144,7 @@ export function AppointmentsPage() {
 
       <div className="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col flex-1 overflow-hidden">
         {appointments.error && (
-          <div className="px-4 py-3 bg-error/10 text-error text-body-sm flex items-center justify-between">
-            <span>{appointments.error}</span>
-            <button type="button" className="underline" onClick={appointments.reload}>
-              Retry
-            </button>
-          </div>
+          <ErrorBanner message={appointments.error} onRetry={appointments.reload} />
         )}
 
         <div className="overflow-x-auto flex-1">
@@ -163,6 +161,26 @@ export function AppointmentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant text-table-data text-on-surface bg-surface-container-lowest">
+              {appointments.isLoading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-8">
+                    <PageSkeleton className="px-4 py-2" />
+                  </td>
+                </tr>
+              )}
+
+              {!appointments.isLoading && !appointments.error && rows.length === 0 && (
+                <tr>
+                  <td colSpan={7}>
+                    <EmptyState
+                      title="No appointments found for these filters."
+                      description="Try another date, status, or branch selection."
+                      icon="event_busy"
+                    />
+                  </td>
+                </tr>
+              )}
+
               {rows.map((appointment) => (
                 <tr
                   key={appointment.appointmentId}
@@ -209,20 +227,6 @@ export function AppointmentsPage() {
                   </td>
                 </tr>
               ))}
-              {!appointments.isLoading && !appointments.error && rows.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-on-surface-variant">
-                    No appointments found for these filters.
-                  </td>
-                </tr>
-              )}
-              {appointments.isLoading && rows.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-on-surface-variant">
-                    Loading appointments…
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>

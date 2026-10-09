@@ -10,6 +10,7 @@ import { ApiError } from '../../../services/api/ApiError';
 import { fetchBranches } from '../../../services/api/branches';
 import { registerPatientWithDetails } from '../../../services/api/patientRegistration';
 import type { RegistrationFailure } from '../../../services/api/patientRegistration';
+import { useToast } from '../../../components/common/ToastProvider';
 import type { Gender } from '../../../types';
 
 export interface PatientRegistrationDrawerProps {
@@ -91,6 +92,7 @@ export function PatientRegistrationDrawer({
 }: PatientRegistrationDrawerProps) {
   const { currentUser } = useAuth();
   const branches = useAsync(() => fetchBranches(1, 100), []);
+  const toast = useToast();
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -156,10 +158,11 @@ export function PatientRegistrationDrawer({
 
       onRegistered();
       if (result.failures.length === 0) {
+        toast.success('Patient registered successfully.');
         onClose();
       } else {
-        // The patient exists, but some optional extras failed — tell the user.
         setFailures(result.failures);
+        toast.info('Patient registered with some optional details not saved.');
       }
     } catch (err) {
       if (err instanceof ApiError && err.isConflict && err.existingPatientId !== undefined) {
@@ -167,8 +170,10 @@ export function PatientRegistrationDrawer({
         setSubmitError(err.message);
       } else if (err instanceof ApiError) {
         setSubmitError(err.message);
+        toast.error(err.message);
       } else {
         setSubmitError('Something went wrong. Please try again.');
+        toast.error('Something went wrong. Please try again.');
       }
     } finally {
       setSubmitting(false);
@@ -195,7 +200,7 @@ export function PatientRegistrationDrawer({
             </Button>
             <Button
               variant="primary"
-              onClick={() => document.getElementById('patient-registration-form')?.requestSubmit()}
+              onClick={() => (document.getElementById('patient-registration-form') as HTMLFormElement | null)?.requestSubmit()}
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Saving…' : 'Save Patient'}
@@ -264,40 +269,49 @@ export function PatientRegistrationDrawer({
                 onChange={set('gender')}
                 error={errors.gender}
               />
+              <Select
+                label="Branch"
+                placeholder="Select branch"
+                options={branchOptions}
+                value={form.branchId}
+                onChange={set('branchId')}
+                error={errors.branchId}
+              />
               <div className="sm:col-span-2">
-                <Select
-                  label="Registering Branch"
-                  placeholder={branches.isLoading ? 'Loading branches…' : 'Select branch'}
-                  options={branchOptions}
-                  value={form.branchId}
-                  onChange={set('branchId')}
-                  error={errors.branchId}
-                />
+                <Input label="Address" value={form.address} onChange={set('address')} />
+              </div>
+              <div className="sm:col-span-2">
+                <Input label="Phone" value={form.phone} onChange={set('phone')} placeholder="Optional" />
               </div>
             </div>
           </DrawerSection>
 
-          <DrawerSection title="Contact Information" icon="call">
+          <DrawerSection title="Emergency Contact" icon="contact_phone">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Phone (optional)" placeholder="077-123-4567" value={form.phone} onChange={set('phone')} />
-              <div className="sm:col-span-2">
-                <Input label="Address (optional)" placeholder="Street, city" value={form.address} onChange={set('address')} maxLength={255} />
-              </div>
-            </div>
-          </DrawerSection>
-
-          <DrawerSection title="Emergency Contact (optional)" icon="emergency">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="First Name" value={form.contactFirstName} onChange={set('contactFirstName')} error={errors.contactFirstName} />
-              <Input label="Last Name" value={form.contactLastName} onChange={set('contactLastName')} error={errors.contactLastName} />
+              <Input
+                label="First Name"
+                value={form.contactFirstName}
+                onChange={set('contactFirstName')}
+                error={errors.contactFirstName}
+              />
+              <Input
+                label="Last Name"
+                value={form.contactLastName}
+                onChange={set('contactLastName')}
+                error={errors.contactLastName}
+              />
               <Input
                 label="Relationship"
-                placeholder="e.g. Spouse, Parent"
                 value={form.contactRelationship}
                 onChange={set('contactRelationship')}
                 error={errors.contactRelationship}
               />
-              <Input label="Phone" placeholder="077-123-4567" value={form.contactPhone} onChange={set('contactPhone')} />
+              <Input
+                label="Contact Phone"
+                value={form.contactPhone}
+                onChange={set('contactPhone')}
+                placeholder="Optional"
+              />
             </div>
           </DrawerSection>
         </form>
