@@ -109,7 +109,8 @@ export function AlertsPanel({ branchId, dateRange }: AlertsPanelProps) {
   const isLoading = summary.isLoading || outstanding.isLoading;
 
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-5">
+    <div className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated sm:p-5">
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-secondary to-primary" />
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <span className="p-1 rounded bg-surface-container-high text-on-surface">

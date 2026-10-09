@@ -98,8 +98,8 @@ export function BranchComparison({ dateRange }: BranchComparisonProps) {
   const error = branchesAsync.error || comparisonData.error;
 
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
-      <div className="px-5 py-4 border-b border-outline-variant bg-surface-container-low flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+    <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
+      <div className="flex flex-col gap-1 border-b border-outline-variant bg-gradient-to-r from-primary-fixed/30 to-secondary-fixed/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div>
           <h3 className="text-headline-sm text-on-surface">Branch Performance Comparison</h3>
           <p className="text-body-sm text-on-surface-variant">
@@ -132,9 +132,9 @@ export function BranchComparison({ dateRange }: BranchComparisonProps) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full min-w-[680px] border-collapse text-left">
             <thead>
-              <tr className="border-b border-outline-variant bg-surface-bright">
+              <tr className="border-b border-outline-variant bg-primary-fixed/20">
                 <th className="p-table-cell-padding text-label-md text-on-surface-variant font-medium">Branch</th>
                 <th className="p-table-cell-padding text-label-md text-on-surface-variant font-medium text-right">
                   Appointments
@@ -154,7 +154,7 @@ export function BranchComparison({ dateRange }: BranchComparisonProps) {
               {rows.map((row) => (
                 <tr
                   key={row.branchId}
-                  className="border-b border-outline-variant hover:bg-surface-container-high transition-colors"
+                  className="border-b border-outline-variant odd:bg-surface-container-lowest even:bg-secondary-fixed/10 transition-colors hover:bg-primary-fixed/25"
                 >
                   <td className="p-table-cell-padding font-medium text-on-surface">
                     {row.branchName}

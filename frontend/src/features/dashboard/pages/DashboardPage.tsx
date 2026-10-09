@@ -55,17 +55,27 @@ export function DashboardPage() {
       : (branches.data?.items.find((b) => b.branchId === branchId)?.branchName ?? 'Selected branch');
 
   return (
-    <div className="max-w-7xl mx-auto flex flex-col gap-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3">
-        <div>
-          <h2 className="text-display-sm text-on-surface">Dashboard</h2>
-          <p className="text-body-sm text-on-surface-variant mt-1">Overview for {scopeLabel}</p>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      <div className="relative isolate flex flex-col gap-5 overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-secondary p-5 shadow-elevated sm:flex-row sm:items-center sm:justify-between sm:p-7">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-24 z-0 h-64 w-64 rounded-full border-[36px] border-white/5" />
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-elevated">
+            <span className="material-symbols-outlined text-[26px]" aria-hidden="true">dashboard</span>
+          </div>
+          <div>
+            <p className="text-label-md font-semibold uppercase tracking-[0.16em] text-white/75">Clinic overview</p>
+            <h2 className="text-display-sm text-white">Dashboard</h2>
+            <p className="mt-1 text-body-sm text-white/80">Overview for {scopeLabel}</p>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="relative z-10 flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           {isAdmin && (
-            <div className="w-48">
+            <div className="w-full rounded-lg border border-white/20 bg-white/10 p-2 sm:w-52">
+              <label htmlFor="dashboard-branch-select" className="mb-1 block text-label-md text-white">
+                Branch
+              </label>
               <Select
+                id="dashboard-branch-select"
                 options={branchOptions}
                 value={branchSelection}
                 onChange={(e) => setBranchSelection(e.target.value)}
@@ -77,6 +87,7 @@ export function DashboardPage() {
               variant="primary"
               icon="add"
               onClick={() => navigate(ROUTES.APPOINTMENT_BOOKING)}
+              className="w-full bg-white text-primary shadow-lg hover:bg-secondary hover:text-on-secondary sm:w-auto"
             >
               New Appointment
             </Button>
@@ -86,12 +97,21 @@ export function DashboardPage() {
 
       {/* Date Range Control (for report/trend sections) */}
       {canViewReports && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-outline-variant pb-4">
-          <DateRangeControl value={dateRange} onChange={setDateRange} />
-          <span className="text-label-md text-on-surface-variant">
-            Data window for Trends, Revenue &amp; Alerts
-          </span>
-        </div>
+        <section className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
+          <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary to-secondary" />
+          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-fixed text-primary">
+                <span className="material-symbols-outlined text-[20px]" aria-hidden="true">date_range</span>
+              </span>
+              <div>
+                <h3 className="text-body-md font-semibold text-on-surface">Reporting period</h3>
+                <p className="text-body-sm text-on-surface-variant">Trends, revenue, and alerts</p>
+              </div>
+            </div>
+            <DateRangeControl value={dateRange} onChange={setDateRange} />
+          </div>
+        </section>
       )}
 
       {/* KPI Section */}
