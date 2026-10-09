@@ -1,8 +1,11 @@
 import { apiDelete, apiGet, apiPost } from './client';
-import type { Phone, PhoneType } from '../../types';
+import type { PagedResult, Phone, PhoneType } from '../../types';
 
 export async function fetchPatientPhones(patientId: number): Promise<Phone[]> {
-  return apiGet<Phone[]>(`/patients/${patientId}/phones`);
+  const result = await apiGet<PagedResult<Phone>>(`/patients/${patientId}/phones`, {
+    pageSize: 100,
+  });
+  return result.items;
 }
 
 export async function addPatientPhone(
@@ -12,9 +15,12 @@ export async function addPatientPhone(
     phoneType: PhoneType;
   },
 ): Promise<Phone> {
-  return apiPost<Phone>(`/patients/${patientId}/phones`, input);
+  return apiPost<Phone>(`/patients/${patientId}/phones`, {
+    phoneNumber: input.phoneNumber.trim(),
+    phoneType: input.phoneType,
+  });
 }
 
 export async function deletePatientPhone(patientId: number, phoneId: number): Promise<void> {
-  await apiDelete<void>(`/patients/${patientId}/phones/${phoneId}`);
+  await apiDelete<unknown>(`/patients/${patientId}/phones/${phoneId}`);
 }

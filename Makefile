@@ -1,5 +1,7 @@
 .PHONY: setup setup-frontend dev down down-all reset logs migration migrate migrate-diff db-cloud test lint
 
+COMPOSE := docker compose -f docker-compose.dev.yml
+
 setup:
 	cp -n .env.example .env || true
 	npm install
@@ -10,22 +12,26 @@ setup-frontend:
 
 dev:
 	npx supabase start
-	docker compose -f docker-compose.dev.yml up -d --build
+	$(COMPOSE) up -d
+
+dev-build:
+	npx supabase start
+	$(COMPOSE) up -d --build
 
 down:
-	docker compose -f docker-compose.dev.yml down
+	$(COMPOSE) down
 
 # Stop app containers AND Supabase
 down-all:
-	docker compose -f docker-compose.dev.yml down
+	$(COMPOSE) down
 	npx supabase stop
 
 reset:
-	docker compose -f docker-compose.dev.yml down -v
+	$(COMPOSE) down -v
 	npx supabase db reset
 
 logs:
-	docker compose -f docker-compose.dev.yml logs -f
+	$(COMPOSE) logs -f
 
 migration:                    ## Create a new empty migration file: make migration name=add_patient_index
 	npx supabase migration new $(name)
@@ -41,10 +47,8 @@ db-cloud:
 	npx supabase db push
 
 test:
-	cd backend && uv run pytest
-	cd frontend && npm test
+	$(COMPOSE) exec -T backend uv run pytest
 
 lint:
 	cd backend && uv run ruff check .
 	cd frontend && npm run lint
-

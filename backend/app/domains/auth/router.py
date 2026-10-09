@@ -8,7 +8,12 @@ from app.core.db import get_pool
 from app.core.deps import get_current_user
 from app.core.security import create_access_token
 from app.domains.auth.database_store import DatabaseRefreshTokenStore
-from app.domains.auth.models import LoginRequest, LoginResponse, UserIdentity
+from app.domains.auth.models import (
+    LoginRequest,
+    LoginResponse,
+    UserIdentity,
+    UserProfile,
+)
 from app.domains.auth.service import (
     CredentialValidator,
     DatabaseCredentialValidator,
@@ -107,6 +112,17 @@ async def logout(
     response.delete_cookie(settings.refresh_cookie_name, path=settings.refresh_cookie_path)
 
 
-@router.get("/me", response_model=UserIdentity)
-async def me(current_user: Annotated[UserIdentity, Depends(get_current_user)]) -> UserIdentity:
-    return current_user
+@router.get("/me", response_model=UserProfile)
+async def me(
+    current_user: Annotated[UserIdentity, Depends(get_current_user)],
+    credential_validator: Annotated[CredentialValidator, Depends(get_credential_validator)],
+) -> UserProfile:
+    profile = await credential_validator.get_user_profile(current_user.staff_id)
+    if profile is None:
+        return UserProfile(
+            staff_id=current_user.staff_id,
+            username=current_user.username,
+            role=current_user.role,
+            branch_id=current_user.branch_id,
+        )
+    return profile

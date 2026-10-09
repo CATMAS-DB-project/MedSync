@@ -9,11 +9,18 @@ import asyncpg
 
 from app.core.config import Settings
 from app.core.security import verify_password
-from app.domains.auth.models import RefreshRecord, UserIdentity
+from app.domains.auth.models import (
+    RefreshRecord,
+    StaffProfile,
+    UserIdentity,
+    UserProfile,
+)
 
 
 class CredentialValidator(Protocol):
     async def authenticate(self, username: str, password: str) -> UserIdentity | None: ...
+
+    async def get_user_profile(self, staff_id: int) -> UserProfile | None: ...
 
 
 class InMemoryCredentialValidator:
@@ -27,33 +34,127 @@ class InMemoryCredentialValidator:
             return None
         return self._user
 
+    async def get_user_profile(self, staff_id: int) -> UserProfile | None:
+        if staff_id != self._user.staff_id:
+            return None
+        staff_info = self._user.staff or StaffProfile(
+            staff_id=self._user.staff_id,
+            first_name=self._user.first_name or "Dev",
+            last_name=self._user.last_name or "Admin",
+            job_title=self._user.job_title or "System Administrator",
+            email=self._user.email,
+            branch_id=self._user.branch_id,
+            branch_name=self._user.branch_name or "Main Branch",
+        )
+        return UserProfile(
+            staff_id=self._user.staff_id,
+            username=self._user.username,
+            role=self._user.role,
+            branch_id=self._user.branch_id,
+            first_name=self._user.first_name or staff_info.first_name,
+            last_name=self._user.last_name or staff_info.last_name,
+            job_title=self._user.job_title or staff_info.job_title,
+            email=self._user.email,
+            branch_name=self._user.branch_name or staff_info.branch_name,
+            staff=staff_info,
+        )
+
 
 class DatabaseCredentialValidator:
     def __init__(self, pool: asyncpg.Pool) -> None:
         self._pool = pool
 
     async def authenticate(self, username: str, password: str) -> UserIdentity | None:
-        async with self._pool.acquire() as connection:
+        async with self._pool.acquire() as connection, connection.transaction():
             row = await connection.fetchrow(
                 """
                 SELECT ua.staff_id, ua.username, ua.password_hash,
-                       r.role_name::text AS role, s.branch_id
+                       r.role_name::text AS role, s.branch_id,
+                       s.first_name, s.last_name, s.job_title,
+                       b.branch_name
                 FROM user_account ua
                 JOIN staff s ON s.staff_id = ua.staff_id
                 JOIN role r ON r.role_id = ua.role_id
+                LEFT JOIN branch b ON b.branch_id = s.branch_id
                 WHERE ua.username = $1
                   AND ua.account_status = 'Active'
                 """,
                 username,
             )
-        if row is None or not verify_password(password, row["password_hash"]):
-            return None
-        return UserIdentity(
-            staff_id=row["staff_id"],
-            username=row["username"],
-            role=row["role"],
-            branch_id=row["branch_id"],
-        )
+            if row is None or not verify_password(password, row["password_hash"]):
+                return None
+
+            await connection.execute(
+                """
+                UPDATE user_account
+                SET last_login = NOW()
+                WHERE staff_id = $1
+                """,
+                row["staff_id"],
+            )
+
+            staff_info = StaffProfile(
+                staff_id=row["staff_id"],
+                first_name=row["first_name"],
+                last_name=row["last_name"],
+                job_title=row["job_title"],
+                email=None,
+                branch_id=row["branch_id"],
+                branch_name=row["branch_name"],
+            )
+            return UserIdentity(
+                staff_id=row["staff_id"],
+                username=row["username"],
+                role=row["role"],
+                branch_id=row["branch_id"],
+                first_name=row["first_name"],
+                last_name=row["last_name"],
+                job_title=row["job_title"],
+                email=None,
+                branch_name=row["branch_name"],
+                staff=staff_info,
+            )
+
+    async def get_user_profile(self, staff_id: int) -> UserProfile | None:
+        async with self._pool.acquire() as connection:
+            row = await connection.fetchrow(
+                """
+                SELECT ua.staff_id, ua.username,
+                       r.role_name::text AS role, s.branch_id,
+                       s.first_name, s.last_name, s.job_title,
+                       b.branch_name
+                FROM staff s
+                LEFT JOIN user_account ua ON ua.staff_id = s.staff_id
+                LEFT JOIN role r ON r.role_id = ua.role_id
+                LEFT JOIN branch b ON b.branch_id = s.branch_id
+                WHERE s.staff_id = $1
+                """,
+                staff_id,
+            )
+            if row is None:
+                return None
+
+            staff_info = StaffProfile(
+                staff_id=row["staff_id"],
+                first_name=row["first_name"],
+                last_name=row["last_name"],
+                job_title=row["job_title"],
+                email=None,
+                branch_id=row["branch_id"],
+                branch_name=row["branch_name"],
+            )
+            return UserProfile(
+                staff_id=row["staff_id"],
+                username=row["username"] or "",
+                role=row["role"],
+                branch_id=row["branch_id"],
+                first_name=row["first_name"],
+                last_name=row["last_name"],
+                job_title=row["job_title"],
+                email=None,
+                branch_name=row["branch_name"],
+                staff=staff_info,
+            )
 
 # Need to be implemented alongside with a Database for easy Logout
 class RefreshTokenStore(Protocol):

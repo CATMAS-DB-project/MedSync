@@ -5,26 +5,15 @@ import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Pagination } from '../../../components/common/Pagination';
 import { Drawer, DrawerSection } from '../../../components/layout/Drawer';
+import { fetchBranches } from '../../../services/api/branches';
 import { fetchStaff } from '../../../services/api/staff';
-import type { Staff } from '../../../types';
+import type { Branch, Staff } from '../../../types';
 import { formatDate, formatFullName, getInitials } from '../../../utils/formatters';
 import { EMPLOYMENT_STATUS_TONE } from '../statusStyles';
 
 const PAGE_SIZE = 10;
 
-const JOB_TITLE_OPTIONS = [
-  { label: 'All Job Titles', value: 'all' },
-  { label: 'Physician', value: 'Physician' },
-  { label: 'Nurse', value: 'Nurse' },
-  { label: 'Receptionist', value: 'Receptionist' },
-  { label: 'Administrator', value: 'Administrator' },
-];
-
-const BRANCH_OPTIONS = [
-  { label: 'Main Branch', value: 'Main Branch' },
-  { label: 'Kandy Clinic', value: 'Kandy Clinic' },
-  { label: 'Galle Center', value: 'Galle Center' },
-];
+const ALL_JOB_TITLE_OPTION = { label: 'All Job Titles', value: 'all' };
 
 export function StaffPage() {
   const [query, setQuery] = useState('');
@@ -35,6 +24,11 @@ export function StaffPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [jobTitleOptions, setJobTitleOptions] = useState<Array<{ label: string; value: string }>>([
+    ALL_JOB_TITLE_OPTION,
+  ]);
+  const [branchOptions, setBranchOptions] = useState<Array<{ label: string; value: string }>>([]);
+  const [selectedBranch, setSelectedBranch] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +49,19 @@ export function StaffPage() {
 
         setStaff(response.items);
         setTotalItems(response.total);
+
+        const titles = Array.from(
+          new Set(
+            response.items
+              .map((member) => member.jobTitle)
+              .filter((value): value is string => Boolean(value && value.trim())),
+          ),
+        ).sort((left, right) => left.localeCompare(right));
+
+        setJobTitleOptions([
+          ALL_JOB_TITLE_OPTION,
+          ...titles.map((title) => ({ label: title, value: title })),
+        ]);
       } catch {
         if (!cancelled) {
           setStaff([]);
@@ -73,6 +80,33 @@ export function StaffPage() {
       cancelled = true;
     };
   }, [jobTitle, page, query]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBranches() {
+      try {
+        const result = await fetchBranches();
+        if (cancelled) return;
+
+        const options = result.items.map((branch: Branch) => ({
+          label: branch.branchName,
+          value: String(branch.branchId),
+        }));
+
+        setBranchOptions(options);
+      } catch {
+        if (!cancelled) {
+          setBranchOptions([]);
+        }
+      }
+    }
+
+    loadBranches();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="max-w-7xl mx-auto h-full flex flex-col gap-4">
@@ -102,7 +136,7 @@ export function StaffPage() {
         </div>
         <div className="sm:w-56">
           <Select
-            options={JOB_TITLE_OPTIONS}
+            options={jobTitleOptions}
             value={jobTitle}
             onChange={(event) => {
               setJobTitle(event.target.value);
@@ -245,7 +279,13 @@ export function StaffPage() {
         <DrawerSection title="Employment Details" icon="work">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Job Title" placeholder="e.g. Physician, Receptionist" />
-            <Select label="Branch" placeholder="Select branch" options={BRANCH_OPTIONS} />
+            <Select
+              label="Branch"
+              placeholder="Select branch"
+              options={branchOptions}
+              value={selectedBranch}
+              onChange={(event) => setSelectedBranch(event.target.value)}
+            />
           </div>
         </DrawerSection>
 

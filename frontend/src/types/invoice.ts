@@ -5,13 +5,32 @@ export interface Invoice {
   appointmentId: number;
   patientId?: number;
   patientName?: string;
+  branchId?: number;
   branchName?: string;
   subtotalAmount: number;
   insuranceDeduction: number;
   manualDiscount: number;
   status: InvoiceStatus;
-  createdAt: string;
+  createdAt?: string;
   finalizedByStaffId?: number;
+  // Computed by the backend view v_invoice_outstanding (not stored columns).
+  payableAmount?: number;
+  amountPaid?: number;
+  outstandingAmount?: number;
+}
+
+export interface InvoiceLineItem {
+  appointmentTreatmentId: number;
+  serviceCode: string;
+  treatmentName: string;
+  priceAtTime: number;
+  isAmended: boolean;
+  originalRecordId?: number | null;
+}
+
+export interface InvoiceDetail extends Invoice {
+  appointmentDate?: string;
+  lineItems: InvoiceLineItem[];
 }
 
 export type PaymentMethod = 'Cash' | 'Credit Card' | 'Insurance';
@@ -32,7 +51,7 @@ export interface InsuranceClaim {
   invoiceId: number;
   policyId: string;
   claimedAmount: number;
-  approvedAmount?: number;
+  approvedAmount?: number | null;
   verificationStatus: ClaimVerificationStatus;
-  verificationDate?: string;
+  verificationDate?: string | null;
 }

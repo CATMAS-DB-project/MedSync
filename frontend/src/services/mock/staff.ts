@@ -101,7 +101,6 @@ export const mockStaff: StaffRecord[] = [
     employmentStatus: 'Active',
     hireDate: '2021-06-10',
     phones: [{ phoneId: 13, phoneNumber: '076-444-5555', phoneType: 'Mobile' }],
-    // No doctor or userAccount subtype - HR-only record, no login.
   },
   {
     staffId: 5,

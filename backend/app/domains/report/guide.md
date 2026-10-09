@@ -5,7 +5,7 @@
 |---|---|---|---|---|
 | GET | `/reports/appointments-summary` | `?branch_id=&from=&to=` daily counts by status | A, BM | RG-1 |
 | GET | `/reports/doctor-revenue` | `?branch_id=&from=&to=` revenue per doctor | A, BM | RG-2 |
-| GET | `/reports/outstanding-balances` | `?branch_id=` patients with unpaid dues | A, BM, C | RG-3 |
+| GET | `/reports/outstanding-balances` | `?branch_id=` patients with unpaid dues | A, BM, R | RG-3 |
 | GET | `/reports/treatment-frequency` | `?category=&from=&to=` counts per treatment/category | A, BM | RG-4 |
 | GET | `/reports/insurance-vs-outofpocket` | `?branch_id=&from=&to=` | A, BM | RG-5 |
 
@@ -27,5 +27,14 @@ application code:**
   SQL view (`CREATE VIEW v_invoice_outstanding AS ...`) so both the
   Billing endpoint and this report query the same logic instead of
   duplicating it.
+
+**Access and balance semantics**
+- Admins may query all branches.
+- Branch Managers are restricted to their assigned branch. Omitting
+  `branch_id` uses that branch; requesting another branch returns `403`.
+- Receptionists may access outstanding balances independently of the
+  Branch Manager scope.
+- Draft invoices with a positive outstanding amount are included, matching
+  the billing queue and `v_invoice_outstanding` behavior.
 
 ---

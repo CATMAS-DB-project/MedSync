@@ -5,6 +5,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 PaymentMethod = Literal["Cash", "Credit Card", "Insurance"]
+InvoiceStatus = Literal["Draft", "Finalized", "Partially Paid", "Paid"]
+ClaimStatus = Literal["Pending", "Approved", "Rejected"]
 
 
 class InvoiceFinalize(BaseModel):

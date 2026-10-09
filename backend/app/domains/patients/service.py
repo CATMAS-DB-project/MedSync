@@ -1,3 +1,5 @@
+import json
+
 from asyncpg.exceptions import UniqueViolationError
 from asyncpg.pool import PoolConnectionProxy
 
@@ -94,23 +96,23 @@ async def list_patients(
 async def get_patient(conn: PoolConnectionProxy, patient_id: int) -> dict | None:
     row = await conn.fetchrow(
         """
-        SELECT p.patient_id, p.nic_passport_no, p.first_name, p.last_name,
-               p.date_of_birth, p.gender::text AS gender, p.address,
-               p.registered_branch_id, b.branch_name AS registered_branch,
-               p.created_at
-        FROM patient AS p
-        JOIN branch AS b ON b.branch_id = p.registered_branch_id
-        WHERE p.patient_id = $1
+        SELECT patient_id, nic_passport_no, first_name, last_name,
+               date_of_birth, gender::text AS gender, address,
+               registered_branch_id, registered_branch_name AS registered_branch,
+               created_at, phones, guardians, insurance_policies AS insurance
+        FROM v_patient_profile
+        WHERE patient_id = $1
         """,
         patient_id,
     )
     if row is None:
         return None
-
     patient = dict(row)
-    patient["phones"] = await list_patient_phones(conn, patient_id, 0, 100)
-    patient["guardians"] = await list_patient_guardians(conn, patient_id, 0, 100)
-    patient["insurance"] = await list_patient_insurance(conn, patient_id, 0, 100)
+    # asyncpg normally decodes JSONB, but support string values from alternate
+    # connection codecs while preserving the existing response keys.
+    for key in ("phones", "guardians", "insurance"):
+        if isinstance(patient[key], str):
+            patient[key] = json.loads(patient[key])
     return patient
 
 
@@ -152,7 +154,7 @@ async def create_patient(fields: dict, staff_id: int) -> dict:
 
 
 async def update_patient(
-    patient_id: int, fields: dict, staff_id: int
+    patient_id: int, fields: dict, staff_id: int, branch_id: int | None = None
 ) -> dict | None:
     allowed_columns = {
         "nic_passport_no": "nic_passport_no",
@@ -185,10 +187,15 @@ async def update_patient(
             row = await conn.fetchrow(
                 "UPDATE patient SET " + ", ".join(assignments)
                 + f" WHERE patient_id = ${len(values)}"
+                + (
+                    f" AND registered_branch_id = ${len(values) + 1}"
+                    if branch_id is not None
+                    else ""
+                )
                 + " RETURNING patient_id, nic_passport_no, first_name, last_name,"
                 + " date_of_birth, gender::text AS gender, address,"
                 + " registered_branch_id, created_at",
-                *values,
+                *(values + ([branch_id] if branch_id is not None else [])),
             )
         return dict(row) if row else None
     except DuplicatePatientNIC:
@@ -418,9 +425,13 @@ async def list_patient_appointments(
     patient_id: int,
     offset: int,
     limit: int,
+    branch_id: int | None = None,
 ) -> tuple[list[dict], int]:
     total = await conn.fetchval(
-        "SELECT count(*) FROM appointment WHERE patient_id = $1", patient_id
+        "SELECT count(*) FROM appointment "
+        "WHERE patient_id = $1 AND ($2::int IS NULL OR branch_id = $2)",
+        patient_id,
+        branch_id,
     )
     rows = await conn.fetch(
         """
@@ -433,10 +444,12 @@ async def list_patient_appointments(
         JOIN staff AS s ON s.staff_id = a.doctor_staff_id
         JOIN branch AS b ON b.branch_id = a.branch_id
         WHERE a.patient_id = $1
+          AND ($2::int IS NULL OR a.branch_id = $2)
         ORDER BY a.appointment_date DESC, a.appointment_time DESC
-        LIMIT $2 OFFSET $3
+        LIMIT $3 OFFSET $4
         """,
         patient_id,
+        branch_id,
         limit,
         offset,
     )

@@ -15,10 +15,11 @@ TREATMENT_COLUMNS = (
 
 
 async def list_treatments(
-    conn: PoolConnectionProxy, appointment_id: int
+    conn: PoolConnectionProxy, appointment_id: int, doctor_id: int | None = None
 ) -> list[dict] | None:
     appointment_exists = await conn.fetchval(
-        "SELECT 1 FROM appointment WHERE appointment_id = $1", appointment_id
+        "SELECT 1 FROM appointment WHERE appointment_id = $1 "
+        "AND ($2::int IS NULL OR doctor_staff_id = $2)", appointment_id, doctor_id
     )
     if not appointment_exists:
         return None
@@ -45,9 +46,12 @@ async def create_treatment(
     conn: PoolConnectionProxy,
     appointment_id: int,
     body: TreatmentLogCreate,
+    doctor_id: int | None = None,
 ) -> dict | None:
     appointment_exists = await conn.fetchval(
-        "SELECT 1 FROM appointment WHERE appointment_id = $1", appointment_id
+        "SELECT 1 FROM appointment WHERE appointment_id = $1 "
+        "AND status = 'Completed' "
+        "AND ($2::int IS NULL OR doctor_staff_id = $2)", appointment_id, doctor_id
     )
     if not appointment_exists:
         return None
@@ -85,11 +89,16 @@ async def amend_treatment(
     conn: PoolConnectionProxy,
     appointment_treatment_id: int,
     body: TreatmentAmendCreate,
+    doctor_id: int | None = None,
 ) -> dict | None:
     original = await conn.fetchrow(
-        "SELECT appointment_id FROM appointment_treatment "
-        "WHERE appointment_treatment_id = $1",
+        "SELECT at.appointment_id FROM appointment_treatment at "
+        "JOIN appointment a USING (appointment_id) "
+        "WHERE at.appointment_treatment_id = $1 "
+        "AND a.status = 'Completed' "
+        "AND ($2::int IS NULL OR a.doctor_staff_id = $2)",
         appointment_treatment_id,
+        doctor_id,
     )
     if original is None:
         return None
@@ -117,13 +126,16 @@ async def update_notes(
     conn: PoolConnectionProxy,
     appointment_id: int,
     body: ConsultationNotesUpdate,
+    doctor_id: int | None = None,
 ) -> dict | None:
     row = await conn.fetchrow(
         "UPDATE appointment SET consultation_notes = $2 "
         "WHERE appointment_id = $1 "
+        "AND ($3::int IS NULL OR doctor_staff_id = $3) "
         "RETURNING appointment_id",
         appointment_id,
         body.notes,
+        doctor_id,
     )
     if row is None:
         return None

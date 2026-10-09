@@ -1,4 +1,6 @@
 import { apiGet, apiPatch, apiPost } from './client';
+import { toPatient } from './mappers';
+import type { PatientRaw } from './mappers';
 import type { Gender, PagedResult, Patient } from '../../types';
 
 export interface PatientListParams {
@@ -16,8 +18,15 @@ export interface RegisterPatientInput {
   gender: Gender;
   address?: string;
   registeredBranchId: number;
-  phoneNumber?: string;
-  phoneType?: 'Mobile' | 'Home' | 'Work';
+}
+
+export interface UpdatePatientInput {
+  nicPassportNo?: string;
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string;
+  gender?: Gender;
+  address?: string | null;
 }
 
 export async function fetchPatients(params?: PatientListParams): Promise<PagedResult<Patient>> {
@@ -30,21 +39,36 @@ export async function fetchPatients(params?: PatientListParams): Promise<PagedRe
       }
     });
   }
+  if (typeof queryParams.search === 'string') {
+    const trimmed = queryParams.search.trim();
+    if (trimmed) {
+      queryParams.search = trimmed;
+    } else {
+      delete queryParams.search;
+    }
+  }
 
-  return apiGet<PagedResult<Patient>>('/patients', queryParams);
+  const result = await apiGet<PagedResult<PatientRaw>>('/patients', queryParams);
+  return { ...result, items: result.items.map(toPatient) };
 }
 
 export async function fetchPatientById(patientId: number): Promise<Patient> {
-  return apiGet<Patient>(`/patients/${patientId}`);
+  const raw = await apiGet<PatientRaw>(`/patients/${patientId}`);
+  return toPatient(raw);
 }
 
 export async function registerPatient(input: RegisterPatientInput): Promise<Patient> {
-  return apiPost<Patient>('/patients', input);
+  const raw = await apiPost<PatientRaw>('/patients', {
+    ...input,
+    address: input.address?.trim() || undefined,
+  });
+  return toPatient(raw);
 }
 
 export async function updatePatient(
   patientId: number,
-  updates: Partial<Omit<Patient, 'patientId' | 'createdAt' | 'registeredBranchName'>>,
+  updates: UpdatePatientInput,
 ): Promise<Patient> {
-  return apiPatch<Patient>(`/patients/${patientId}`, updates);
+  const raw = await apiPatch<PatientRaw>(`/patients/${patientId}`, updates);
+  return toPatient(raw);
 }

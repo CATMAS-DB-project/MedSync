@@ -1,7 +1,10 @@
 from asyncpg.pool import PoolConnectionProxy
 
 
-async def list_branches(conn: PoolConnectionProxy) -> list[dict]:
+async def list_branches(
+    conn: PoolConnectionProxy, offset: int, limit: int
+) -> tuple[list[dict], int]:
+    total = await conn.fetchval("SELECT count(*) FROM branch")
     rows = await conn.fetch(
         """
         SELECT b.branch_id, b.branch_name, b.address, b.contact_number,
@@ -10,9 +13,12 @@ async def list_branches(conn: PoolConnectionProxy) -> list[dict]:
         FROM branch AS b
         LEFT JOIN staff AS s ON s.staff_id = b.manager_staff_id
         ORDER BY b.branch_id
-        """
+        LIMIT $1 OFFSET $2
+        """,
+        limit,
+        offset,
     )
-    return [dict(row) for row in rows]
+    return [dict(row) for row in rows], total
 
 
 async def get_branch(conn: PoolConnectionProxy, branch_id: int) -> dict | None:
