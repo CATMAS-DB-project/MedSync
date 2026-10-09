@@ -109,81 +109,124 @@ export function StaffPage() {
   }, []);
 
   return (
-    <div className="max-w-7xl mx-auto h-full flex flex-col gap-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-display-sm text-on-surface">Staff Directory</h2>
-          <p className="text-body-sm text-on-surface-variant mt-1">
-            Manage clinical and administrative personnel
-          </p>
+    <div className="mx-auto flex h-full w-full max-w-7xl flex-col gap-6">
+      <div className="relative isolate flex flex-col gap-5 overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-secondary p-5 shadow-elevated sm:flex-row sm:items-center sm:justify-between sm:p-7">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-24 z-0 h-64 w-64 rounded-full border-[36px] border-white/5" />
+        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 right-36 z-0 h-48 w-48 rounded-full bg-white/5 blur-2xl" />
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-elevated backdrop-blur-sm">
+            <span className="material-symbols-outlined text-[26px]" aria-hidden="true">medical_services</span>
+          </div>
+          <div>
+            <p className="text-label-md font-semibold uppercase tracking-[0.16em] text-white/75">People &amp; care teams</p>
+            <h2 className="text-display-sm text-white">Staff Directory</h2>
+            <p className="mt-1 text-body-sm text-white/80">
+              Manage clinical and administrative personnel
+            </p>
+          </div>
         </div>
-        <Button variant="primary" icon="person_add" onClick={() => setDrawerOpen(true)}>
+        <Button
+          variant="primary"
+          icon="person_add"
+          onClick={() => setDrawerOpen(true)}
+          className="relative z-10 w-full bg-white text-primary shadow-lg hover:bg-primary-fixed sm:w-auto"
+        >
           Add New Staff
         </Button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
-          <Input
-            icon="search"
-            placeholder="Search staff by name..."
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setPage(1);
-            }}
-          />
+      <section className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
+        <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary to-secondary" />
+        <div className="p-4 sm:p-5">
+          <div className="mb-4 flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed text-primary">
+              <span className="material-symbols-outlined text-[20px]" aria-hidden="true">manage_search</span>
+            </span>
+            <div>
+              <h3 className="text-body-md font-semibold text-on-surface">Find a team member</h3>
+              <p className="mt-0.5 text-body-sm text-on-surface-variant">Search by name or filter by job title.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_14rem]">
+            <Input
+              label="Search staff"
+              icon="search"
+              placeholder="Search staff by name..."
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
+            />
+            <Select
+              label="Job title"
+              options={jobTitleOptions}
+              value={jobTitle}
+              onChange={(event) => {
+                setJobTitle(event.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
         </div>
-        <div className="sm:w-56">
-          <Select
-            options={jobTitleOptions}
-            value={jobTitle}
-            onChange={(event) => {
-              setJobTitle(event.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-      </div>
+      </section>
 
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col flex-1 overflow-hidden">
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-surface-container-low sticky top-0 z-10 border-b border-outline-variant">
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant bg-gradient-to-r from-primary-fixed/30 to-secondary-fixed/20 px-4 py-4 sm:px-5">
+          <div>
+            <h3 className="text-headline-sm text-on-surface">Team directory</h3>
+            <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-secondary-fixed/50 px-2.5 py-1 text-label-md font-medium text-on-secondary-fixed">
+              <span className="material-symbols-outlined text-[15px]" aria-hidden="true">groups</span>
+              {totalItems.toLocaleString()} {totalItems === 1 ? 'team member' : 'team members'}
+            </div>
+          </div>
+          {isLoading && (
+            <span className="inline-flex items-center gap-2 text-body-sm text-on-surface-variant" role="status">
+              <span className="material-symbols-outlined animate-spin text-[18px]" aria-hidden="true">progress_activity</span>
+              Loading staff
+            </span>
+          )}
+        </div>
+        <div className="flex-1 overflow-x-auto">
+          <table className="w-full min-w-[900px] border-collapse text-left">
+            <thead className="sticky top-0 z-10 border-b border-outline-variant bg-primary-fixed/30">
               <tr>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold w-1/4">
+                <th scope="col" className="w-1/4 px-5 py-3 text-label-md font-semibold text-on-surface-variant">
                   Name
                 </th>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">
+                <th scope="col" className="px-4 py-3 text-label-md font-semibold text-on-surface-variant">
                   Job Title
                 </th>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">
+                <th scope="col" className="px-4 py-3 text-label-md font-semibold text-on-surface-variant">
                   Account Role
                 </th>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">
+                <th scope="col" className="px-4 py-3 text-label-md font-semibold text-on-surface-variant">
                   Branch
                 </th>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">
+                <th scope="col" className="px-4 py-3 text-label-md font-semibold text-on-surface-variant">
                   Phone
                 </th>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">
+                <th scope="col" className="px-4 py-3 text-label-md font-semibold text-on-surface-variant">
                   Hired
                 </th>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">
+                <th scope="col" className="px-5 py-3 text-label-md font-semibold text-on-surface-variant">
                   Status
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-outline-variant text-table-data text-on-surface bg-surface-container-lowest">
+            <tbody className="divide-y divide-outline-variant text-table-data text-on-surface">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-on-surface-variant">
-                    Loading staff...
+                  <td colSpan={7} className="px-5 py-10 text-center text-on-surface-variant">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="material-symbols-outlined animate-spin text-primary" aria-hidden="true">progress_activity</span>
+                      Loading staff details…
+                    </span>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-error">
+                  <td colSpan={7} className="px-5 py-10 text-center text-error" role="alert">
                     {error}
                   </td>
                 </tr>
@@ -191,29 +234,29 @@ export function StaffPage() {
                 staff.map((member) => {
                   const fullName = formatFullName(member.firstName, member.lastName);
                   return (
-                    <tr key={member.staffId} className="hover:bg-surface-container-high transition-colors h-10">
-                      <td className="py-1.5 px-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-[10px] font-bold shrink-0">
+                    <tr key={member.staffId} className="group h-16 odd:bg-surface-container-lowest even:bg-secondary-fixed/10 transition-colors hover:bg-primary-fixed/25">
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-fixed to-secondary-fixed text-label-md font-semibold text-primary">
                             {getInitials(fullName)}
                           </div>
-                          <div>
-                            <div className="font-medium">{fullName}</div>
-                          </div>
+                          <div className="font-semibold text-on-surface">{fullName}</div>
                         </div>
                       </td>
-                      <td className="py-1.5 px-3 text-on-surface-variant">{member.jobTitle}</td>
-                      <td className="py-1.5 px-3 text-on-surface-variant">
-                        <span className="text-outline italic">No login</span>
+                      <td className="px-4 py-3 text-on-surface-variant">{member.jobTitle}</td>
+                      <td className="px-4 py-3 text-on-surface-variant">
+                        <span className="inline-flex rounded-full bg-surface-container-low px-2.5 py-1 text-xs text-outline">
+                          No login
+                        </span>
                       </td>
-                      <td className="py-1.5 px-3 text-on-surface-variant">{member.branchName}</td>
-                      <td className="py-1.5 px-3 text-on-surface-variant">
+                      <td className="px-4 py-3 text-on-surface-variant">{member.branchName}</td>
+                      <td className="px-4 py-3 text-on-surface-variant">
                         {member.phones?.[0]?.phoneNumber ?? '—'}
                       </td>
-                      <td className="py-1.5 px-3 text-on-surface-variant">
+                      <td className="px-4 py-3 text-on-surface-variant">
                         {formatDate(member.hireDate)}
                       </td>
-                      <td className="py-1.5 px-3">
+                      <td className="px-5 py-3">
                         <Badge tone={EMPLOYMENT_STATUS_TONE[member.employmentStatus]}>
                           {member.employmentStatus}
                         </Badge>
@@ -223,7 +266,7 @@ export function StaffPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-on-surface-variant">
+                  <td colSpan={7} className="px-5 py-10 text-center text-on-surface-variant">
                     No staff match your search.
                   </td>
                 </tr>
@@ -232,13 +275,15 @@ export function StaffPage() {
           </table>
         </div>
 
-        <Pagination
-          page={page}
-          pageSize={PAGE_SIZE}
-          totalItems={totalItems}
-          onPageChange={setPage}
-        />
-      </div>
+        <div className="border-t border-outline-variant">
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            totalItems={totalItems}
+            onPageChange={setPage}
+          />
+        </div>
+      </section>
 
       <Drawer
         isOpen={isDrawerOpen}
