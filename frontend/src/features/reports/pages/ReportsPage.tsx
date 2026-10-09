@@ -48,8 +48,9 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`bg-surface-container-lowest border border-outline-variant rounded-lg p-5 flex flex-col gap-4 ${className}`}>
-      <div className="flex justify-between items-center border-b border-outline-variant pb-2">
+    <div className={`relative flex flex-col gap-4 overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated sm:p-5 ${className}`}>
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-secondary" />
+      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-outline-variant pb-3 pt-1">
         <h2 className="text-headline-sm text-on-surface">{title}</h2>
         {subtitle && <span className="text-body-sm text-on-surface-variant">{subtitle}</span>}
       </div>
@@ -141,46 +142,76 @@ export function ReportsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto flex flex-col gap-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-display-sm text-on-surface">Reports</h1>
-          <p className="text-body-sm text-on-surface-variant mt-1">
-            Key performance metrics and financial overviews.
-          </p>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      <div className="relative isolate flex flex-col gap-5 overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-secondary p-5 shadow-elevated md:flex-row md:items-center md:justify-between md:p-7">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-24 z-0 h-64 w-64 rounded-full border-[36px] border-white/5" />
+        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 right-36 z-0 h-48 w-48 rounded-full bg-white/5 blur-2xl" />
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-elevated backdrop-blur-sm">
+            <span className="material-symbols-outlined text-[26px]" aria-hidden="true">monitoring</span>
+          </div>
+          <div>
+            <p className="text-label-md font-semibold uppercase tracking-[0.16em] text-white/75">Insights &amp; performance</p>
+            <h1 className="text-display-sm text-white">Reports</h1>
+            <p className="mt-1 text-body-sm text-white/80">
+              Key performance metrics and financial overviews
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2 print:hidden">
-          <Button variant="primary" icon="print" onClick={() => window.print()}>
+        <div className="relative z-10 flex flex-col gap-2 print:hidden sm:flex-row">
+          <Button
+            variant="secondary"
+            icon="print"
+            onClick={() => window.print()}
+            className="w-full border-white/40 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
+          >
             Print / Save PDF
           </Button>
-          <Button variant="secondary" icon="table_view" onClick={exportCsv}>
+          <Button
+            variant="primary"
+            icon="table_view"
+            onClick={exportCsv}
+            className="w-full bg-white text-primary shadow-lg hover:bg-secondary hover:text-on-secondary sm:w-auto"
+          >
             Export CSV
           </Button>
         </div>
       </div>
 
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-4 flex flex-wrap gap-4 items-end print:hidden">
-        {!isBranchManager && (
-          <div className="flex-1 min-w-[200px]">
-            <Select
-              label="Branch Location"
-              options={branchOptions}
-              value={draft.branch}
-              onChange={(event) => setDraft({ ...draft, branch: event.target.value })}
-            />
+      <section className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated print:hidden">
+        <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary to-secondary" />
+        <div className="p-4 sm:p-5">
+          <div className="mb-4 flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-fixed text-primary">
+              <span className="material-symbols-outlined text-[20px]" aria-hidden="true">tune</span>
+            </span>
+            <div>
+              <h2 className="text-body-md font-semibold text-on-surface">Report filters</h2>
+              <p className="mt-0.5 text-body-sm text-on-surface-variant">Set a reporting period and branch, then apply your selection.</p>
+            </div>
           </div>
-        )}
-        <div className="min-w-[160px]">
-          <Input label="From" type="date" value={draft.from} max={draft.to} onChange={(e) => setDraft({ ...draft, from: e.target.value })} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(12rem,1fr)_minmax(10rem,0.7fr)_minmax(10rem,0.7fr)_auto] lg:items-end">
+            {!isBranchManager && (
+              <Select
+                label="Branch location"
+                options={branchOptions}
+                value={draft.branch}
+                onChange={(event) => setDraft({ ...draft, branch: event.target.value })}
+              />
+            )}
+            <Input label="From" type="date" value={draft.from} max={draft.to} onChange={(e) => setDraft({ ...draft, from: e.target.value })} />
+            <Input label="To" type="date" value={draft.to} min={draft.from} onChange={(e) => setDraft({ ...draft, to: e.target.value })} />
+            <Button variant="primary" icon="filter_alt" onClick={applyFilters} className="w-full sm:w-auto">
+              Apply Filters
+            </Button>
+            {filterError && (
+              <p role="alert" className="text-body-sm text-error sm:col-span-2 lg:col-span-full">
+                {filterError}
+              </p>
+            )}
+          </div>
         </div>
-        <div className="min-w-[160px]">
-          <Input label="To" type="date" value={draft.to} min={draft.from} onChange={(e) => setDraft({ ...draft, to: e.target.value })} />
-        </div>
-        <Button variant="secondary" onClick={applyFilters}>
-          Apply Filters
-        </Button>
-        {filterError && <p className="w-full text-body-sm text-error">{filterError}</p>}
-      </div>
+      </section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <SectionCard
