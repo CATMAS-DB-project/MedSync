@@ -179,7 +179,8 @@ exists.
 
 ## Tests added or updated
 
-File: [`tests/test_branch_access.py`](./tests/test_branch_access.py)
+Files: [`tests/test_branch_access.py`](./tests/test_branch_access.py) and
+[`tests/test_report.py`](./tests/test_report.py)
 
 The focused tests now verify:
 
@@ -189,6 +190,8 @@ The focused tests now verify:
 - Branch Manager cannot access staff from another branch.
 - Patient branch filters remain available for cross-branch reads.
 - Doctor branch filters remain available for cross-branch reads.
+- Report role, branch-scope, date-range, and patient-scope behavior is covered
+  by the report tests.
 
 The tests use mocked asynchronous database connections and service calls, so
 they validate authorization decisions without requiring a running PostgreSQL
@@ -217,9 +220,9 @@ derivation, and Doctor appointment ownership without inventing test data.
 
 ## Known scope and follow-up
 
-The endpoint markdown lists report and appointment reschedule endpoints that
-are not currently implemented in `app/domains`. Their authorization cannot
-be validated until their routes exist.
+The endpoint markdown lists appointment reschedule endpoints that are not
+currently implemented in `app/domains`. Their authorization cannot be
+validated until those routes exist.
 
 When those endpoints are implemented:
 
@@ -228,3 +231,21 @@ When those endpoints are implemented:
 3. Add doctor ownership checks where a Doctor acts on an appointment.
 4. Preserve cross-branch patient lookup required by `REQ-PM-2`, `SAFE-5`,
    and `BR-5`.
+
+### Reports authorization
+
+Report access follows the CATMS role matrix:
+
+- Admin and Branch Manager may access RG-1 (appointments summary), RG-2
+  (doctor revenue), RG-4 (treatment frequency), and RG-5
+  (insurance-versus-out-of-pocket).
+- Admin, Branch Manager, and Receptionist may access RG-3
+  (outstanding balances).
+- Branch Managers are always bound to `user.branch_id` for report analytics.
+  Requests for another branch, or requests by an unassigned Branch Manager,
+  return `403 Forbidden`.
+- Admins may query all branches or filter analytics by `branch_id`.
+- Receptionists must provide `patient_id` when calling
+  `GET /reports/outstanding-balances`; aggregate outstanding-balance report
+  access is not permitted. The optional `branch_id` further narrows that
+  patient-specific lookup.

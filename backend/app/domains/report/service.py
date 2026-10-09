@@ -82,13 +82,19 @@ async def doctor_revenue(
 
 
 async def outstanding_balances(
-    conn: PoolConnectionProxy, *, branch_id: int | None
+    conn: PoolConnectionProxy,
+    *,
+    branch_id: int | None,
+    patient_id: int | None = None,
 ) -> list[dict]:
     filters = ["o.outstanding_amount > 0"]
     values: list[object] = []
     if branch_id is not None:
         values.append(branch_id)
-        filters.append("a.branch_id = $1")
+        filters.append(f"a.branch_id = ${len(values)}")
+    if patient_id is not None:
+        values.append(patient_id)
+        filters.append(f"a.patient_id = ${len(values)}")
     rows = await conn.fetch(
         "SELECT o.invoice_id, o.appointment_id, a.branch_id, b.branch_name, "
         "p.patient_id, p.first_name || ' ' || p.last_name AS patient_name, "
@@ -159,8 +165,7 @@ async def insurance_vs_outofpocket(
         "ON a.appointment_id = i.appointment_id "
         f"{where} AND a.status = 'Completed'"
         if where
-        else
-        "FROM invoice i JOIN appointment a "
+        else "FROM invoice i JOIN appointment a "
         "ON a.appointment_id = i.appointment_id "
         "WHERE a.status = 'Completed'",
         *values,

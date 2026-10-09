@@ -64,6 +64,16 @@ async def test_outstanding_balances_always_order_filtered_results() -> None:
 
 
 @pytest.mark.asyncio
+async def test_outstanding_balances_applies_patient_scope() -> None:
+    conn = FetchConnection()
+
+    await outstanding_balances(conn, branch_id=None, patient_id=42)
+
+    assert "WHERE o.outstanding_amount > 0 AND a.patient_id = $1" in conn.query
+    assert conn.values == (42,)
+
+
+@pytest.mark.asyncio
 async def test_treatment_frequency_applies_branch_scope() -> None:
     conn = FetchConnection()
 
