@@ -180,19 +180,34 @@ export function AppointmentBookingPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
-      <div className="flex justify-between items-end mb-6">
-        <div>
-          <h1 className="text-display-sm text-on-surface mb-1">Book Appointment</h1>
-          <p className="text-body-md text-on-surface-variant">Schedule a patient visit or consultation.</p>
+    <div className="mx-auto w-full max-w-6xl">
+      <div className="relative isolate mb-6 flex flex-col justify-between gap-5 overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-secondary p-5 shadow-elevated sm:flex-row sm:items-center sm:p-7">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-24 z-0 h-64 w-64 rounded-full border-[36px] border-white/5" />
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-elevated">
+            <Icon name="event_available" size={26} />
+          </div>
+          <div>
+            <p className="text-label-md font-semibold uppercase tracking-[0.16em] text-white/75">Care coordination</p>
+            <h1 className="text-display-sm text-white">Book Appointment</h1>
+            <p className="mt-1 text-body-sm text-white/80">Schedule a patient visit or consultation.</p>
+          </div>
         </div>
-        <Toggle checked={isWalkIn} onChange={setIsWalkIn} label="Walk-in" />
+        <div className="relative z-10 rounded-xl border border-white/20 bg-white/10 px-4 py-3">
+          <Toggle checked={isWalkIn} onChange={setIsWalkIn} label="Walk-in" />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-element-gap">
-        <div className="lg:col-span-5 flex flex-col gap-element-gap">
-          <div className="bg-surface-container-lowest border border-outline-variant p-6 rounded shadow-sm">
-            <h3 className="text-headline-sm text-on-surface mb-4">Patient Information</h3>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 lg:gap-6">
+        <div className="flex flex-col gap-5 lg:col-span-5">
+          <section className="relative rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated sm:p-5">
+            <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 rounded-l-xl bg-gradient-to-b from-primary to-secondary" />
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed text-primary">
+                <Icon name="person_search" size={20} />
+              </span>
+              <h3 className="text-headline-sm text-on-surface">Patient Information</h3>
+            </div>
             {!selectedPatient ? (
               <div className="relative">
                 <Input
@@ -203,9 +218,9 @@ export function AppointmentBookingPage() {
                   onChange={(event) => setPatientQuery(event.target.value)}
                 />
                 {patientMatches.data && (
-                  <div className="absolute z-10 mt-1 w-full bg-surface-container-lowest border border-outline-variant rounded shadow-elevated max-h-48 overflow-y-auto">
+                  <div className="absolute z-20 mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
                     {patientMatches.data.items.length === 0 && (
-                      <div className="px-3 py-2 text-body-sm text-on-surface-variant">No patients found.</div>
+                      <div className="px-4 py-3 text-body-sm text-on-surface-variant">No patients found.</div>
                     )}
                     {patientMatches.data.items.map((patient) => (
                       <button
@@ -215,9 +230,9 @@ export function AppointmentBookingPage() {
                           setSelectedPatient(patient);
                           setPatientQuery('');
                         }}
-                        className="w-full text-left px-3 py-2 hover:bg-surface-container-low flex items-center gap-2"
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-primary-fixed/20 focus-visible:bg-primary-fixed/20 focus-visible:outline-none"
                       >
-                        <div className="w-6 h-6 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center text-[10px] font-bold">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary-fixed text-label-md font-bold text-on-secondary-fixed">
                           {getInitials(formatFullName(patient.firstName, patient.lastName))}
                         </div>
                         <span className="text-body-sm text-on-surface">
@@ -232,16 +247,16 @@ export function AppointmentBookingPage() {
                 )}
               </div>
             ) : (
-              <div className="bg-surface-container-low p-3 rounded border border-outline-variant flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/20 bg-gradient-to-r from-primary-fixed/30 to-secondary-fixed/20 p-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-bold text-label-md">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-fixed to-secondary-fixed text-label-md font-bold text-primary">
                     {getInitials(formatFullName(selectedPatient.firstName, selectedPatient.lastName))}
                   </div>
                   <div>
                     <div className="text-body-md font-medium text-on-surface">
                       {formatFullName(selectedPatient.firstName, selectedPatient.lastName)}
                     </div>
-                    <div className="text-label-md text-outline">NIC: {selectedPatient.nicPassportNo}</div>
+                    <div className="text-label-md text-on-surface-variant">NIC: {selectedPatient.nicPassportNo}</div>
                   </div>
                 </div>
                 <button
@@ -253,10 +268,16 @@ export function AppointmentBookingPage() {
                 </button>
               </div>
             )}
-          </div>
+          </section>
 
-          <div className="bg-surface-container-lowest border border-outline-variant p-6 rounded shadow-sm flex-1">
-            <h3 className="text-headline-sm text-on-surface mb-4">Provider</h3>
+          <section className="relative flex-1 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated sm:p-5">
+            <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 rounded-l-xl bg-gradient-to-b from-secondary to-primary" />
+            <div className="mb-4 flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary-fixed/70 text-secondary">
+                <Icon name="medical_services" size={20} />
+              </span>
+              <h3 className="text-headline-sm text-on-surface">Provider</h3>
+            </div>
             <div className="flex flex-col gap-4">
               <Select
                 label="Branch"
@@ -281,36 +302,45 @@ export function AppointmentBookingPage() {
                 disabled={doctorOptions.length === 0}
               />
             </div>
-          </div>
+          </section>
         </div>
 
         <div className="lg:col-span-7">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded shadow-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-headline-sm text-on-surface">Schedule</h3>
+          <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant bg-gradient-to-r from-primary-fixed/30 to-secondary-fixed/20 px-4 py-4 sm:px-5">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed text-primary">
+                  <Icon name="calendar_month" size={20} />
+                </span>
+                <div>
+                  <h3 className="text-headline-sm text-on-surface">Schedule</h3>
+                  <p className="text-body-sm text-on-surface-variant">Select a date and available time.</p>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setMonthOffset((prev) => prev - 1)}>
                   <Icon name="chevron_left" size={18} />
                 </Button>
-                <span className="text-body-sm text-on-surface-variant">{monthLabel}</span>
+                <span className="min-w-32 text-center text-body-sm font-semibold text-on-surface">{monthLabel}</span>
                 <Button variant="ghost" size="sm" onClick={() => setMonthOffset((prev) => prev + 1)}>
                   <Icon name="chevron_right" size={18} />
                 </Button>
               </div>
             </div>
 
-            <div className="grid grid-cols-7 gap-2 mb-4">
+            <div className="px-4 pt-4 sm:px-5">
+            <div className="mb-3 grid grid-cols-7 gap-1.5 sm:gap-2">
               {WEEKDAY_LABELS.map((label) => (
-                <div key={label} className="text-center text-label-md text-on-surface-variant">
+                <div key={label} className="py-1 text-center text-label-md font-semibold text-on-surface-variant">
                   {label}
                 </div>
               ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
               {calendarDays.map((day, index) => {
                 if (!day) {
-                  return <div key={`empty-${index}`} className="h-16 rounded border border-transparent" />;
+                  return <div key={`empty-${index}`} className="aspect-square rounded-lg border border-transparent sm:aspect-auto sm:h-16" />;
                 }
 
                 const iso = toIsoDate(day);
@@ -325,34 +355,41 @@ export function AppointmentBookingPage() {
                     onClick={() => !isPast && setSelectedDate(iso)}
                     disabled={isPast}
                     className={[
-                      'h-16 rounded border text-left p-2 transition-colors',
-                      isSelected ? 'border-primary bg-primary-container text-on-primary-container' : 'border-outline-variant bg-surface-container-low text-on-surface',
-                      isPast ? 'opacity-40 cursor-not-allowed' : 'hover:bg-surface-container-high',
+                      'relative flex aspect-square flex-col rounded-lg border p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:aspect-auto sm:h-16 sm:p-2',
+                      isSelected ? 'border-primary bg-primary text-on-primary shadow-sm' : 'border-outline-variant bg-surface-container-lowest text-on-surface',
+                      isPast ? 'cursor-not-allowed opacity-40' : 'hover:border-primary/40 hover:bg-primary-fixed/20',
                     ].join(' ')}
                   >
-                    <div className="text-label-md font-medium">{day.getDate()}</div>
-                    {isAvailable && <div className="mt-1 h-1.5 w-1.5 rounded-full bg-green-500" />}
+                    <div className="text-label-md font-semibold">{day.getDate()}</div>
+                    {isAvailable && <div className={`mt-auto h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-secondary'}`} />}
                   </button>
                 );
               })}
             </div>
+            </div>
 
             {submitError && (
-              <div className="mt-4 rounded border border-error/40 bg-error/10 p-3 text-body-sm text-error">
+              <div role="alert" className="mx-4 mt-4 rounded-lg border border-error/30 bg-error-container/50 p-3 text-body-sm text-on-error-container sm:mx-5">
                 {submitError}
               </div>
             )}
 
             {doctorId && availability.isLoading && (
-              <div className="mt-4 text-body-sm text-on-surface-variant">Loading slots…</div>
+              <div role="status" className="mx-4 mt-4 inline-flex items-center gap-2 text-body-sm text-on-surface-variant sm:mx-5">
+                <Icon name="progress_activity" size={18} className="animate-spin text-primary" />
+                Loading slots…
+              </div>
             )}
 
             {doctorId && availability.data && slotGroups.length > 0 && (
-              <div className="mt-4 space-y-3">
+              <div className="space-y-3 px-4 pb-5 pt-4 sm:px-5">
                 {slotGroups.map(([label, slots]) => {
                   return (
-                    <div key={label} className="rounded border border-outline-variant bg-surface-container-low p-3">
-                      <div className="mb-2 text-label-md text-on-surface-variant">{label}</div>
+                    <div key={label} className="rounded-xl border border-outline-variant bg-surface-container-low/70 p-3">
+                      <div className="mb-2 flex items-center gap-2 text-label-md font-semibold text-on-surface-variant">
+                        <Icon name="schedule" size={16} />
+                        {label}
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         {slots.map((slot) => {
                           const active = selectedTime === slot.time;
@@ -363,12 +400,12 @@ export function AppointmentBookingPage() {
                               disabled={!slot.available}
                               onClick={() => setSelectedTime(slot.time)}
                               className={[
-                                'rounded px-3 py-1.5 text-label-md transition-colors',
+                                'rounded-lg px-3 py-2 text-label-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                                 slot.available
                                   ? active
-                                    ? 'bg-primary-container text-on-primary-container'
-                                    : 'bg-surface text-on-surface hover:bg-surface-container-high'
-                                  : 'bg-surface-container-low text-on-surface-variant cursor-not-allowed',
+                                    ? 'bg-primary text-on-primary shadow-sm'
+                                    : 'bg-surface-container-lowest text-on-surface hover:bg-primary-fixed/30'
+                                  : 'cursor-not-allowed bg-surface-container-low text-on-surface-variant',
                             ].join(' ')}
                             >
                               {slot.available ? 'Available' : 'Booked'}
@@ -383,15 +420,15 @@ export function AppointmentBookingPage() {
             )}
 
             {doctorId && !availability.isLoading && availability.data && slotGroups.length === 0 && (
-              <div className="mt-4 rounded border border-outline-variant bg-surface-container-low p-3 text-body-sm text-on-surface-variant">
+              <div className="mx-4 mt-4 rounded-lg border border-outline-variant bg-surface-container-low p-4 text-body-sm text-on-surface-variant sm:mx-5">
                 No available slots for this date.
               </div>
             )}
-          </div>
+          </section>
         </div>
       </div>
 
-      <div className="mt-6 flex justify-end gap-3">
+      <div className="sticky bottom-16 z-20 mt-2 flex flex-col-reverse gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest/95 p-3 shadow-elevated backdrop-blur md:bottom-4 md:flex-row md:justify-end md:gap-3">
         <Button variant="secondary" onClick={() => navigate(ROUTES.APPOINTMENTS)}>
           Cancel
         </Button>
