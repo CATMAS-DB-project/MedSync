@@ -13,18 +13,12 @@ import {
   fetchTreatmentFrequency,
 } from '../../../services/api/reports';
 import { formatCurrency } from '../../../utils/formatters';
-import { toIsoDate, todayIso } from '../../../utils/dates';
+import { todayIso, daysAgoIso } from '../../../utils/dates';
 
 interface Filters {
   branch: string; // 'all' or a branch id
   from: string;
   to: string;
-}
-
-function daysAgoIso(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return toIsoDate(d);
 }
 
 function downloadCsv(filename: string, rows: (string | number)[][]) {

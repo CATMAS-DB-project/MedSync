@@ -8,6 +8,7 @@ import { LoginPage } from '../features/auth/pages/LoginPage';
 import { DashboardPage } from '../features/dashboard/pages/DashboardPage';
 import { ReceptionHomePage } from '../features/home/pages/ReceptionHomePage';
 import { DoctorHomePage } from '../features/home/pages/DoctorHomePage';
+import { QAHomePage } from '../features/home/pages/QAHomePage';
 import { PatientsPage } from '../features/patients/pages/PatientsPage';
 import { AppointmentsPage } from '../features/appointments/pages/AppointmentsPage';
 import { StaffPage } from '../features/staff/pages/StaffPage';
@@ -50,6 +51,14 @@ export const router = createBrowserRouter([
             element: (
               <RoleRoute>
                 <DoctorHomePage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: ROUTES.QA_HOME,
+            element: (
+              <RoleRoute>
+                <QAHomePage />
               </RoleRoute>
             ),
           },
