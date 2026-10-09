@@ -1,6 +1,10 @@
 import type { SelectHTMLAttributes } from 'react';
 import { cn } from '../../utils/cn';
 
+function makeId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 export interface SelectOption {
   label: string;
   value: string;
@@ -22,7 +26,9 @@ export function Select({
   id,
   ...rest
 }: SelectProps) {
-  const selectId = id ?? rest.name;
+  const selectId = id ?? rest.name ?? makeId('select');
+  const errorId = error ? `${selectId}-error` : undefined;
+
   return (
     <div className="flex flex-col gap-1">
       {label && (
@@ -33,9 +39,11 @@ export function Select({
       <div className="relative">
         <select
           id={selectId}
+          aria-invalid={Boolean(error)}
+          aria-describedby={errorId}
           className={cn(
-            'w-full h-9 pl-3 pr-8 border border-outline-variant rounded bg-surface text-body-md text-on-surface focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all appearance-none cursor-pointer',
-            error && 'border-error focus:border-error focus:ring-error',
+            'w-full h-9 pl-3 pr-8 border border-outline-variant rounded-md bg-surface text-body-md text-on-surface appearance-none cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface transition-all disabled:bg-surface-container-low disabled:text-on-surface-variant disabled:border-outline-variant disabled:cursor-not-allowed',
+            error && 'border-error focus-visible:ring-error',
             className,
           )}
           {...rest}
@@ -55,7 +63,7 @@ export function Select({
           arrow_drop_down
         </span>
       </div>
-      {error && <span className="text-body-sm text-error">{error}</span>}
+      {error && <span id={errorId} className="text-body-sm text-error">{error}</span>}
     </div>
   );
 }

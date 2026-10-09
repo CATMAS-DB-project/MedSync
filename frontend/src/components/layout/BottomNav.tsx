@@ -9,12 +9,15 @@ export interface BottomNavProps {
 }
 
 export function BottomNav({ currentUser }: BottomNavProps) {
+  const navItems = filterNavItemsByRole(BOTTOM_NAV_ITEMS, currentUser.role);
+
   return (
     <nav className="flex justify-around items-center h-16 pb-safe bg-surface fixed bottom-0 w-full z-50 md:hidden border-t border-outline-variant">
-      {filterNavItemsByRole(BOTTOM_NAV_ITEMS, currentUser.role).map((item) => (
+      {navItems.map((item, index) => (
         <NavLink
           key={item.path}
           to={item.path}
+          end={index === 0}
           className={({ isActive }) =>
             cn(
               'flex flex-col items-center px-2 py-1 rounded transition-transform active:scale-95',

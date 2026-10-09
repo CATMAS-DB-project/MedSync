@@ -21,12 +21,7 @@ export function Sidebar({ currentUser }: SidebarProps) {
     navigate(ROUTES.LOGIN, { replace: true });
   };
 
-  // Defensive filter — prefer removing the item from SIDEBAR_NAV_ITEMS instead.
-  const navItems = filterNavItemsByRole(SIDEBAR_NAV_ITEMS, currentUser.role).filter(
-    (item) =>
-      item.label.toLowerCase() !== 'inventory' &&
-      !item.path.toLowerCase().includes('inventory'),
-  );
+  const navItems = filterNavItemsByRole(SIDEBAR_NAV_ITEMS, currentUser.role);
 
   return (
     <aside className="hidden md:flex flex-col py-4 bg-surface border-r border-outline-variant fixed left-0 top-0 h-full w-sidebar-width z-40">
@@ -52,10 +47,11 @@ export function Sidebar({ currentUser }: SidebarProps) {
           Menu
         </p>
 
-        {navItems.map((item) => (
+        {navItems.map((item, index) => (
           <NavLink
             key={item.path}
             to={item.comingSoon ? '#' : item.path}
+            end={index === 0}
             onClick={(event) => item.comingSoon && event.preventDefault()}
             className={({ isActive }) =>
               cn(

@@ -11,12 +11,12 @@ export interface BadgeProps {
 }
 
 const TONE_CLASSES: Record<BadgeTone, string> = {
-  primary: 'bg-primary/10 text-primary',
-  success: 'bg-success/10 text-success',
-  warning: 'bg-tertiary/10 text-tertiary',
-  error: 'bg-error/10 text-error',
-  secondary: 'bg-secondary/10 text-secondary',
-  neutral: 'bg-outline-variant/40 text-on-surface-variant',
+  primary: 'bg-primary-container text-on-primary-container',
+  success: 'bg-success-container text-on-success-container',
+  warning: 'bg-tertiary-container text-on-tertiary-container',
+  error: 'bg-error-container text-on-error-container',
+  secondary: 'bg-secondary-container text-on-secondary-container',
+  neutral: 'bg-surface-container-high text-on-surface-variant',
 };
 
 export function Badge({ children, tone = 'neutral', pill = false, className }: BadgeProps) {

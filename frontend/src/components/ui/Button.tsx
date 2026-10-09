@@ -14,16 +14,16 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: 'bg-primary-container text-white hover:opacity-90 disabled:opacity-50',
+  primary: 'bg-primary text-on-primary hover:bg-primary/90 disabled:bg-surface-container-low disabled:text-on-surface-variant',
   secondary:
-    'bg-transparent border border-primary text-primary hover:bg-surface-container disabled:opacity-50',
-  ghost: 'bg-transparent text-on-surface-variant hover:bg-surface-container-high disabled:opacity-50',
-  danger: 'bg-error text-on-error hover:opacity-90 disabled:opacity-50',
+    'border border-primary bg-transparent text-primary hover:bg-primary-container/30 disabled:border-outline-variant disabled:bg-surface-container-low disabled:text-on-surface-variant',
+  ghost: 'bg-transparent text-on-surface-variant hover:bg-surface-container-high disabled:text-on-surface-variant',
+  danger: 'bg-error text-on-error hover:bg-error/90 disabled:bg-error-container disabled:text-on-error-container',
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-label-md',
-  md: 'h-9 px-4 text-label-md',
+  sm: 'h-8 px-3 text-label-md rounded-md',
+  md: 'h-9 px-4 text-label-md rounded-md',
 };
 
 export function Button({
@@ -36,15 +36,19 @@ export function Button({
   children,
   ...rest
 }: ButtonProps) {
+  const hasIconOnly = !!icon && !children;
+  const computedAriaLabel = hasIconOnly ? rest['aria-label'] ?? 'Action' : rest['aria-label'];
+
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded font-label-md font-medium transition-colors duration-150 ease-in-out cursor-pointer disabled:cursor-not-allowed',
+        'inline-flex items-center justify-center gap-2 rounded-md font-label-md font-medium transition-colors duration-150 ease-in-out cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none',
         VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],
         className,
       )}
       disabled={disabled || isLoading}
+      aria-label={computedAriaLabel}
       {...rest}
     >
       {isLoading ? (

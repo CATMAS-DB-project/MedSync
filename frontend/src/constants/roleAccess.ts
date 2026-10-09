@@ -3,7 +3,10 @@ import { ROUTES } from './routes';
 import type { Role } from '../types';
 
 export const ROUTE_ROLES: Record<string, Role[]> = {
-  [ROUTES.DASHBOARD]: ['Admin', 'Branch Manager', 'QA Tester'],
+  [ROUTES.DASHBOARD]: ['Admin', 'Branch Manager'],
+  [ROUTES.RECEPTION_HOME]: ['Receptionist'],
+  [ROUTES.DOCTOR_HOME]: ['Doctor'],
+  [ROUTES.QA_HOME]: ['QA Tester'],
   [ROUTES.APPOINTMENTS]: ['Admin', 'Branch Manager', 'Receptionist', 'Doctor'],
   [ROUTES.APPOINTMENT_BOOKING]: ['Admin', 'Branch Manager', 'Receptionist'],
   [ROUTES.PATIENTS]: ['Admin', 'Branch Manager', 'Receptionist', 'Doctor'],
@@ -17,9 +20,9 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
 export const ROLE_HOME: Record<Role, string> = {
   Admin: ROUTES.DASHBOARD,
   'Branch Manager': ROUTES.DASHBOARD,
-  Receptionist: ROUTES.APPOINTMENTS,
-  Doctor: ROUTES.APPOINTMENTS,
-  'QA Tester': ROUTES.DASHBOARD,
+  Receptionist: ROUTES.RECEPTION_HOME,
+  Doctor: ROUTES.DOCTOR_HOME,
+  'QA Tester': ROUTES.QA_HOME,
 };
 
 export function canAccessRoute(role: Role, pathname: string): boolean {

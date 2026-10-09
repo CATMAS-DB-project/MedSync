@@ -4,6 +4,9 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Badge } from '../../../components/ui/Badge';
 import { Pagination } from '../../../components/common/Pagination';
+import { PageSkeleton } from '../../../components/common/PageSkeleton';
+import { EmptyState } from '../../../components/common/EmptyState';
+import { ErrorBanner } from '../../../components/common/ErrorBanner';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
@@ -96,18 +99,11 @@ export function PatientsPage() {
       <div className="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col flex-1 overflow-hidden">
         <div className="px-4 py-3 border-b border-outline-variant bg-surface-bright flex justify-between items-center">
           <h3 className="text-headline-sm text-on-surface">Patients</h3>
-          {patients.isLoading && (
-            <span className="text-body-sm text-on-surface-variant">Loading…</span>
-          )}
+          {patients.isLoading && <PageSkeleton className="w-28" />}
         </div>
 
         {patients.error && (
-          <div className="px-4 py-3 bg-error/10 text-error text-body-sm flex items-center justify-between">
-            <span>{patients.error}</span>
-            <button type="button" className="underline" onClick={patients.reload}>
-              Retry
-            </button>
-          </div>
+          <ErrorBanner message={patients.error} onRetry={patients.reload} />
         )}
 
         <div className="overflow-x-auto flex-1">
@@ -123,6 +119,26 @@ export function PatientsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant text-table-data text-on-surface bg-surface-container-lowest">
+              {patients.isLoading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-8">
+                    <PageSkeleton className="px-4 py-2" />
+                  </td>
+                </tr>
+              )}
+
+              {!patients.isLoading && !patients.error && rows.length === 0 && (
+                <tr>
+                  <td colSpan={6}>
+                    <EmptyState
+                      title="No patients match your search."
+                      description="Try adjusting the search or branch filter."
+                      icon="search_off"
+                    />
+                  </td>
+                </tr>
+              )}
+
               {rows.map((patient) => (
                 <tr
                   key={patient.patientId}
@@ -154,13 +170,6 @@ export function PatientsPage() {
                   </td>
                 </tr>
               ))}
-              {!patients.isLoading && !patients.error && rows.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-on-surface-variant">
-                    No patients match your search.
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
