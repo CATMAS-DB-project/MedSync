@@ -6,7 +6,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { ROUTES } from '../../../constants/routes';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchPatientById } from '../../../services/api/patients';
-import { calculateAge, formatDate, formatFullName, getInitials } from '../../../utils/formatters';
+import { calculateAge, formatDate, formatFullName } from '../../../utils/formatters';
 
 export interface PatientDetailDrawerProps {
   patientId: number | null;
@@ -32,6 +32,7 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
       onClose={onClose}
       title={fullName || 'Patient'}
       subtitle={patient ? `NIC: ${patient.nicPassportNo}` : undefined}
+      headerVariant="accent"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -66,24 +67,17 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
 
       {patient && (
         <>
-          <div className="relative overflow-hidden rounded-xl border border-primary/15 bg-gradient-to-br from-primary-fixed/40 via-surface-container-lowest to-secondary-fixed/30 p-4">
-            <div aria-hidden="true" className="absolute -right-8 -top-10 h-28 w-28 rounded-full border-[18px] border-primary/5" />
-            <div className="relative flex items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-headline-sm font-bold text-white shadow-elevated">
-              {getInitials(fullName)}
-            </div>
-            <div>
-              <h3 className="text-body-md font-semibold text-on-surface">{fullName}</h3>
-              <p className="text-body-sm text-on-surface-variant mt-0.5">
-                {calculateAge(patient.dateOfBirth) ?? '—'} yrs · {patient.gender}
-              </p>
-            </div>
-            </div>
-          </div>
-
           <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
           <DrawerSection title="Demographics" icon="badge">
             <div className="grid grid-cols-1 gap-3 text-body-sm sm:grid-cols-2">
+              <div className="rounded-lg bg-surface-container-low p-3">
+                <div className="text-label-md text-on-surface-variant">Age</div>
+                <div className="text-on-surface">{calculateAge(patient.dateOfBirth) ?? '—'} yrs</div>
+              </div>
+              <div className="rounded-lg bg-surface-container-low p-3">
+                <div className="text-label-md text-on-surface-variant">Gender</div>
+                <div className="text-on-surface">{patient.gender}</div>
+              </div>
               <div className="rounded-lg bg-surface-container-low p-3">
                 <div className="text-label-md text-on-surface-variant">Date of Birth</div>
                 <div className="text-on-surface">{formatDate(patient.dateOfBirth)}</div>

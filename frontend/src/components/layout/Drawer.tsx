@@ -13,11 +13,20 @@ export interface DrawerProps {
   onClose: () => void;
   title: string;
   subtitle?: string;
+  headerVariant?: 'default' | 'accent';
   children: ReactNode;
   footer?: ReactNode;
 }
 
-export function Drawer({ isOpen, onClose, title, subtitle, children, footer }: DrawerProps) {
+export function Drawer({
+  isOpen,
+  onClose,
+  title,
+  subtitle,
+  headerVariant = 'default',
+  children,
+  footer,
+}: DrawerProps) {
   const dialogRef = useRef<HTMLElement | null>(null);
   const trapRef = useRef<((event: KeyboardEvent) => void) | null>(null);
   const titleId = useRef(makeId('drawer-title'));
@@ -96,14 +105,46 @@ export function Drawer({ isOpen, onClose, title, subtitle, children, footer }: D
         className="fixed right-0 top-0 h-full w-full sm:w-drawer-width bg-surface z-50 shadow-drawer border-l border-outline-variant flex flex-col transition-transform duration-300 ease-in-out focus-visible:outline-none"
         tabIndex={-1}
       >
-        <div className="px-6 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-bright shrink-0">
-          <div>
-            <h2 id={titleId.current} className="text-headline-sm text-on-surface">{title}</h2>
+        <div
+          className={`relative flex shrink-0 items-center justify-between border-b border-outline-variant px-6 py-4 ${
+            headerVariant === 'accent'
+              ? 'overflow-hidden bg-gradient-to-r from-primary-container/70 via-surface-bright to-secondary-container/50'
+              : 'bg-surface-bright'
+          }`}
+        >
+          {headerVariant === 'accent' && (
+            <span
+              aria-hidden="true"
+              className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-secondary to-primary/20"
+            />
+          )}
+          <div className="relative min-w-0">
+            <h2
+              id={titleId.current}
+              className={`truncate text-headline-sm ${
+                headerVariant === 'accent' ? 'font-semibold text-primary' : 'text-on-surface'
+              }`}
+            >
+              {title}
+            </h2>
             {subtitle && (
-              <p className="text-label-md text-on-surface-variant mt-0.5">{subtitle}</p>
+              <p
+                className={`mt-1 text-label-md ${
+                  headerVariant === 'accent'
+                    ? 'inline-flex max-w-full rounded-full border border-secondary/20 bg-surface-container-lowest/80 px-2.5 py-1 font-medium text-secondary'
+                    : 'text-on-surface-variant'
+                }`}
+              >
+                {subtitle}
+              </p>
             )}
           </div>
-          <IconButton icon="close" aria-label="Close drawer" onClick={onClose} />
+          <IconButton
+            icon="close"
+            aria-label="Close drawer"
+            onClick={onClose}
+            className="rounded-none bg-transparent hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          />
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8 bg-background">
