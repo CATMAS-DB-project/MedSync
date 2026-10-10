@@ -28,8 +28,20 @@ def _success_list(items: list, total: int, page: int, page_size: int) -> dict:
     return _success({"items": items, "total": total, "page": page, "page_size": page_size})
 
 
+def _effective_branch_id(user: UserIdentity, requested_branch_id: int | None) -> int | None:
+    """Keep every non-admin billing read inside the user's assigned branch."""
+    if user.role == "Admin":
+        return requested_branch_id
+    if user.branch_id is None:
+        raise HTTPException(403, "User is not assigned to a branch")
+    if requested_branch_id is not None and requested_branch_id != user.branch_id:
+        raise HTTPException(403, "User can only access billing data from their branch")
+    return user.branch_id
+
+
 @router.get("/invoices")
 async def list_invoices(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, BILLING_READ], paging: Annotated[dict[str, int], Depends(pagination)], status_filter: InvoiceStatus | None = Query(default=None, alias="status"), branch_id: int | None = Query(default=None, ge=1), patient_id: int | None = Query(default=None, ge=1)):
+    branch_id = _effective_branch_id(user, branch_id)
     rows = await conn.fetch("""SELECT v.*, a.patient_id, a.branch_id, COUNT(*) OVER() AS total
         FROM v_invoice_outstanding v JOIN appointment a USING(appointment_id)
         WHERE ($1::text IS NULL OR v.status::text=$1) AND ($2::int IS NULL OR a.branch_id=$2)
@@ -40,10 +52,11 @@ async def list_invoices(conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
 
 @router.get("/invoices/{invoice_id}")
 async def get_invoice(invoice_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, BILLING_READ]):
+    branch_id = _effective_branch_id(user, None)
     row = await conn.fetchrow("""SELECT v.*, a.patient_id, a.branch_id, a.appointment_date
         FROM v_invoice_outstanding v JOIN appointment a USING(appointment_id)
         WHERE v.invoice_id=$1 AND ($2::int IS NULL OR a.branch_id=$2)""",
-        invoice_id, None)
+        invoice_id, branch_id)
     if not row:
         raise HTTPException(404, "Invoice not found")
     data = dict(row)
@@ -90,10 +103,17 @@ async def finalize_invoice(invoice_id: int, body: InvoiceFinalize, conn: Annotat
 
 
 @router.get("/invoices/{invoice_id}/payments")
-async def invoice_payments(invoice_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, Depends(require_role("Receptionist", "Admin"))], paging: Annotated[dict[str, int], Depends(pagination)]):
-    if not await conn.fetchval("SELECT 1 FROM invoice WHERE invoice_id=$1", invoice_id):
+async def invoice_payments(invoice_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, Depends(require_role("Receptionist", "Admin"))], paging: Annotated[dict[str, int], Depends(pagination)]):
+    branch_id = _effective_branch_id(user, None)
+    if not await conn.fetchval("""SELECT 1 FROM invoice i JOIN appointment a USING(appointment_id)
+        WHERE i.invoice_id=$1 AND ($2::int IS NULL OR a.branch_id=$2)""", invoice_id, branch_id):
         raise HTTPException(404, "Invoice not found")
-    rows = await conn.fetch("SELECT payment_id,invoice_id,amount_paid,payment_method,payment_date,processed_by_staff_id,COUNT(*) OVER() AS total FROM payment WHERE invoice_id=$1 ORDER BY payment_date DESC,payment_id DESC LIMIT $2 OFFSET $3", invoice_id, paging["limit"], paging["offset"])
+    rows = await conn.fetch("""SELECT p.payment_id,p.invoice_id,p.amount_paid,p.payment_method,
+        p.payment_date,p.processed_by_staff_id,COUNT(*) OVER() AS total
+        FROM payment p JOIN invoice i USING(invoice_id) JOIN appointment a USING(appointment_id)
+        WHERE p.invoice_id=$1 AND ($2::int IS NULL OR a.branch_id=$2)
+        ORDER BY p.payment_date DESC,p.payment_id DESC LIMIT $3 OFFSET $4""",
+        invoice_id, branch_id, paging["limit"], paging["offset"])
     return _success_list([dict(r) for r in rows], rows[0]["total"] if rows else 0, paging["page"], paging["page_size"])
 
 
@@ -122,8 +142,12 @@ async def create_payment(invoice_id: int, body: PaymentCreate, conn: Annotated[P
 
 
 @router.get("/payments/{payment_id}")
-async def get_payment(payment_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], _user: Annotated[UserIdentity, Depends(require_role("Receptionist", "Admin"))]):
-    row = await conn.fetchrow("SELECT payment_id,invoice_id,amount_paid,payment_method,payment_date,processed_by_staff_id FROM payment WHERE payment_id=$1", payment_id)
+async def get_payment(payment_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, Depends(require_role("Receptionist", "Admin"))]):
+    branch_id = _effective_branch_id(user, None)
+    row = await conn.fetchrow("""SELECT p.payment_id,p.invoice_id,p.amount_paid,p.payment_method,
+        p.payment_date,p.processed_by_staff_id
+        FROM payment p JOIN invoice i USING(invoice_id) JOIN appointment a USING(appointment_id)
+        WHERE p.payment_id=$1 AND ($2::int IS NULL OR a.branch_id=$2)""", payment_id, branch_id)
     if not row:
         raise HTTPException(404, "Payment not found")
     return _success(dict(row))
@@ -131,6 +155,7 @@ async def get_payment(payment_id: int, conn: Annotated[PoolConnectionProxy, Depe
 
 @router.get("/insurance-claims")
 async def list_claims(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, BILLING_READ], paging: Annotated[dict[str, int], Depends(pagination)], status_filter: ClaimStatus | None = Query(default=None, alias="status"), branch_id: int | None = Query(default=None, ge=1)):
+    branch_id = _effective_branch_id(user, branch_id)
     rows = await conn.fetch("""SELECT c.*, i.appointment_id, a.branch_id, a.patient_id,
         COUNT(*) OVER() AS total FROM insurance_claim c JOIN invoice i USING(invoice_id)
         JOIN appointment a USING(appointment_id)
@@ -197,11 +222,12 @@ async def verify_claim(claim_id: int, conn: Annotated[PoolConnectionProxy, Depen
 
 @router.get("/insurance-claims/{claim_id}")
 async def get_claim(claim_id: int, conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, BILLING_READ]):
+    branch_id = _effective_branch_id(user, None)
     row = await conn.fetchrow("""SELECT c.*, i.appointment_id, a.patient_id, a.branch_id
         FROM insurance_claim c JOIN invoice i USING(invoice_id)
         JOIN appointment a USING(appointment_id)
         WHERE c.claim_id=$1 AND ($2::int IS NULL OR a.branch_id=$2)""",
-        claim_id, None)
+        claim_id, branch_id)
     if not row:
         raise HTTPException(404, "Insurance claim not found")
     return _success(dict(row))

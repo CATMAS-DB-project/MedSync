@@ -2,9 +2,15 @@ from asyncpg.pool import PoolConnectionProxy
 
 
 async def list_branches(
-    conn: PoolConnectionProxy, offset: int, limit: int
+    conn: PoolConnectionProxy,
+    offset: int,
+    limit: int,
+    branch_id: int | None = None,
 ) -> tuple[list[dict], int]:
-    total = await conn.fetchval("SELECT count(*) FROM branch")
+    total = await conn.fetchval(
+        "SELECT count(*) FROM branch WHERE ($1::int IS NULL OR branch_id = $1)",
+        branch_id,
+    )
     rows = await conn.fetch(
         """
         SELECT b.branch_id, b.branch_name, b.address, b.contact_number,
@@ -12,9 +18,11 @@ async def list_branches(
                concat_ws(' ', s.first_name, s.last_name) AS manager_name
         FROM branch AS b
         LEFT JOIN staff AS s ON s.staff_id = b.manager_staff_id
+        WHERE ($1::int IS NULL OR b.branch_id = $1)
         ORDER BY b.branch_id
-        LIMIT $1 OFFSET $2
+        LIMIT $2 OFFSET $3
         """,
+        branch_id,
         limit,
         offset,
     )

@@ -20,11 +20,17 @@ def _success(data: object) -> dict:
 @router.get("")
 async def list_branches(
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(get_current_user)],
+    user: Annotated[UserIdentity, Depends(get_current_user)],
     paging: Annotated[dict[str, int], Depends(pagination)],
 ) -> dict:
+    if user.role == "Admin":
+        branch_id = None
+    else:
+        if user.branch_id is None:
+            raise HTTPException(403, "User is not assigned to a branch")
+        branch_id = user.branch_id
     items, total = await service.list_branches(
-        conn, paging["offset"], paging["limit"]
+        conn, paging["offset"], paging["limit"], branch_id
     )
     return _success(
         list_response(items, total, paging["page"], paging["page_size"])
@@ -44,8 +50,13 @@ async def create_branch(
 async def get_branch(
     branch_id: int,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(get_current_user)],
+    user: Annotated[UserIdentity, Depends(get_current_user)],
 ) -> dict:
+    if user.role != "Admin":
+        if user.branch_id is None:
+            raise HTTPException(403, "User is not assigned to a branch")
+        if branch_id != user.branch_id:
+            raise HTTPException(status_code=404, detail="Branch not found")
     data = await service.get_branch(conn, branch_id)
     if data is None:
         raise HTTPException(status_code=404, detail="Branch not found")

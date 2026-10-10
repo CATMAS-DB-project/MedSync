@@ -310,5 +310,6 @@ async def list_patient_appointments(
         paging["offset"],
         paging["limit"],
         user.branch_id if user.role == "Branch Manager" else None,
+        user.staff_id if user.role == "Doctor" else None,
     )
     return _success_list(items, total, paging["page"], paging["page_size"])
