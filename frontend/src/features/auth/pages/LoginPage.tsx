@@ -1,166 +1,208 @@
-import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
+import { Navigate } from 'react-router-dom';
 import { Icon } from '../../../components/ui/Icon';
+import { IconButton } from '../../../components/ui/IconButton';
 import { Button } from '../../../components/ui/Button';
+import { Input } from '../../../components/ui/Input';
+import { ErrorBanner } from '../../../components/common/ErrorBanner';
 import { useAuth } from '../../../context/AuthContext';
 import { ApiError } from '../../../services/api/ApiError';
-import { ROUTES } from '../../../constants/routes';
 import { ROLE_HOME } from '../../../constants/roleAccess';
 
+interface FieldErrors {
+  username?: string;
+  password?: string;
+}
+
+function classifyLoginError(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 401) return 'Incorrect username or password.';
+    if (err.status === 0 || err.status >= 500) {
+      return "Can't reach the server. Check your connection and try again.";
+    }
+    return err.message || 'Something went wrong. Please try again.';
+  }
+
+  // Axios / fetch errors that were not wrapped in ApiError
+  if (err instanceof Error) {
+    if (err.name === 'AxiosError' || err.name === 'TypeError') {
+      return "Can't reach the server. Check your connection and try again.";
+    }
+    return 'Something went wrong. Please try again.';
+  }
+
+  return 'Something went wrong. Please try again.';
+}
+
 export function LoginPage() {
-  const { login, currentUser } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const { login, currentUser, isBootstrapping } = useAuth();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loginSucceeded, setLoginSucceeded] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-  const redirectTo =
-    (location.state as { from?: string } | null)?.from ?? ROUTES.DASHBOARD;
-
+  const isMountedRef = useRef(true);
   useEffect(() => {
-    if (!loginSucceeded || !currentUser) return;
-    navigate(ROLE_HOME[currentUser.role] ?? redirectTo, { replace: true });
-  }, [currentUser, loginSucceeded, navigate, redirectTo]);
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
-    setIsSubmitting(true);
-    setLoginSucceeded(false);
+  // Already authenticated (either from bootstrap or from a fresh login) → go home.
+  if (!isBootstrapping && currentUser) {
+    return <Navigate to={ROLE_HOME[currentUser.role]} replace />;
+  }
 
-    try {
-      await login({ username, password });
-      setLoginSucceeded(true);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(
-          err.code === 'SESSION_EXPIRED'
-            ? 'Session expired. Please log in again.'
-            : err.message,
-        );
-      } else {
-        setError('Something went wrong. Please try again.');
-      }
-    } finally {
-      setIsSubmitting(false);
+  const handleUsernameChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setUsername(event.target.value);
+    if (error) setError(null);
+    if (fieldErrors.username) {
+      setFieldErrors((prev) => ({ ...prev, username: undefined }));
     }
   };
 
+  const handlePasswordChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setPassword(event.target.value);
+    if (error) setError(null);
+    if (fieldErrors.password) {
+      setFieldErrors((prev) => ({ ...prev, password: undefined }));
+    }
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isSubmitting) return;
+
+    const nextFieldErrors: FieldErrors = {};
+    if (!username.trim()) nextFieldErrors.username = 'Username is required.';
+    if (!password) nextFieldErrors.password = 'Password is required.';
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length > 0) return;
+
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      await login({ username, password });
+      // On success, `currentUser` becomes non-null and the top-of-component
+      // redirect fires on the next render.
+    } catch (err: unknown) {
+      if (!isMountedRef.current) return;
+      setError(classifyLoginError(err));
+    } finally {
+      if (isMountedRef.current) setIsSubmitting(false);
+    }
+  };
+
+  const canSubmit = username.trim().length > 0 && password.length > 0;
+
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
+    <div className="relative flex min-h-screen flex-col">
+      {/* Layered background: photo on top, gradient underneath so a missing
+          /images/login-bg.jpg cleanly falls back to the gradient. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary-fixed/40 via-background to-secondary-fixed/30"
+        className="absolute inset-0"
+        style={{
+          backgroundImage:
+            "url('/images/login-bg.jpg'), linear-gradient(135deg, #1A46A8 0%, #0F766E 100%)",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
       />
+
+      {/* Dark-blue → teal translucent overlay */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-48 left-1/2 h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute bottom-0 right-0 h-80 w-80 rounded-full bg-secondary/10 blur-3xl"
+        className="absolute inset-0 bg-gradient-to-br from-on-surface/85 via-on-surface/55 to-on-secondary-container/70"
       />
 
-      <div className="relative z-10 w-full max-w-[28rem] overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
-        <div className="h-1.5 bg-gradient-to-r from-primary via-primary-container to-secondary" />
-        <div className="p-7 sm:p-10">
-        <div className="mb-7 flex justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg">
-            <Icon name="clinical_notes" size={30} />
-          </div>
-        </div>
-
-        <div className="mb-8 text-center">
-          <p className="mb-2 text-label-md font-semibold uppercase tracking-[0.16em] text-primary">Welcome back</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-on-surface">
-            MedSync
-          </h1>
-          <p className="mt-1 text-sm text-on-surface-variant">
-            Clinical &amp; Administrative Management
-          </p>
-        </div>
-
-        <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="login-username" className="text-label-md font-medium text-on-surface-variant">
-              Username
-            </label>
-            <input
-              id="login-username"
-              type="text"
-              aria-label="Username"
-              placeholder="Enter your username"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              autoComplete="username"
-              required
-              className="h-11 w-full rounded-lg border border-outline-variant bg-background px-4 text-body-md text-on-surface placeholder:text-outline transition-colors focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor="login-password" className="text-label-md font-medium text-on-surface-variant">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                id="login-password"
-                type={showPassword ? 'text' : 'password'}
-                aria-label="Password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                autoComplete="current-password"
-                required
-                className="h-11 w-full rounded-lg border border-outline-variant bg-background py-2.5 pl-4 pr-12 text-body-md text-on-surface placeholder:text-outline transition-colors focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((prev) => !prev)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                aria-pressed={showPassword}
-                tabIndex={-1}
-                className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      <div className="relative z-10 flex flex-1 items-center justify-center px-4 py-10">
+        {isBootstrapping ? (
+          <Icon
+            name="progress_activity"
+            size={32}
+            className="animate-spin text-white"
+            aria-label="Loading"
+          />
+        ) : (
+          <div className="w-full max-w-md animate-scale-in rounded-2xl border border-white/30 bg-white/90 p-6 shadow-modal backdrop-blur-xl sm:p-8">
+            <div className="flex flex-col items-center gap-3">
+              {/* TODO: replace with logo image */}
+              <span
+                aria-hidden="true"
+                className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-lg font-bold text-on-primary shadow-sm"
               >
-                <Icon name={showPassword ? 'visibility_off' : 'visibility'} size={18} />
-              </button>
+                M
+              </span>
+              <span className="text-headline-sm font-bold tracking-tight text-on-surface">
+                Medsync
+              </span>
             </div>
+
+            <h1 className="mt-6 text-center text-display-sm text-on-surface">Sign in</h1>
+
+            <form className="mt-6 flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
+              <Input
+                label="Username"
+                type="text"
+                value={username}
+                onChange={handleUsernameChange}
+                autoComplete="username"
+                autoFocus
+                error={fieldErrors.username}
+                disabled={isSubmitting}
+              />
+
+              <Input
+                label="Password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={handlePasswordChange}
+                autoComplete="current-password"
+                error={fieldErrors.password}
+                disabled={isSubmitting}
+                rightAdornment={
+                  <IconButton
+                    icon={showPassword ? 'visibility_off' : 'visibility'}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    size="sm"
+                    tabIndex={-1}
+                  />
+                }
+              />
+
+              {error && (
+                <div aria-live="polite">
+                  <ErrorBanner message={error} />
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                className="mt-1 w-full"
+                isLoading={isSubmitting}
+                disabled={!canSubmit}
+              >
+                Sign in
+              </Button>
+            </form>
           </div>
-
-          {error && (
-            <div
-              role="alert"
-              className="flex items-start gap-2.5 rounded-lg border border-error/30 bg-error-container/50 px-4 py-3 text-body-sm text-on-error-container"
-            >
-              <Icon name="error" size={16} className="mt-0.5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <Button
-            type="submit"
-            variant="primary"
-            className="mt-1 h-11 w-full rounded-lg text-body-md font-semibold shadow-elevated transition-all hover:bg-secondary hover:text-on-secondary hover:shadow-lg"
-            isLoading={isSubmitting}
-          >
-            {isSubmitting ? 'Signing in...' : 'Sign In'}
-          </Button>
-        </form>
-
-        <div className="mt-7 flex items-center justify-center gap-2 border-t border-outline-variant pt-5">
-          <Icon name="lock" size={14} className="text-primary" />
-          <p className="text-xs text-on-surface-variant">
-            Secure access for authorized medical staff.
-          </p>
-        </div>
-        </div>
+        )}
       </div>
+
+      <p className="relative z-10 pb-6 text-center text-label-sm text-white/60">
+        © Medsync
+      </p>
     </div>
   );
 }
