@@ -210,8 +210,11 @@ export function PatientRegistrationDrawer({
       }
     >
       {registered && (
-        <div className="rounded-xl border border-tertiary/30 bg-tertiary/10 p-4 text-body-sm text-on-surface">
-          <p className="font-medium">Patient registered, but some details were not saved:</p>
+        <div role="status" className="rounded-xl border border-tertiary/30 bg-tertiary/10 p-4 text-body-sm text-on-surface">
+          <div className="flex items-start gap-2">
+            <span className="material-symbols-outlined mt-0.5 shrink-0 text-tertiary" aria-hidden="true">info</span>
+            <p className="font-semibold">Patient registered, but some details were not saved:</p>
+          </div>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             {failures.map((failure) => (
               <li key={failure.step + failure.message}>{failure.message}</li>
@@ -240,80 +243,87 @@ export function PatientRegistrationDrawer({
             </div>
           )}
 
-          <DrawerSection title="Personal Information" icon="badge">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2">
+          <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
+            <DrawerSection title="Personal Information" icon="badge">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Input
+                    label="NIC / Passport No."
+                    placeholder="e.g. 199012345678"
+                    value={form.nic}
+                    onChange={set('nic')}
+                    error={errors.nic}
+                    maxLength={20}
+                  />
+                </div>
+                <Input label="First Name" value={form.firstName} onChange={set('firstName')} error={errors.firstName} />
+                <Input label="Last Name" value={form.lastName} onChange={set('lastName')} error={errors.lastName} />
                 <Input
-                  label="NIC / Passport No."
-                  placeholder="e.g. 199012345678"
-                  value={form.nic}
-                  onChange={set('nic')}
-                  error={errors.nic}
-                  maxLength={20}
+                  label="Date of Birth"
+                  type="date"
+                  value={form.dateOfBirth}
+                  onChange={set('dateOfBirth')}
+                  error={errors.dateOfBirth}
+                />
+                <Select
+                  label="Gender"
+                  placeholder="Select gender"
+                  options={GENDER_OPTIONS}
+                  value={form.gender}
+                  onChange={set('gender')}
+                  error={errors.gender}
+                />
+                <Select
+                  label="Branch"
+                  placeholder="Select branch"
+                  options={branchOptions}
+                  value={form.branchId}
+                  onChange={set('branchId')}
+                  error={errors.branchId}
+                />
+                <div className="sm:col-span-2">
+                  <Input label="Address" value={form.address} onChange={set('address')} />
+                </div>
+                <div className="sm:col-span-2">
+                  <Input label="Phone" value={form.phone} onChange={set('phone')} placeholder="Optional" />
+                </div>
+              </div>
+            </DrawerSection>
+          </div>
+
+          <div className="rounded-xl border border-secondary/20 bg-gradient-to-br from-secondary-fixed/20 to-surface-container-lowest p-4 shadow-elevated">
+            <DrawerSection title="Emergency Contact" icon="contact_phone">
+              <p className="-mt-2 text-body-sm text-on-surface-variant">
+                Optional. If you add a contact, their name and relationship are required.
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input
+                  label="First Name"
+                  value={form.contactFirstName}
+                  onChange={set('contactFirstName')}
+                  error={errors.contactFirstName}
+                />
+                <Input
+                  label="Last Name"
+                  value={form.contactLastName}
+                  onChange={set('contactLastName')}
+                  error={errors.contactLastName}
+                />
+                <Input
+                  label="Relationship"
+                  value={form.contactRelationship}
+                  onChange={set('contactRelationship')}
+                  error={errors.contactRelationship}
+                />
+                <Input
+                  label="Contact Phone"
+                  value={form.contactPhone}
+                  onChange={set('contactPhone')}
+                  placeholder="Optional"
                 />
               </div>
-              <Input label="First Name" value={form.firstName} onChange={set('firstName')} error={errors.firstName} />
-              <Input label="Last Name" value={form.lastName} onChange={set('lastName')} error={errors.lastName} />
-              <Input
-                label="Date of Birth"
-                type="date"
-                value={form.dateOfBirth}
-                onChange={set('dateOfBirth')}
-                error={errors.dateOfBirth}
-              />
-              <Select
-                label="Gender"
-                placeholder="Select gender"
-                options={GENDER_OPTIONS}
-                value={form.gender}
-                onChange={set('gender')}
-                error={errors.gender}
-              />
-              <Select
-                label="Branch"
-                placeholder="Select branch"
-                options={branchOptions}
-                value={form.branchId}
-                onChange={set('branchId')}
-                error={errors.branchId}
-              />
-              <div className="sm:col-span-2">
-                <Input label="Address" value={form.address} onChange={set('address')} />
-              </div>
-              <div className="sm:col-span-2">
-                <Input label="Phone" value={form.phone} onChange={set('phone')} placeholder="Optional" />
-              </div>
-            </div>
-          </DrawerSection>
-
-          <DrawerSection title="Emergency Contact" icon="contact_phone">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="First Name"
-                value={form.contactFirstName}
-                onChange={set('contactFirstName')}
-                error={errors.contactFirstName}
-              />
-              <Input
-                label="Last Name"
-                value={form.contactLastName}
-                onChange={set('contactLastName')}
-                error={errors.contactLastName}
-              />
-              <Input
-                label="Relationship"
-                value={form.contactRelationship}
-                onChange={set('contactRelationship')}
-                error={errors.contactRelationship}
-              />
-              <Input
-                label="Contact Phone"
-                value={form.contactPhone}
-                onChange={set('contactPhone')}
-                placeholder="Optional"
-              />
-            </div>
-          </DrawerSection>
+            </DrawerSection>
+          </div>
         </form>
       )}
     </Drawer>

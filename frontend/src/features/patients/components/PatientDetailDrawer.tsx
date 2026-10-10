@@ -52,20 +52,24 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
       }
     >
       {isLoading && !patient && (
-        <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 text-body-sm text-on-surface-variant">
+        <div role="status" className="flex items-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 text-body-sm text-on-surface-variant">
+          <span className="material-symbols-outlined animate-spin text-primary" aria-hidden="true">progress_activity</span>
           Loading patient details…
         </div>
       )}
       {error && (
-        <p role="alert" className="rounded-xl border border-error/30 bg-error-container/50 p-4 text-body-sm text-on-error-container">
+        <p role="alert" className="flex items-start gap-2 rounded-xl border border-error/30 bg-error-container/50 p-4 text-body-sm text-on-error-container">
+          <span className="material-symbols-outlined mt-0.5 shrink-0" aria-hidden="true">error</span>
           {error}
         </p>
       )}
 
       {patient && (
         <>
-          <div className="flex items-center gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary-fixed text-headline-sm font-bold text-primary">
+          <div className="relative overflow-hidden rounded-xl border border-primary/15 bg-gradient-to-br from-primary-fixed/40 via-surface-container-lowest to-secondary-fixed/30 p-4">
+            <div aria-hidden="true" className="absolute -right-8 -top-10 h-28 w-28 rounded-full border-[18px] border-primary/5" />
+            <div className="relative flex items-center gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-headline-sm font-bold text-white shadow-elevated">
               {getInitials(fullName)}
             </div>
             <div>
@@ -74,10 +78,12 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
                 {calculateAge(patient.dateOfBirth) ?? '—'} yrs · {patient.gender}
               </p>
             </div>
+            </div>
           </div>
 
+          <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
           <DrawerSection title="Demographics" icon="badge">
-            <div className="grid grid-cols-2 gap-4 text-body-sm">
+            <div className="grid grid-cols-1 gap-3 text-body-sm sm:grid-cols-2">
               <div className="rounded-lg bg-surface-container-low p-3">
                 <div className="text-label-md text-on-surface-variant">Date of Birth</div>
                 <div className="text-on-surface">{formatDate(patient.dateOfBirth)}</div>
@@ -92,9 +98,11 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
               </div>
             </div>
           </DrawerSection>
+          </div>
 
+          <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
           <DrawerSection title="Contact Information" icon="call">
-            <div className="grid grid-cols-2 gap-4 text-body-sm">
+            <div className="grid grid-cols-1 gap-3 text-body-sm sm:grid-cols-2">
               {patient.phones && patient.phones.length > 0 ? (
                 patient.phones.map((phone) => (
                   <div key={phone.phoneId} className="rounded-lg bg-surface-container-low p-3">
@@ -113,12 +121,14 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
               )}
             </div>
           </DrawerSection>
+          </div>
 
+          <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
           <DrawerSection title="Guardians / Emergency Contacts" icon="family_restroom">
             {patient.guardians && patient.guardians.length > 0 ? (
               <ul className="flex flex-col gap-2 text-body-sm">
                 {patient.guardians.map((link) => (
-                  <li key={link.guardianId} className="flex items-center justify-between gap-3 rounded-lg bg-surface-container-low p-3">
+                  <li key={link.guardianId} className="flex items-center justify-between gap-3 rounded-lg border border-outline-variant/70 bg-surface-container-low p-3">
                     <span className="text-on-surface">
                       {link.guardian
                         ? formatFullName(link.guardian.firstName, link.guardian.lastName)
@@ -132,12 +142,14 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
               <p className="text-body-sm text-on-surface-variant">No guardians linked.</p>
             )}
           </DrawerSection>
+          </div>
 
+          <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
           <DrawerSection title="Insurance" icon="health_and_safety">
             {patient.insurance && patient.insurance.length > 0 ? (
               <ul className="flex flex-col gap-2 text-body-sm">
                 {patient.insurance.map((policy) => (
-                  <li key={policy.policyId} className="flex items-center justify-between gap-3 rounded-lg bg-surface-container-low p-3">
+                  <li key={policy.policyId} className="flex items-center justify-between gap-3 rounded-lg border border-outline-variant/70 bg-surface-container-low p-3">
                     <span className="text-on-surface">
                       {policy.providerName} · {policy.coverageLevel}
                       <span className="block font-mono text-xs text-on-surface-variant">
@@ -154,6 +166,7 @@ export function PatientDetailDrawer({ patientId, onClose }: PatientDetailDrawerP
               <p className="text-body-sm text-on-surface-variant">No insurance policy on file.</p>
             )}
           </DrawerSection>
+          </div>
         </>
       )}
     </Drawer>

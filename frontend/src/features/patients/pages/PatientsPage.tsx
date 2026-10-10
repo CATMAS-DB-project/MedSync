@@ -78,7 +78,7 @@ export function PatientsPage() {
             variant="primary"
             icon="person_add"
             onClick={() => setRegistrationOpen(true)}
-            className="relative z-10 w-full bg-white text-primary shadow-lg hover:bg-primary-fixed sm:w-auto"
+            className="relative z-10 w-full bg-white text-primary shadow-lg hover:bg-secondary hover:text-on-secondary sm:w-auto"
           >
             Register New Patient
           </Button>

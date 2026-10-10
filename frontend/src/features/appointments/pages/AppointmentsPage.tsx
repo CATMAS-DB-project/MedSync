@@ -106,7 +106,7 @@ export function AppointmentsPage() {
               variant="primary"
               icon="add"
               onClick={() => navigate(ROUTES.APPOINTMENT_BOOKING)}
-              className="w-full bg-white text-primary shadow-lg hover:bg-primary-fixed sm:w-auto"
+              className="w-full bg-white text-primary shadow-lg hover:bg-secondary hover:text-on-secondary sm:w-auto"
             >
               New Appointment
             </Button>
