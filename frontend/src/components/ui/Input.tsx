@@ -1,47 +1,84 @@
-import type { InputHTMLAttributes } from 'react';
+import type { InputHTMLAttributes, ReactNode } from 'react';
+import { forwardRef, useId } from 'react';
 import { cn } from '../../utils/cn';
+import { Icon } from './Icon';
 
-function makeId(prefix: string) {
-  return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   label?: string;
   error?: string;
+  hint?: string;
   icon?: string;
+  rightAdornment?: ReactNode;
+  containerClassName?: string;
 }
 
-export function Input({ label, error, icon, className, id, ...rest }: InputProps) {
-  const inputId = id ?? rest.name ?? makeId('input');
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
+  { label, error, hint, icon, rightAdornment, className, containerClassName, id, ...rest },
+  ref,
+) {
+  const autoId = useId();
+  const inputId = id ?? autoId;
   const errorId = error ? `${inputId}-error` : undefined;
+  const hintId = hint ? `${inputId}-hint` : undefined;
+  const describedBy = [errorId, hintId].filter(Boolean).join(' ') || undefined;
+  const hasRightAdornment = rightAdornment !== undefined && rightAdornment !== null;
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className={cn('flex flex-col gap-1.5', containerClassName)}>
       {label && (
-        <label htmlFor={inputId} className="text-label-md text-on-surface-variant">
+        <label htmlFor={inputId} className="text-label-md font-medium text-on-surface">
           {label}
         </label>
       )}
-      <div className="relative">
+
+      <div
+        className={cn(
+          'relative flex h-10 items-center rounded-xl bg-surface-container-lowest',
+          'border border-outline-variant',
+          'transition-shadow duration-150',
+          'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20',
+          error && 'border-error focus-within:border-error focus-within:ring-error/20',
+        )}
+      >
         {icon && (
-          <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-outline text-[18px] pointer-events-none">
-            {icon}
-          </span>
+          <Icon
+            name={icon}
+            size={18}
+            className="ml-3 shrink-0 text-on-surface-variant"
+          />
         )}
         <input
           id={inputId}
-          aria-invalid={Boolean(error)}
-          aria-describedby={errorId}
+          ref={ref}
           className={cn(
-            'w-full h-9 px-3 border border-outline-variant rounded-md bg-surface text-body-md text-on-surface placeholder:text-outline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface transition-all disabled:bg-surface-container-low disabled:text-on-surface-variant disabled:border-outline-variant',
-            icon && 'pl-8',
-            error && 'border-error focus-visible:ring-error',
+            'h-full w-full flex-1 bg-transparent px-3 text-body-sm text-on-surface',
+            'placeholder:text-on-surface-variant/60',
+            'border-0 focus:border-0 focus:ring-0',
+            'disabled:cursor-not-allowed disabled:text-on-surface-variant',
+            icon ? 'pl-2' : undefined,
+            hasRightAdornment ? 'pr-10' : undefined,
             className,
           )}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
           {...rest}
         />
+        {hasRightAdornment && (
+          <span className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center">
+            {rightAdornment}
+          </span>
+        )}
       </div>
-      {error && <span id={errorId} className="text-body-sm text-error">{error}</span>}
+
+      {error ? (
+        <p id={errorId} className="text-label-md text-error">
+          {error}
+        </p>
+      ) : hint ? (
+        <p id={hintId} className="text-label-md text-on-surface-variant">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
-}
+});

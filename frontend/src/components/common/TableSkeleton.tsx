@@ -1,4 +1,5 @@
 import { cn } from '../../utils/cn';
+import { Skeleton } from '../ui/Skeleton';
 
 export interface TableSkeletonProps {
   rows?: number;
@@ -6,25 +7,35 @@ export interface TableSkeletonProps {
   className?: string;
 }
 
-export function TableSkeleton({ rows = 5, columns = 5, className }: TableSkeletonProps) {
+export function TableSkeleton({ rows = 6, columns = 5, className }: TableSkeletonProps) {
   return (
-    <div className={cn('w-full animate-pulse', className)}>
-      <div className="mb-3 grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
-        {Array.from({ length: columns }).map((_, index) => (
-          <div key={`header-${index}`} className="h-4 rounded bg-surface-container-low" />
+    <div
+      aria-busy="true"
+      aria-live="polite"
+      className={cn(
+        'overflow-hidden rounded-2xl bg-surface-container-lowest shadow-card',
+        className,
+      )}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-4 border-b border-outline-variant px-4 py-3">
+        {Array.from({ length: columns }).map((_, i) => (
+          <Skeleton key={i} height={10} width={i === 0 ? 80 : 60} rounded="sm" />
         ))}
       </div>
+
+      {/* Rows */}
       {Array.from({ length: rows }).map((_, rowIndex) => (
         <div
-          key={`row-${rowIndex}`}
-          className="mb-2 grid gap-2 border-b border-outline-variant py-2"
-          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+          key={rowIndex}
+          className="flex items-center gap-4 border-b border-outline-variant/60 px-4 py-4 last:border-0"
         >
           {Array.from({ length: columns }).map((_, colIndex) => (
-            <div
-              key={`cell-${rowIndex}-${colIndex}`}
-              className="h-5 rounded bg-surface-container-low"
-              style={{ width: `${80 + ((rowIndex + colIndex) % 3) * 10}%` }}
+            <Skeleton
+              key={colIndex}
+              height={14}
+              width={colIndex === 0 ? '40%' : '20%'}
+              rounded="sm"
             />
           ))}
         </div>
