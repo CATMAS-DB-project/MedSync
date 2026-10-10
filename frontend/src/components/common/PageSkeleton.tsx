@@ -1,25 +1,23 @@
-import type { ReactNode } from 'react';
 import { cn } from '../../utils/cn';
+import { Skeleton } from '../ui/Skeleton';
 
 export interface PageSkeletonProps {
   className?: string;
-  children?: ReactNode;
 }
 
-export function PageSkeleton({ className, children }: PageSkeletonProps) {
+export function PageSkeleton({ className }: PageSkeletonProps) {
   return (
-    <div className={cn('animate-pulse space-y-4', className)}>
-      <div className="h-8 w-56 rounded bg-surface-container-low" />
-      <div className="h-4 w-72 rounded bg-surface-container-low" />
-      <div className="space-y-3 rounded-lg border border-outline-variant bg-surface-container-lowest p-4">
-        <div className="h-10 w-full rounded bg-surface-container-low" />
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="h-14 rounded bg-surface-container-low" />
-          <div className="h-14 rounded bg-surface-container-low" />
-          <div className="h-14 rounded bg-surface-container-low" />
-        </div>
+    <div className={cn('flex flex-col gap-6', className)} aria-busy="true" aria-live="polite">
+      <div className="flex items-center justify-between gap-4">
+        <Skeleton height={28} width={220} rounded="lg" />
+        <Skeleton height={40} width={120} rounded="xl" />
       </div>
-      {children}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} height={92} rounded="xl" />
+        ))}
+      </div>
+      <Skeleton height={320} rounded="xl" />
     </div>
   );
 }

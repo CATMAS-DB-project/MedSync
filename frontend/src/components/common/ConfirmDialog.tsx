@@ -1,70 +1,51 @@
-import { useEffect, useRef } from 'react';
+import { Modal } from './Modal';
 import { Button } from '../ui/Button';
-import { cn } from '../../utils/cn';
 
 export interface ConfirmDialogProps {
+  isOpen: boolean;
   title: string;
   message: string;
   confirmLabel?: string;
-  tone?: 'default' | 'danger';
+  cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
-  isLoading?: boolean;
+  isPending?: boolean;
+  tone?: 'danger' | 'default';
 }
 
 export function ConfirmDialog({
+  isOpen,
   title,
   message,
   confirmLabel = 'Confirm',
-  tone = 'default',
+  cancelLabel = 'Cancel',
   onConfirm,
   onCancel,
-  isLoading = false,
+  isPending = false,
+  tone = 'danger',
 }: ConfirmDialogProps) {
-  const previousFocusRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    previousFocusRef.current = document.activeElement as HTMLElement | null;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onCancel();
-      }
-    };
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = originalOverflow;
-      previousFocusRef.current?.focus();
-    };
-  }, [onCancel]);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" aria-modal="true" role="dialog">
-      <div className="w-full max-w-md rounded-xl border border-outline-variant bg-surface p-5 shadow-xl">
-        <h3 className="text-headline-sm text-on-surface">{title}</h3>
-        <p className="mt-2 text-body-sm text-on-surface-variant">{message}</p>
-
-        <div className="mt-6 flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onCancel}>
-            Cancel
+    <Modal
+      isOpen={isOpen}
+      onClose={isPending ? () => undefined : onCancel}
+      title={title}
+      size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onCancel} disabled={isPending}>
+            {cancelLabel}
           </Button>
           <Button
-            type="button"
             variant={tone === 'danger' ? 'danger' : 'primary'}
             onClick={onConfirm}
-            isLoading={isLoading}
-            autoFocus
-            className={cn(tone === 'danger' && 'bg-error text-on-error')}
+            isLoading={isPending}
           >
             {confirmLabel}
           </Button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      <p className="text-body-sm text-on-surface-variant">{message}</p>
+    </Modal>
   );
 }
