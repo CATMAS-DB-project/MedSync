@@ -9,7 +9,11 @@ from app.core.db import get_conn, with_transaction
 from app.core.deps import require_role
 from app.core.pagination import list_response, pagination
 from app.domains.appointment import service
-from app.domains.appointment.schemas import AppointmentCancel, AppointmentCreate
+from app.domains.appointment.schemas import (
+    AppointmentCancel,
+    AppointmentCreate,
+    AppointmentReschedule,
+)
 from app.domains.auth.models import UserIdentity
 
 router = APIRouter(tags=["appointments"])
@@ -28,7 +32,7 @@ async def list_appointments(
     doctor_id: Annotated[int | None, Query(gt=0)] = None,
     appointment_date: Annotated[date | None, Query(alias="date")] = None,
     appointment_status: Annotated[
-        Literal["Scheduled", "Completed", "Cancelled"] | None,
+        Literal["Scheduled", "Completed", "Cancelled", "Re-Scheduled"] | None,
         Query(alias="status"),
     ] = None,
     patient_id: Annotated[int | None, Query(gt=0)] = None,
@@ -149,4 +153,57 @@ async def complete_appointment(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Scheduled appointment not found",
             )
+    return {"data": data, "error": None}
+
+
+@router.patch("/appointments/{appointment_id}")
+async def reschedule_appointment(
+    appointment_id: int,
+    body: AppointmentReschedule,
+    user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
+) -> dict:
+    if user.branch_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Authenticated user is not assigned to a branch",
+        )
+
+    async with with_transaction(staff_id=user.staff_id) as conn:
+        try:
+            data = await service.reschedule_appointment(
+                conn,
+                appointment_id,
+                body,
+                staff_id=user.staff_id,
+                branch_id=user.branch_id,
+            )
+        except ValueError as exc:
+            err_msg = str(exc)
+            if "status" in err_msg.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, detail=err_msg
+                )
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=err_msg
+            )
+
+    if data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Scheduled appointment not found",
+        )
+
+    return {"data": data, "error": None}
+
+
+@router.get("/appointments/{appointment_id}/reschedule-history")
+async def get_reschedule_history(
+    appointment_id: int,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[
+        UserIdentity,
+        Depends(require_role("Receptionist", "Doctor", "Admin", "Branch Manager")),
+    ],
+) -> dict:
+    data = await service.get_reschedule_history(conn, appointment_id)
     return {"data": data, "error": None}
