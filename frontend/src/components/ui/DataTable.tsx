@@ -22,6 +22,7 @@ export interface DataTableProps<T> {
   rows: T[];
   rowKey: (row: T) => string;
   onRowClick?: (row: T) => void;
+  rowClassName?: (row: T) => string | undefined;
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
@@ -45,6 +46,7 @@ export function DataTable<T>({
   rows,
   rowKey,
   onRowClick,
+  rowClassName,
   loading = false,
   error = null,
   onRetry,
@@ -173,39 +175,43 @@ export function DataTable<T>({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr
-                  key={rowKey(row)}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={cn(
-                    'group/row border-b border-outline-variant/60 last:border-0 transition-colors',
-                    onRowClick && 'cursor-pointer hover:bg-primary-container/30',
-                  )}
-                >
-                  {columns.map((col) => (
-                    <td
-                      key={col.key}
-                      className={cn(
-                        'px-4 py-3 align-middle text-table-data text-on-surface',
-                        ALIGN[col.align ?? 'left'],
-                        col.cellClassName,
-                      )}
-                    >
-                      {col.cell(row)}
-                    </td>
-                  ))}
-                  {rowActions && (
-                    <td className="px-4 py-3 align-middle text-right">
-                      <div
-                        className="flex justify-end opacity-100 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 transition-opacity"
-                        onClick={(event) => event.stopPropagation()}
+              {rows.map((row) => {
+                const extraRowClass = rowClassName?.(row);
+                return (
+                  <tr
+                    key={rowKey(row)}
+                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    className={cn(
+                      'group/row border-b border-outline-variant/60 last:border-0 transition-colors',
+                      onRowClick && 'cursor-pointer hover:bg-primary-container/30',
+                      extraRowClass,
+                    )}
+                  >
+                    {columns.map((col) => (
+                      <td
+                        key={col.key}
+                        className={cn(
+                          'px-4 py-3 align-middle text-table-data text-on-surface',
+                          ALIGN[col.align ?? 'left'],
+                          col.cellClassName,
+                        )}
                       >
-                        {rowActions(row)}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
+                        {col.cell(row)}
+                      </td>
+                    ))}
+                    {rowActions && (
+                      <td className="px-4 py-3 align-middle text-right">
+                        <div
+                          className="flex justify-end opacity-100 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 transition-opacity"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {rowActions(row)}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -244,6 +250,7 @@ export function DataTable<T>({
             const primary = columns.find((c) => c.primary);
             const secondary = columns.find((c) => c.secondary);
             const rest = columns.filter((c) => c !== primary && c !== secondary && !c.hideOnMobile);
+            const extraRowClass = rowClassName?.(row);
 
             return (
               <div
@@ -252,6 +259,7 @@ export function DataTable<T>({
                 className={cn(
                   'rounded-2xl bg-surface-container-lowest p-4 shadow-card',
                   onRowClick && 'cursor-pointer active:bg-primary-container/30',
+                  extraRowClass,
                 )}
               >
                 <div className="flex items-start gap-3">

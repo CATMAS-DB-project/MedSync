@@ -1,300 +1,461 @@
-import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { PageHeader } from '../../../components/ui/PageHeader';
 import { Button } from '../../../components/ui/Button';
-import { Input } from '../../../components/ui/Input';
-import { Select } from '../../../components/ui/Select';
+import { Tabs } from '../../../components/ui/Tabs';
+import type { TabItem } from '../../../components/ui/Tabs';
+import type { SelectOption } from '../../../components/ui/Select';
+import { DataTable } from '../../../components/ui/DataTable';
+import type { DataTableColumn } from '../../../components/ui/DataTable';
+import { Avatar } from '../../../components/ui/Avatar';
 import { Badge } from '../../../components/ui/Badge';
-import { Pagination } from '../../../components/common/Pagination';
-import { PageSkeleton } from '../../../components/common/PageSkeleton';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ErrorBanner } from '../../../components/common/ErrorBanner';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
+import { useToast } from '../../../components/common/ToastProvider';
 import { fetchAppointments } from '../../../services/api/appointments';
 import { fetchBranches } from '../../../services/api/branches';
-import { formatDate, formatTime } from '../../../utils/formatters';
-import { todayIso } from '../../../utils/dates';
-import { APPOINTMENT_STATUS_TONE } from '../statusStyles';
-import { CancelAppointmentDrawer } from '../components/CancelAppointmentDrawer';
+import { fetchDoctorOptions } from '../../../services/api/doctorOptions';
+import type { DoctorOption } from '../../../services/api/doctorOptions';
+import { ApiError } from '../../../services/api/ApiError';
 import { ROUTES } from '../../../constants/routes';
+import { todayIso } from '../../../utils/dates';
+import { formatTime } from '../../../utils/formatters';
+import { APPOINTMENT_STATUS_TONE } from '../statusStyles';
+import { AppointmentToolbar } from '../components/AppointmentToolbar';
+import type { AppointmentsView } from '../components/AppointmentToolbar';
+import { AppointmentCalendar } from '../components/AppointmentCalendar';
+import { AppointmentRowActions } from '../components/AppointmentRowActions';
+import { CancelAppointmentDrawer } from '../components/CancelAppointmentDrawer';
+import { PatientDetailDrawer } from '../../patients/components/PatientDetailDrawer';
+import {
+  addDays,
+  formatDayLabel,
+  formatWeekLabel,
+  startOfWeek,
+  weekDaysFrom,
+} from '../dateUtils';
 import type { Appointment, AppointmentStatus } from '../../../types';
 
-const PAGE_SIZE = 10;
+// Backend caps query.page_size at 100.
+const PAGE_SIZE = 100;
+const DAY_MS_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
-const STATUS_OPTIONS: { label: string; value: AppointmentStatus | 'all' }[] = [
-  { label: 'All Statuses', value: 'all' },
-  { label: 'Scheduled', value: 'Scheduled' },
-  { label: 'Completed', value: 'Completed' },
-  { label: 'Cancelled', value: 'Cancelled' },
-];
+type StatusTab = 'All' | AppointmentStatus;
+
+interface FetchResult {
+  items: Appointment[];
+  dayErrors: Record<string, string>;
+}
+
+function parseStatusParam(value: string | null): StatusTab {
+  if (value === 'Scheduled' || value === 'Completed' || value === 'Cancelled') return value;
+  return 'All';
+}
+
+function parseViewParam(value: string | null): AppointmentsView {
+  return value === 'calendar' ? 'calendar' : 'list';
+}
+
+function parseDateParam(value: string | null): string {
+  if (value && DAY_MS_ISO.test(value)) return value;
+  return todayIso();
+}
+
+function parseIdParam(value: string | null): string {
+  if (!value) return 'all';
+  return value;
+}
 
 export function AppointmentsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const toast = useToast();
   const role = currentUser?.role;
 
-  // Backend rules: only Receptionists book/cancel, only Doctors complete visits.
   const isReceptionist = role === 'Receptionist';
   const isDoctor = role === 'Doctor';
-  // Frontend route rule: the consultation screen is for Admin and Doctor.
+  const isAdmin = role === 'Admin';
+  const isBranchManager = role === 'Branch Manager';
+  const canBook = isReceptionist;
   const canOpenConsultation = role === 'Admin' || role === 'Doctor';
+  const showBranchSelect = isAdmin;
+  const showDoctorSelect = isAdmin || isBranchManager || isReceptionist;
 
-  const [date, setDate] = useState(todayIso());
-  const [status, setStatus] = useState<AppointmentStatus | 'all'>('all');
-  const [branchId, setBranchId] = useState<string>(
-    isReceptionist && currentUser ? String(currentUser.branchId) : 'all',
+  // ---- URL state ----
+  const view = parseViewParam(searchParams.get('view'));
+  const date = parseDateParam(searchParams.get('date'));
+  const branchParam = parseIdParam(searchParams.get('branchId'));
+  const doctorParam = parseIdParam(searchParams.get('doctorId'));
+  const statusTab = parseStatusParam(searchParams.get('status'));
+
+  const updateParams = useCallback(
+    (updates: Record<string, string | null>) => {
+      const next = new URLSearchParams(searchParams);
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null || value === '' || value === 'all') next.delete(key);
+        else next.set(key, value);
+      }
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
   );
-  const [page, setPage] = useState(1);
-  const [toCancel, setToCancel] = useState<Appointment | null>(null);
 
-  const branches = useAsync(() => fetchBranches(1, 100), []);
-  const appointments = useAsync(
-    () =>
-      fetchAppointments({
-        date: date || undefined,
-        status: status === 'all' ? undefined : status,
-        branchId: branchId === 'all' ? undefined : Number(branchId),
-        // A doctor only sees their own schedule.
-        doctorId: isDoctor && currentUser ? currentUser.staffId : undefined,
-        page,
+  // ---- Effective filters by role ----
+  const effectiveBranchId: number | undefined = useMemo(() => {
+    if ((isDoctor || isBranchManager) && currentUser) return currentUser.branchId;
+    if (branchParam && branchParam !== 'all') return Number(branchParam);
+    if (isReceptionist && currentUser) return currentUser.branchId;
+    return undefined;
+  }, [isDoctor, isBranchManager, isReceptionist, currentUser, branchParam]);
+
+  const effectiveDoctorId: number | undefined = useMemo(() => {
+    if (isDoctor && currentUser) return currentUser.staffId;
+    if (doctorParam && doctorParam !== 'all') return Number(doctorParam);
+    return undefined;
+  }, [isDoctor, currentUser, doctorParam]);
+
+  // ---- Week range ----
+  const weekStart = useMemo(() => startOfWeek(date), [date]);
+  const weekDaysList = useMemo(() => weekDaysFrom(weekStart), [weekStart]);
+
+  // ---- Data ----
+  const appointments = useAsync<FetchResult>(async () => {
+    if (view === 'list') {
+      const result = await fetchAppointments({
+        date,
+        branchId: effectiveBranchId,
+        doctorId: effectiveDoctorId,
         pageSize: PAGE_SIZE,
+      });
+      return { items: result.items, dayErrors: {} };
+    }
+    const results = await Promise.all(
+      weekDaysList.map(async (day) => {
+        try {
+          const r = await fetchAppointments({
+            date: day,
+            branchId: effectiveBranchId,
+            doctorId: effectiveDoctorId,
+            pageSize: PAGE_SIZE,
+          });
+          return { day, items: r.items, error: null as string | null };
+        } catch (err) {
+          return {
+            day,
+            items: [] as Appointment[],
+            error: err instanceof ApiError ? err.message : 'Failed to load',
+          };
+        }
       }),
-    [date, status, branchId, page, isDoctor, currentUser?.staffId],
+    );
+    const items: Appointment[] = [];
+    const dayErrors: Record<string, string> = {};
+    for (const r of results) {
+      items.push(...r.items);
+      if (r.error) dayErrors[r.day] = r.error;
+    }
+    return { items, dayErrors };
+  }, [view, date, weekStart, effectiveBranchId, effectiveDoctorId]);
+
+  const rawItems = appointments.data?.items ?? [];
+  const dayErrors = appointments.data?.dayErrors ?? {};
+
+  // ---- Client-side status filter + counts ----
+  const counts = useMemo(() => {
+    let scheduled = 0;
+    let completed = 0;
+    let cancelled = 0;
+    for (const item of rawItems) {
+      if (item.status === 'Scheduled') scheduled += 1;
+      else if (item.status === 'Completed') completed += 1;
+      else if (item.status === 'Cancelled') cancelled += 1;
+    }
+    return {
+      all: rawItems.length,
+      scheduled,
+      completed,
+      cancelled,
+    };
+  }, [rawItems]);
+
+  const filteredItems = useMemo(
+    () =>
+      statusTab === 'All'
+        ? rawItems
+        : rawItems.filter((item) => item.status === statusTab),
+    [rawItems, statusTab],
   );
 
-  const branchOptions = [
-    { label: 'All Branches', value: 'all' },
-    ...(branches.data?.items ?? []).map((b) => ({ label: b.branchName, value: String(b.branchId) })),
-  ];
+  // ---- Branches + doctors ----
+  const branches = useAsync(
+    () => (showBranchSelect ? fetchBranches(1, 100) : Promise.resolve(null)),
+    [showBranchSelect],
+  );
+  const branchOptions: SelectOption[] = useMemo(() => {
+    const opts: SelectOption[] = [{ label: 'All branches', value: 'all' }];
+    for (const b of branches.data?.items ?? []) {
+      opts.push({ label: b.branchName, value: String(b.branchId) });
+    }
+    return opts;
+  }, [branches.data]);
 
-  const rows = appointments.data?.items ?? [];
-  const total = appointments.data?.total ?? 0;
+  const doctors = useAsync<DoctorOption[]>(
+    () =>
+      showDoctorSelect
+        ? fetchDoctorOptions(effectiveBranchId ? { branchId: effectiveBranchId } : {})
+        : Promise.resolve([] as DoctorOption[]),
+    [showDoctorSelect, effectiveBranchId],
+  );
+  const doctorOptions: SelectOption[] = useMemo(() => {
+    const opts: SelectOption[] = [{ label: 'All doctors', value: 'all' }];
+    for (const d of doctors.data ?? []) {
+      opts.push({ label: d.doctorName, value: String(d.staffId) });
+    }
+    return opts;
+  }, [doctors.data]);
+
+  useEffect(() => {
+    if (!showDoctorSelect) return;
+    if (doctorParam === 'all' || !doctorParam) return;
+    if (!doctors.data) return;
+    const exists = doctors.data.some((d) => String(d.staffId) === doctorParam);
+    if (!exists) updateParams({ doctorId: null });
+  }, [showDoctorSelect, doctorParam, doctors.data, updateParams]);
+
+  // ---- Derived UI state ----
+  const [toCancel, setToCancel] = useState<Appointment | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const isFirstLoad = appointments.isLoading && appointments.data === undefined;
+
+  const nextUpcomingId = useMemo(() => {
+    if (date !== todayIso()) return null;
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const nowTime = `${hh}:${mm}`;
+    const today = rawItems
+      .filter((a) => a.appointmentDate === date && a.status === 'Scheduled')
+      .sort((a, b) => a.appointmentTime.localeCompare(b.appointmentTime));
+    return today.find((a) => a.appointmentTime >= nowTime)?.appointmentId ?? null;
+  }, [rawItems, date]);
+
+  // ---- Handlers ----
+  const handlePrev = () => {
+    updateParams({ date: view === 'calendar' ? addDays(date, -7) : addDays(date, -1) });
+  };
+  const handleNext = () => {
+    updateParams({ date: view === 'calendar' ? addDays(date, 7) : addDays(date, 1) });
+  };
+  const handleToday = () => updateParams({ date: todayIso() });
 
   const openConsultation = (appointmentId: number) => {
+    if (!canOpenConsultation) return;
     navigate(ROUTES.CONSULTATION.replace(':appointmentId', String(appointmentId)));
   };
-  const closeCancel = useCallback(() => setToCancel(null), []);
+
+  const handleSelectDay = (day: string) => {
+    updateParams({ view: 'list', date: day });
+  };
+
+  const statusTabs: TabItem<StatusTab>[] = [
+    { value: 'All', label: `All (${counts.all})` },
+    { value: 'Scheduled', label: `Scheduled (${counts.scheduled})` },
+    { value: 'Completed', label: `Completed (${counts.completed})` },
+    { value: 'Cancelled', label: `Cancelled (${counts.cancelled})` },
+  ];
+
+  const columns: DataTableColumn<Appointment>[] = [
+    {
+      key: 'patient',
+      header: 'Patient',
+      primary: true,
+      cell: (row) => (
+        <div className="flex min-w-0 items-center gap-2">
+          <Avatar name={row.patientName ?? 'Patient'} size="xs" />
+          <span className="truncate">{row.patientName ?? '—'}</span>
+          {row.isWalkIn && (
+            <Badge tone="secondary" pill className="shrink-0">
+              Walk-in
+            </Badge>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'time',
+      header: 'Time',
+      secondary: true,
+      cell: (row) => formatTime(row.appointmentTime),
+    },
+    {
+      key: 'doctor',
+      header: 'Doctor',
+      hideOnMobile: true,
+      cell: (row) => <span className="truncate">{row.doctorName ?? '—'}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (row) => (
+        <Badge tone={APPOINTMENT_STATUS_TONE[row.status]} dot pill>
+          {row.status}
+        </Badge>
+      ),
+    },
+  ];
+
+  const dateLabel =
+    view === 'calendar'
+      ? formatWeekLabel(weekStart, addDays(weekStart, 6))
+      : formatDayLabel(date);
+
+  const listRowClassName = (row: Appointment): string | undefined => {
+    const classes: string[] = [];
+    if (row.status === 'Cancelled') classes.push('opacity-60');
+    if (date === todayIso() && row.appointmentId === nextUpcomingId) {
+      classes.push('bg-primary-container/30');
+    }
+    return classes.length > 0 ? classes.join(' ') : undefined;
+  };
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-7xl flex-col gap-6">
-      <div className="relative isolate flex flex-col gap-5 overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-secondary p-5 shadow-elevated sm:flex-row sm:items-center sm:justify-between sm:p-7">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-24 z-0 h-64 w-64 rounded-full border-[36px] border-white/5" />
-        <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 right-36 z-0 h-48 w-48 rounded-full bg-white/5 blur-2xl" />
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-elevated backdrop-blur-sm">
-            <span className="material-symbols-outlined text-[26px]" aria-hidden="true">calendar_month</span>
-          </div>
-          <div>
-            <p className="text-label-md font-semibold uppercase tracking-[0.16em] text-white/75">Care coordination</p>
-            <h2 className="text-display-sm text-white">Appointments</h2>
-            <p className="mt-1 text-body-sm text-white/80">
-              {date === todayIso() ? "Today's schedule" : date ? `Schedule for ${formatDate(date)}` : 'All dates'}
-            </p>
-          </div>
-        </div>
-        {isReceptionist && (
-          <div className="relative z-10 flex flex-col gap-2 sm:flex-row">
-            <Button
-              variant="secondary"
-              icon="how_to_reg"
-              onClick={() => navigate(ROUTES.WALK_IN)}
-              className="w-full border-white/40 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
-            >
-              New Walk-In
-            </Button>
-            <Button
-              variant="primary"
-              icon="add"
-              onClick={() => navigate(ROUTES.APPOINTMENT_BOOKING)}
-              className="w-full bg-white text-primary shadow-lg hover:bg-secondary hover:text-on-secondary sm:w-auto"
-            >
-              New Appointment
-            </Button>
-          </div>
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
+      <PageHeader
+        title="Appointments"
+        actions={
+          canBook ? (
+            <>
+              <Button
+                variant="secondary"
+                icon="directions_walk"
+                onClick={() => navigate(ROUTES.WALK_IN)}
+              >
+                Walk-in
+              </Button>
+              <Button
+                variant="primary"
+                icon="add"
+                onClick={() => navigate(ROUTES.APPOINTMENT_BOOKING)}
+              >
+                Book appointment
+              </Button>
+            </>
+          ) : undefined
+        }
+      />
+
+      <AppointmentToolbar
+        view={view}
+        onViewChange={(next) => updateParams({ view: next })}
+        date={date}
+        onDateChange={(iso) => updateParams({ date: iso })}
+        onPrev={handlePrev}
+        onNext={handleNext}
+        onToday={handleToday}
+        dateLabel={dateLabel}
+        showBranchSelect={showBranchSelect}
+        branchId={branchParam}
+        branchOptions={branchOptions}
+        onBranchChange={(value) =>
+          updateParams({ branchId: value === 'all' ? null : value, doctorId: null })
+        }
+        showDoctorSelect={showDoctorSelect}
+        doctorId={doctorParam}
+        doctorOptions={doctorOptions}
+        onDoctorChange={(value) => updateParams({ doctorId: value === 'all' ? null : value })}
+      />
+
+      <Tabs<StatusTab>
+        items={statusTabs}
+        value={statusTab}
+        onChange={(next) => updateParams({ status: next === 'All' ? null : next })}
+        ariaLabel="Appointment status"
+        className="self-start"
+      />
+
+      {appointments.error && (
+        <ErrorBanner message={appointments.error} onRetry={appointments.reload} />
+      )}
+
+      <div
+        className={
+          appointments.isLoading && appointments.data !== undefined
+            ? 'opacity-60 transition-opacity'
+            : 'transition-opacity'
+        }
+      >
+        {view === 'list' ? (
+          <DataTable
+            columns={columns}
+            rows={filteredItems}
+            rowKey={(row) => String(row.appointmentId)}
+            onRowClick={(row) => setSelectedPatientId(row.patientId)}
+            rowClassName={listRowClassName}
+            loading={isFirstLoad}
+            error={appointments.data === undefined ? appointments.error : null}
+            onRetry={appointments.reload}
+            skeletonRows={8}
+            emptyState={
+              <EmptyState
+                icon="event_busy"
+                title="No appointments"
+                action={
+                  canBook ? (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon="add"
+                      onClick={() => navigate(ROUTES.APPOINTMENT_BOOKING)}
+                    >
+                      Book appointment
+                    </Button>
+                  ) : undefined
+                }
+              />
+            }
+            rowActions={(row) => (
+              <AppointmentRowActions
+                appointment={row}
+                role={role}
+                onViewPatient={setSelectedPatientId}
+                onCancel={setToCancel}
+                onOpenConsultation={openConsultation}
+              />
+            )}
+          />
+        ) : (
+          <AppointmentCalendar
+            weekStart={weekStart}
+            selectedDate={date}
+            todayIso={todayIso()}
+            appointments={filteredItems}
+            loading={isFirstLoad}
+            dayErrors={dayErrors}
+            onDayErrorRetry={appointments.reload}
+            onSelectDay={handleSelectDay}
+            role={role}
+            onViewPatient={setSelectedPatientId}
+            onCancel={setToCancel}
+            onOpenConsultation={openConsultation}
+          />
         )}
       </div>
 
-      <section className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
-        <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary to-secondary" />
-        <div className="p-4 sm:p-5">
-          <div className="mb-4 flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed text-primary">
-              <span className="material-symbols-outlined text-[20px]" aria-hidden="true">tune</span>
-            </span>
-            <div>
-              <h3 className="text-body-md font-semibold text-on-surface">Schedule filters</h3>
-              <p className="mt-0.5 text-body-sm text-on-surface-variant">Choose a date, status, or branch to refine appointments.</p>
-            </div>
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="sm:w-48">
-              <Input
-                label="Date"
-                type="date"
-                value={date}
-                onChange={(event) => {
-                  setDate(event.target.value);
-                  setPage(1);
-                }}
-              />
-            </div>
-            <div className="sm:w-48">
-              <Select
-                label="Status"
-                options={STATUS_OPTIONS}
-                value={status}
-                onChange={(event) => {
-                  setStatus(event.target.value as AppointmentStatus | 'all');
-                  setPage(1);
-                }}
-              />
-            </div>
-            {!isDoctor && (
-              <div className="sm:w-56">
-                <Select
-                  label="Branch"
-                  options={branchOptions}
-                  value={branchId}
-                  onChange={(event) => {
-                    setBranchId(event.target.value);
-                    setPage(1);
-                  }}
-                />
-              </div>
-            )}
-            {date && (
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setDate('');
-                  setPage(1);
-                }}
-                className="h-9 self-start border border-outline-variant sm:self-auto"
-              >
-                All dates
-              </Button>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant bg-gradient-to-r from-primary-fixed/30 to-secondary-fixed/20 px-4 py-4 sm:px-5">
-          <div>
-            <h3 className="text-headline-sm text-on-surface">Appointment directory</h3>
-            <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-secondary-fixed/50 px-2.5 py-1 text-label-md font-medium text-on-secondary-fixed">
-              <span className="material-symbols-outlined text-[15px]" aria-hidden="true">event_available</span>
-              {total.toLocaleString()} {total === 1 ? 'appointment' : 'appointments'} found
-            </div>
-          </div>
-          {appointments.isLoading && <PageSkeleton className="w-24" />}
-        </div>
-
-        {appointments.error && (
-          <div className="p-4">
-            <ErrorBanner message={appointments.error} onRetry={appointments.reload} />
-          </div>
-        )}
-
-        <div className="flex-1 overflow-x-auto">
-          <table className="w-full min-w-[900px] border-collapse text-left">
-            <thead className="sticky top-0 z-10 border-b border-outline-variant bg-primary-fixed/30">
-              <tr>
-                <th scope="col" className="px-5 py-3 text-label-md font-semibold text-on-surface-variant">Patient</th>
-                <th scope="col" className="px-4 py-3 text-label-md font-semibold text-on-surface-variant">Doctor</th>
-                <th scope="col" className="px-4 py-3 text-label-md font-semibold text-on-surface-variant">Date &amp; Time</th>
-                <th scope="col" className="px-4 py-3 text-label-md font-semibold text-on-surface-variant">Branch</th>
-                <th scope="col" className="px-4 py-3 text-label-md font-semibold text-on-surface-variant">Visit type</th>
-                <th scope="col" className="px-4 py-3 text-label-md font-semibold text-on-surface-variant">Status</th>
-                <th scope="col" className="w-32 px-5 py-3 text-right text-label-md font-semibold text-on-surface-variant">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant text-table-data text-on-surface">
-              {appointments.isLoading && rows.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-5 py-8">
-                    <PageSkeleton className="space-y-4" />
-                  </td>
-                </tr>
-              )}
-
-              {!appointments.isLoading && !appointments.error && rows.length === 0 && (
-                <tr>
-                  <td colSpan={7}>
-                    <EmptyState
-                      title="No appointments found for these filters."
-                      description="Try another date, status, or branch selection."
-                      icon="event_busy"
-                    />
-                  </td>
-                </tr>
-              )}
-
-              {rows.map((appointment) => (
-                <tr
-                  key={appointment.appointmentId}
-                  onClick={canOpenConsultation ? () => openConsultation(appointment.appointmentId) : undefined}
-                  className={`group h-16 odd:bg-surface-container-lowest even:bg-secondary-fixed/10 transition-colors hover:bg-primary-fixed/25 focus-within:bg-primary-fixed/25 ${
-                    canOpenConsultation ? 'cursor-pointer' : ''
-                  }`}
-                >
-                  <td className="px-5 py-3 font-semibold text-on-surface">{appointment.patientName}</td>
-                  <td className="px-4 py-3 text-on-surface-variant">{appointment.doctorName}</td>
-                  <td className="px-4 py-3 text-on-surface-variant">
-                    <div>{formatDate(appointment.appointmentDate)}</div>
-                    <div className="mt-0.5 text-xs">{formatTime(appointment.appointmentTime)}</div>
-                  </td>
-                  <td className="px-4 py-3 text-on-surface-variant">{appointment.branchName}</td>
-                  <td className="px-4 py-3 text-on-surface-variant">
-                    {appointment.isWalkIn ? (
-                      <Badge tone="secondary">Walk-in</Badge>
-                    ) : (
-                      <span className="text-on-surface-variant">Scheduled</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge tone={APPOINTMENT_STATUS_TONE[appointment.status]}>{appointment.status}</Badge>
-                  </td>
-                  <td className="whitespace-nowrap px-5 py-3 text-right">
-                    {canOpenConsultation && (
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openConsultation(appointment.appointmentId);
-                        }}
-                        className="rounded-md px-2 py-1 text-label-md font-medium text-primary transition-colors hover:bg-primary-fixed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                      >
-                        Open
-                      </button>
-                    )}
-                    {isReceptionist && appointment.status === 'Scheduled' && (
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setToCancel(appointment);
-                        }}
-                        className="rounded-md px-2 py-1 text-label-md font-medium text-error transition-colors hover:bg-error-container/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="border-t border-outline-variant">
-          <Pagination page={page} pageSize={PAGE_SIZE} totalItems={total} onPageChange={setPage} />
-        </div>
-      </section>
-
       <CancelAppointmentDrawer
         appointment={toCancel}
-        onClose={closeCancel}
-        onCancelled={appointments.reload}
+        onClose={() => setToCancel(null)}
+        onCancelled={() => {
+          toast.success('Appointment cancelled');
+          appointments.reload();
+        }}
+      />
+
+      <PatientDetailDrawer
+        patientId={selectedPatientId}
+        onClose={() => setSelectedPatientId(null)}
       />
     </div>
   );
