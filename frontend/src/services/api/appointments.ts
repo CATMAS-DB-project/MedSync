@@ -38,10 +38,6 @@ export async function bookAppointment(input: BookAppointmentInput): Promise<Appo
   return apiPost<Appointment>('/appointments', input);
 }
 
-/**
- * NOTE: the backend does not have this route yet (no PATCH /appointments/{id}),
- * so calling it will fail until the backend adds it.
- */
 export async function rescheduleAppointment(
   appointmentId: number,
   input: {
@@ -69,4 +65,10 @@ export async function fetchAppointmentAvailability(
   date: string,
 ): Promise<AvailabilitySlot[]> {
   return apiGet<AvailabilitySlot[]>('/appointments/availability', { doctor_id: doctorId, date });
+}
+
+export async function fetchRescheduleHistory(
+  appointmentId: number,
+): Promise<Appointment[]> {
+  return apiGet<Appointment[]>(`/appointments/${appointmentId}/reschedule-history`);
 }

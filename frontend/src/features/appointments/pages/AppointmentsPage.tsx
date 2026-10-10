@@ -63,10 +63,13 @@ function parseDateParam(value: string | null): string {
   return todayIso();
 }
 
-function parseIdParam(value: string | null): string {
-  if (!value) return 'all';
-  return value;
-}
+const STATUS_OPTIONS: { label: string; value: AppointmentStatus | 'all' }[] = [
+  { label: 'All Statuses', value: 'all' },
+  { label: 'Scheduled', value: 'Scheduled' },
+  { label: 'Completed', value: 'Completed' },
+  { label: 'Cancelled', value: 'Cancelled' },
+  { label: 'Re-Scheduled', value: 'Re-Scheduled' },
+];
 
 export function AppointmentsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
