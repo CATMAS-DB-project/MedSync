@@ -58,12 +58,17 @@ export function DateRangeControl({ value, onChange }: DateRangeControlProps) {
   };
 
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-      <div className="inline-flex rounded-lg border border-outline-variant p-0.5 bg-surface-container-low">
+    <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:items-center">
+      <div
+        className="inline-flex max-w-full flex-wrap rounded-xl border border-outline-variant bg-surface-container-low p-1 shadow-sm"
+        role="group"
+        aria-label="Dashboard date range"
+      >
         <button
           type="button"
           onClick={() => handlePresetChange('7d')}
-          className={`px-3 py-1.5 text-label-md rounded-md font-medium transition-colors ${
+          aria-pressed={preset === '7d'}
+          className={`rounded-md px-3 py-1.5 text-label-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${
             preset === '7d'
               ? 'bg-primary text-on-primary shadow-sm'
               : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
@@ -74,7 +79,8 @@ export function DateRangeControl({ value, onChange }: DateRangeControlProps) {
         <button
           type="button"
           onClick={() => handlePresetChange('30d')}
-          className={`px-3 py-1.5 text-label-md rounded-md font-medium transition-colors ${
+          aria-pressed={preset === '30d'}
+          className={`rounded-md px-3 py-1.5 text-label-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${
             preset === '30d'
               ? 'bg-primary text-on-primary shadow-sm'
               : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
@@ -85,7 +91,8 @@ export function DateRangeControl({ value, onChange }: DateRangeControlProps) {
         <button
           type="button"
           onClick={() => handlePresetChange('custom')}
-          className={`px-3 py-1.5 text-label-md rounded-md font-medium transition-colors ${
+          aria-pressed={preset === 'custom'}
+          className={`rounded-md px-3 py-1.5 text-label-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${
             preset === 'custom'
               ? 'bg-primary text-on-primary shadow-sm'
               : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
@@ -96,31 +103,30 @@ export function DateRangeControl({ value, onChange }: DateRangeControlProps) {
       </div>
 
       {preset === 'custom' && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest p-2 shadow-sm">
           <input
             type="date"
             value={customFrom}
             max={todayIso()}
             onChange={(e) => handleCustomDateChange(e.target.value, customTo)}
-            className="rounded border border-outline-variant bg-surface-container-lowest px-2.5 py-1 text-body-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
+            className="min-h-10 min-w-0 rounded-lg border border-outline-variant bg-surface px-3 py-2 text-body-sm text-on-surface transition-colors hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary"
             aria-label="Start date"
           />
-          <span className="text-body-sm text-on-surface-variant">to</span>
+          <span className="text-label-md text-on-surface-variant">to</span>
           <input
             type="date"
             value={customTo}
             max={todayIso()}
             onChange={(e) => handleCustomDateChange(customFrom, e.target.value)}
-            className="rounded border border-outline-variant bg-surface-container-lowest px-2.5 py-1 text-body-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
+            className="min-h-10 min-w-0 rounded-lg border border-outline-variant bg-surface px-3 py-2 text-body-sm text-on-surface transition-colors hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary"
             aria-label="End date"
           />
         </div>
       )}
 
       {dateError && (
-        <span className="text-body-sm text-error font-medium">{dateError}</span>
+        <span className="text-body-sm font-medium text-error" role="alert">{dateError}</span>
       )}
     </div>
   );
 }
-

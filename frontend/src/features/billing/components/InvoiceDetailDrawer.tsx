@@ -4,6 +4,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
+import { ErrorBanner } from '../../../components/common/ErrorBanner';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
 import { ApiError } from '../../../services/api/ApiError';
@@ -179,51 +180,59 @@ export function InvoiceDetailDrawer({ invoiceId, onClose, onChanged }: InvoiceDe
         </Button>
       }
     >
-      {invoiceQuery.isLoading && !invoice && <p className="text-body-sm text-on-surface-variant">Loading invoice…</p>}
-      {invoiceQuery.error && <p className="text-body-sm text-error">{invoiceQuery.error}</p>}
+      {invoiceQuery.isLoading && !invoice && (
+        <div className="rounded-xl border border-outline-variant bg-surface-container-low p-5 text-center text-body-sm text-on-surface-variant" role="status">
+          Loading invoice…
+        </div>
+      )}
+      {invoiceQuery.error && (
+        <ErrorBanner message={invoiceQuery.error} onRetry={invoiceQuery.reload} />
+      )}
       {error && (
-        <div className="rounded border border-error/40 bg-error/10 p-3 text-body-sm text-error">{error}</div>
+        <div className="rounded-xl border border-error/40 bg-error-container/30 p-4 text-body-sm text-error" role="alert">
+          {error}
+        </div>
       )}
 
       {invoice && (
         <>
           <DrawerSection title="Summary" icon="receipt_long">
-            <div className="grid grid-cols-2 gap-4 text-body-sm">
-              <div>
-                <div className="text-on-surface-variant text-label-md">Visit date</div>
-                <div className="text-on-surface">{formatDate(invoice.appointmentDate)}</div>
+            <div className="grid grid-cols-1 gap-3 text-body-sm sm:grid-cols-2">
+              <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3">
+                <div className="text-label-md text-on-surface-variant">Visit date</div>
+                <div className="mt-1 font-medium text-on-surface">{formatDate(invoice.appointmentDate)}</div>
               </div>
-              <div>
+              <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3">
                 <div className="text-on-surface-variant text-label-md">Status</div>
-                <Badge tone={INVOICE_STATUS_TONE[invoice.status]}>{invoice.status}</Badge>
+                <div className="mt-1"><Badge tone={INVOICE_STATUS_TONE[invoice.status]}>{invoice.status}</Badge></div>
               </div>
-              <div>
+              <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3">
                 <div className="text-on-surface-variant text-label-md">Subtotal</div>
-                <div className="text-on-surface">{formatCurrency(invoice.subtotalAmount)}</div>
+                <div className="mt-1 font-medium text-on-surface">{formatCurrency(invoice.subtotalAmount)}</div>
               </div>
-              <div>
+              <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3">
                 <div className="text-on-surface-variant text-label-md">Insurance deduction</div>
-                <div className="text-on-surface">{formatCurrency(invoice.insuranceDeduction)}</div>
+                <div className="mt-1 font-medium text-on-surface">{formatCurrency(invoice.insuranceDeduction)}</div>
               </div>
-              <div>
+              <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3">
                 <div className="text-on-surface-variant text-label-md">Manual discount</div>
-                <div className="text-on-surface">{formatCurrency(invoice.manualDiscount)}</div>
+                <div className="mt-1 font-medium text-on-surface">{formatCurrency(invoice.manualDiscount)}</div>
               </div>
-              <div>
+              <div className="rounded-xl border border-primary/20 bg-primary-container/30 p-3">
                 <div className="text-on-surface-variant text-label-md">Payable</div>
-                <div className="text-on-surface font-semibold">
+                <div className="mt-1 font-semibold text-on-surface">
                   {formatCurrency(invoice.payableAmount ?? invoice.subtotalAmount)}
                 </div>
               </div>
               {invoice.status !== 'Draft' && (
                 <>
-                  <div>
+                  <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3">
                     <div className="text-on-surface-variant text-label-md">Paid</div>
-                    <div className="text-on-surface">{formatCurrency(invoice.amountPaid ?? 0)}</div>
+                    <div className="mt-1 font-medium text-on-surface">{formatCurrency(invoice.amountPaid ?? 0)}</div>
                   </div>
-                  <div>
+                  <div className="rounded-xl border border-tertiary/20 bg-tertiary-container/30 p-3">
                     <div className="text-on-surface-variant text-label-md">Outstanding</div>
-                    <div className="text-on-surface font-semibold">{formatCurrency(invoice.outstandingAmount ?? 0)}</div>
+                    <div className="mt-1 font-semibold text-on-surface">{formatCurrency(invoice.outstandingAmount ?? 0)}</div>
                   </div>
                 </>
               )}
@@ -232,32 +241,34 @@ export function InvoiceDetailDrawer({ invoiceId, onClose, onChanged }: InvoiceDe
 
           <DrawerSection title="Visit Charges" icon="list_alt">
             {invoice.lineItems.length === 0 ? (
-              <p className="text-body-sm text-on-surface-variant">
+              <p className="rounded-xl border border-outline-variant bg-surface-container-low p-4 text-body-sm text-on-surface-variant">
                 No treatments logged. The subtotal is the consultation fee.
               </p>
             ) : (
-              <table className="w-full text-left border-collapse text-body-sm">
+              <div className="overflow-x-auto rounded-xl border border-outline-variant">
+              <table className="w-full min-w-[360px] border-collapse text-left text-body-sm">
                 <tbody>
                   {invoice.lineItems.map((item) => (
-                    <tr key={item.appointmentTreatmentId} className="border-b border-outline-variant">
-                      <td className="py-1.5">
+                    <tr key={item.appointmentTreatmentId} className="border-b border-outline-variant last:border-0">
+                      <td className="px-3 py-3">
                         {item.treatmentName}
                         <span className="block text-label-md text-on-surface-variant">
                           {item.serviceCode}
                           {item.isAmended ? ' · amendment' : ''}
                         </span>
                       </td>
-                      <td className="py-1.5 text-right">{formatCurrency(item.priceAtTime)}</td>
+                      <td className="px-3 py-3 text-right font-medium tabular-nums">{formatCurrency(item.priceAtTime)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </DrawerSection>
 
           <DrawerSection title="Insurance Claim" icon="health_and_safety">
             {claim ? (
-              <div className="flex flex-col gap-2 text-body-sm">
+              <div className="flex flex-col gap-3 rounded-xl border border-outline-variant bg-surface-container-low p-4 text-body-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-on-surface">
                     Policy <span className="font-mono text-xs">{claim.policyId}</span>
@@ -319,7 +330,7 @@ export function InvoiceDetailDrawer({ invoiceId, onClose, onChanged }: InvoiceDe
           </DrawerSection>
 
           <DrawerSection title="Finalize Invoice" icon="done_all">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input
                 label="Insurance deduction"
                 type="number"
@@ -337,8 +348,8 @@ export function InvoiceDetailDrawer({ invoiceId, onClose, onChanged }: InvoiceDe
                 onChange={(event) => setManualDiscount(event.target.value)}
               />
             </div>
-            <div className="mt-2 text-body-sm text-on-surface-variant">
-              Preview payable: <span className="font-medium text-on-surface">{formatCurrency(previewPayable)}</span>
+            <div className="mt-2 rounded-xl border border-primary/20 bg-primary-container/30 p-3 text-body-sm text-on-surface-variant">
+              Preview payable <span className="ml-1 font-semibold text-on-surface">{formatCurrency(previewPayable)}</span>
             </div>
             <Button
               variant="primary"
@@ -351,7 +362,7 @@ export function InvoiceDetailDrawer({ invoiceId, onClose, onChanged }: InvoiceDe
           </DrawerSection>
 
           <DrawerSection title="Record Payment" icon="payments">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input
                 label="Amount"
                 type="number"
@@ -381,7 +392,7 @@ export function InvoiceDetailDrawer({ invoiceId, onClose, onChanged }: InvoiceDe
             <DrawerSection title="Payment History" icon="history">
               <div className="space-y-2">
                 {payments.data.map((payment) => (
-                  <div key={payment.paymentId} className="rounded border border-outline-variant p-2 text-body-sm">
+                  <div key={payment.paymentId} className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3 text-body-sm">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-on-surface">{formatCurrency(payment.amountPaid)}</span>
                       <Badge tone="primary">{payment.paymentMethod}</Badge>

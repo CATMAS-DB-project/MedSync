@@ -125,7 +125,10 @@ export function KpiRow({ branchId, dateRange, onOutstandingDataLoaded }: KpiRowP
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-element-gap">
+    <section
+      aria-label="Key performance indicators"
+      className="grid min-w-0 grid-cols-1 gap-element-gap sm:grid-cols-2 xl:grid-cols-3"
+    >
       <KpiCard
         label="Today's Appointments"
         value={kpiDisplay(
@@ -181,6 +184,6 @@ export function KpiRow({ branchId, dateRange, onOutstandingDataLoaded }: KpiRowP
         caption={`Range: ${formatDate(dateRange.from)} – ${formatDate(dateRange.to)} · Click for reports`}
         onClick={() => navigate(ROUTES.REPORTS)}
       />
-    </div>
+    </section>
   );
 }
