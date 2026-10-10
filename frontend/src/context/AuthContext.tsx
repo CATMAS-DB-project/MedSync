@@ -3,8 +3,6 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { login as apiLogin, logout as apiLogout, fetchCurrentUser } from '../services/api/auth';
 import { refreshAccessToken, setSessionExpiredHandler } from '../services/api/client';
 import { ApiError } from '../services/api/ApiError';
-import { DEV_BYPASS_AUTH } from '../constants/api';
-import { mockCurrentUser } from '../services/mock/currentUser';
 import type { CurrentUser, LoginCredentials } from '../types';
 
 interface AuthContextValue {
@@ -22,10 +20,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
 
   const logout = useCallback(async () => {
-    if (DEV_BYPASS_AUTH) {
-      setCurrentUser(null);
-      return;
-    }
     try {
       await apiLogout();
     } finally {
@@ -34,12 +28,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (DEV_BYPASS_AUTH) {
-      setCurrentUser(mockCurrentUser);
-      setIsBootstrapping(false);
-      return;
-    }
-
     let cancelled = false;
 
     async function bootstrap() {
@@ -66,10 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
-    if (DEV_BYPASS_AUTH) {
-      setCurrentUser(mockCurrentUser);
-      return;
-    }
     await apiLogin(credentials);
     const user = await fetchCurrentUser();
     setCurrentUser(user);
