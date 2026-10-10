@@ -26,6 +26,7 @@ const STATUS_OPTIONS: { label: string; value: AppointmentStatus | 'all' }[] = [
   { label: 'Scheduled', value: 'Scheduled' },
   { label: 'Completed', value: 'Completed' },
   { label: 'Cancelled', value: 'Cancelled' },
+  { label: 'Re-Scheduled', value: 'Re-Scheduled' },
 ];
 
 export function AppointmentsPage() {

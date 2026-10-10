@@ -1,4 +1,4 @@
-export type AppointmentStatus = 'Scheduled' | 'Completed' | 'Cancelled';
+export type AppointmentStatus = 'Scheduled' | 'Completed' | 'Cancelled' | 'Re-Scheduled';
 
 export interface Appointment {
   appointmentId: number;
@@ -16,6 +16,7 @@ export interface Appointment {
   cancelRescheduleReason?: string;
   consultationNotes?: string;
   createdAt: string;
+  previousAppointmentId?: number;
 }
 
 export interface AppointmentRescheduleLog {
