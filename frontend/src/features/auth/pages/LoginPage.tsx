@@ -53,75 +53,90 @@ export function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 px-4 py-12">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-sky-50 via-slate-50 to-slate-100"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary-fixed/40 via-background to-secondary-fixed/30"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-48 left-1/2 h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-blue-200/40 blur-3xl"
+        className="pointer-events-none absolute -top-48 left-1/2 h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-0 right-0 h-80 w-80 rounded-full bg-teal-200/30 blur-3xl"
+        className="pointer-events-none absolute bottom-0 right-0 h-80 w-80 rounded-full bg-secondary/10 blur-3xl"
       />
 
-      <div className="relative z-10 w-full max-w-[26rem] rounded-3xl border border-slate-200/80 bg-white p-8 shadow-xl shadow-slate-900/5 sm:p-10">
-        <div className="mb-8 flex justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-teal-500 shadow-lg shadow-blue-500/20">
-            <Icon name="clinical_notes" size={30} className="text-white" />
+      <div className="relative z-10 w-full max-w-[28rem] overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
+        <div className="h-1.5 bg-gradient-to-r from-primary via-primary-container to-secondary" />
+        <div className="p-7 sm:p-10">
+        <div className="mb-7 flex justify-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white shadow-lg">
+            <Icon name="clinical_notes" size={30} />
           </div>
         </div>
 
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+          <p className="mb-2 text-label-md font-semibold uppercase tracking-[0.16em] text-primary">Welcome back</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-on-surface">
             MedSync
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-on-surface-variant">
             Clinical &amp; Administrative Management
           </p>
         </div>
 
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          <input
-            type="text"
-            aria-label="Username"
-            placeholder="Enter Username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            autoComplete="username"
-            required
-            className="w-full rounded-full border border-slate-200 bg-slate-50 px-5 py-3.5 text-sm text-slate-900 placeholder-slate-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-          />
-
-          <div className="relative">
+        <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="login-username" className="text-label-md font-medium text-on-surface-variant">
+              Username
+            </label>
             <input
-              type={showPassword ? 'text' : 'password'}
-              aria-label="Password"
-              placeholder="Enter Password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
+              id="login-username"
+              type="text"
+              aria-label="Username"
+              placeholder="Enter your username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              autoComplete="username"
               required
-              className="w-full rounded-full border border-slate-200 bg-slate-50 py-3.5 pl-5 pr-12 text-sm text-slate-900 placeholder-slate-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="h-11 w-full rounded-lg border border-outline-variant bg-background px-4 text-body-md text-on-surface placeholder:text-outline transition-colors focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword((prev) => !prev)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              aria-pressed={showPassword}
-              tabIndex={-1}
-              className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
-            >
-              <Icon name={showPassword ? 'visibility_off' : 'visibility'} size={18} />
-            </button>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor="login-password" className="text-label-md font-medium text-on-surface-variant">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="login-password"
+                type={showPassword ? 'text' : 'password'}
+                aria-label="Password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="current-password"
+                required
+                className="h-11 w-full rounded-lg border border-outline-variant bg-background py-2.5 pl-4 pr-12 text-body-md text-on-surface placeholder:text-outline transition-colors focus:border-primary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                tabIndex={-1}
+                className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                <Icon name={showPassword ? 'visibility_off' : 'visibility'} size={18} />
+              </button>
+            </div>
           </div>
 
           {error && (
             <div
               role="alert"
-              className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+              className="flex items-start gap-2.5 rounded-lg border border-error/30 bg-error-container/50 px-4 py-3 text-body-sm text-on-error-container"
             >
               <Icon name="error" size={16} className="mt-0.5 shrink-0" />
               <span>{error}</span>
@@ -131,18 +146,19 @@ export function LoginPage() {
           <Button
             type="submit"
             variant="primary"
-            className="mt-2 w-full rounded-full py-3.5 text-sm font-medium shadow-md shadow-blue-600/20 transition-all hover:shadow-lg hover:shadow-blue-600/30"
+            className="mt-1 h-11 w-full rounded-lg text-body-md font-semibold shadow-elevated transition-all hover:bg-secondary hover:text-on-secondary hover:shadow-lg"
             isLoading={isSubmitting}
           >
             {isSubmitting ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>
 
-        <div className="mt-8 flex items-center justify-center gap-2">
-          <Icon name="lock" size={14} className="text-slate-400" />
-          <p className="text-xs text-slate-500">
+        <div className="mt-7 flex items-center justify-center gap-2 border-t border-outline-variant pt-5">
+          <Icon name="lock" size={14} className="text-primary" />
+          <p className="text-xs text-on-surface-variant">
             Secure access for authorized medical staff.
           </p>
+        </div>
         </div>
       </div>
     </div>

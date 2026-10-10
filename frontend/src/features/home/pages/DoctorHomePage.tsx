@@ -130,21 +130,28 @@ export function DoctorHomePage() {
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <div className="mx-auto max-w-6xl p-4 lg:p-6">
-      <header className="mb-5 flex flex-col gap-3 border-b border-outline-variant pb-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-body-sm text-on-surface-variant">Doctor dashboard</p>
-          <h1 className="text-display-sm text-on-surface">
-            {greeting}, Dr. {currentUser.username || currentUser.staffId}
-          </h1>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
+      <header className="relative isolate flex flex-col gap-5 overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-secondary p-5 shadow-elevated md:flex-row md:items-center md:justify-between md:p-7">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-24 z-0 h-64 w-64 rounded-full border-[36px] border-white/5" />
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-elevated">
+            <span className="material-symbols-outlined text-[26px]" aria-hidden="true">stethoscope</span>
+          </div>
+          <div>
+            <p className="text-label-md font-semibold uppercase tracking-[0.16em] text-white/75">Doctor dashboard</p>
+            <h1 className="text-display-sm text-white">
+              {greeting}, Dr. {currentUser.username || currentUser.staffId}
+            </h1>
+          </div>
         </div>
-        <div className="flex flex-col items-start gap-1 text-body-sm text-on-surface-variant md:items-end">
-          <span>{formatDate(today)}</span>
-          <span>{branchName}</span>
+        <div className="relative z-10 flex flex-col items-start gap-1 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-left text-body-sm text-white/85">
+          <span className="inline-flex items-center gap-2"><span className="material-symbols-outlined text-[16px]" aria-hidden="true">today</span>{formatDate(today)}</span>
+          <span className="inline-flex items-center gap-2"><span className="material-symbols-outlined text-[16px]" aria-hidden="true">location_on</span>{branchName}</span>
         </div>
       </header>
 
-      <section className="mb-5 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 md:p-5">
+      <section className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated md:p-5">
+        <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-secondary" />
         {appointmentsToday.error && (
           <ErrorBanner message={appointmentsToday.error} onRetry={appointmentsToday.reload} className="mb-3" />
         )}
@@ -153,7 +160,10 @@ export function DoctorHomePage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-label-md uppercase tracking-wide text-on-surface-variant">Next patient</span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-fixed text-primary">
+                  <span className="material-symbols-outlined text-[18px]" aria-hidden="true">person</span>
+                </span>
+                <span className="text-label-md font-semibold uppercase tracking-wide text-primary">Next patient</span>
                 {timeToMinutes(nextPatient.appointmentTime) < nowMinutes && (
                   <Badge tone="warning">Overdue</Badge>
                 )}
@@ -168,7 +178,7 @@ export function DoctorHomePage() {
               </div>
             </div>
 
-            <Button variant="primary" icon="medical_services" onClick={() => openConsultation(nextPatient.appointmentId)}>
+            <Button variant="primary" icon="medical_services" onClick={() => openConsultation(nextPatient.appointmentId)} className="w-full sm:w-auto">
               Open consultation
             </Button>
           </div>
@@ -181,30 +191,37 @@ export function DoctorHomePage() {
         )}
       </section>
 
-      <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-lg border border-outline-variant bg-surface-container-low p-4">
-          <div className="text-label-md text-on-surface-variant">Total</div>
-          <div className="mt-2 text-3xl font-semibold text-on-surface">{counters.total}</div>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-secondary" />
+          <div className="flex items-center justify-between text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">Total<span className="rounded-lg bg-primary-fixed p-2 text-primary"><span className="material-symbols-outlined" aria-hidden="true">event_note</span></span></div>
+          <div className="mt-2 text-3xl font-semibold text-on-surface tabular-nums">{counters.total}</div>
         </div>
-        <div className="rounded-lg border border-outline-variant bg-surface-container-low p-4">
-          <div className="text-label-md text-on-surface-variant">Scheduled</div>
-          <div className="mt-2 text-3xl font-semibold text-on-surface">{counters.scheduled}</div>
+        <div className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary-fixed" />
+          <div className="flex items-center justify-between text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">Scheduled<span className="rounded-lg bg-primary-fixed p-2 text-primary"><span className="material-symbols-outlined" aria-hidden="true">schedule</span></span></div>
+          <div className="mt-2 text-3xl font-semibold text-on-surface tabular-nums">{counters.scheduled}</div>
         </div>
-        <div className="rounded-lg border border-outline-variant bg-surface-container-low p-4">
-          <div className="text-label-md text-on-surface-variant">Completed</div>
-          <div className="mt-2 text-3xl font-semibold text-on-surface">{counters.completed}</div>
+        <div className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-secondary to-secondary-fixed" />
+          <div className="flex items-center justify-between text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">Completed<span className="rounded-lg bg-secondary-fixed/60 p-2 text-secondary"><span className="material-symbols-outlined" aria-hidden="true">task_alt</span></span></div>
+          <div className="mt-2 text-3xl font-semibold text-on-surface tabular-nums">{counters.completed}</div>
         </div>
-        <div className="rounded-lg border border-outline-variant bg-surface-container-low p-4">
-          <div className="text-label-md text-on-surface-variant">Cancelled</div>
-          <div className="mt-2 text-3xl font-semibold text-on-surface">{counters.cancelled}</div>
+        <div className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
+          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-error to-error-container" />
+          <div className="flex items-center justify-between text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">Cancelled<span className="rounded-lg bg-error-container p-2 text-error"><span className="material-symbols-outlined" aria-hidden="true">event_busy</span></span></div>
+          <div className="mt-2 text-3xl font-semibold text-on-surface tabular-nums">{counters.cancelled}</div>
         </div>
       </section>
 
-      <section className="mb-5 rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
-        <h2 className="mb-3 text-headline-sm text-on-surface">Today's schedule</h2>
+      <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
+        <div className="border-b border-outline-variant bg-gradient-to-r from-primary-fixed/30 to-secondary-fixed/20 px-4 py-4 sm:px-5">
+          <h2 className="text-headline-sm text-on-surface">Today&apos;s schedule</h2>
+          <p className="mt-0.5 text-body-sm text-on-surface-variant">Your appointments, ordered by time.</p>
+        </div>
 
         {appointmentsToday.isLoading && schedule.length === 0 ? (
-          <TableSkeleton rows={4} columns={4} className="py-2" />
+          <div className="p-4"><TableSkeleton rows={4} columns={4} className="py-2" /></div>
         ) : schedule.length === 0 ? (
           <EmptyState
             title="No appointments for today"
@@ -212,7 +229,7 @@ export function DoctorHomePage() {
             icon="calendar_today"
           />
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 p-4">
             {schedule.map((appointment) => {
               const isNext = nextPatient && nextPatient.appointmentId === appointment.appointmentId;
 
@@ -222,8 +239,8 @@ export function DoctorHomePage() {
                   className={[
                     'flex flex-col gap-3 rounded-lg border p-3 md:flex-row md:items-center md:justify-between',
                     isNext
-                      ? 'border-primary bg-primary-container/10'
-                      : 'border-outline-variant bg-surface-container-low',
+                      ? 'border-primary/30 bg-gradient-to-r from-primary-fixed/40 to-secondary-fixed/20 shadow-sm'
+                      : 'border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low',
                   ].join(' ')}
                 >
                   <div className="flex items-center gap-3">
@@ -258,15 +275,18 @@ export function DoctorHomePage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
-        <h2 className="mb-3 text-headline-sm text-on-surface">Needs follow-up</h2>
+      <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
+        <div className="border-b border-outline-variant bg-gradient-to-r from-secondary-fixed/30 to-primary-fixed/20 px-4 py-4 sm:px-5">
+          <h2 className="text-headline-sm text-on-surface">Needs follow-up</h2>
+          <p className="mt-0.5 text-body-sm text-on-surface-variant">Completed visits that still need treatment notes.</p>
+        </div>
 
         {followUp.error && (
-          <ErrorBanner message={followUp.error} onRetry={followUp.reload} className="mb-3" />
+          <div className="p-4"><ErrorBanner message={followUp.error} onRetry={followUp.reload} /></div>
         )}
 
         {followUp.isLoading && followUp.data === undefined ? (
-          <TableSkeleton rows={3} columns={3} className="py-2" />
+          <div className="p-4"><TableSkeleton rows={3} columns={3} className="py-2" /></div>
         ) : (followUp.data ?? []).length === 0 ? (
           <EmptyState
             title="No follow-up needed"
@@ -274,11 +294,11 @@ export function DoctorHomePage() {
             icon="check_circle"
           />
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 p-4">
             {(followUp.data ?? []).map((appointment) => (
               <div
                 key={appointment.appointmentId}
-                className="flex flex-col gap-3 rounded-lg border border-outline-variant bg-surface-container-low p-3 md:flex-row md:items-center md:justify-between"
+                className="flex flex-col gap-3 rounded-xl border border-outline-variant bg-surface-container-low p-4 md:flex-row md:items-center md:justify-between"
               >
                 <div>
                   <div className="text-body-md font-medium text-on-surface">{appointment.patientName}</div>
