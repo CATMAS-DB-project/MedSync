@@ -27,7 +27,8 @@ CREATE TYPE phone_type_enum AS ENUM (
 CREATE TYPE appointment_status_enum AS ENUM (
     'Scheduled',
     'Completed',
-    'Cancelled'
+    'Cancelled',
+    'Re-Scheduled'
 );
 
 CREATE TYPE invoice_status_enum AS ENUM (
