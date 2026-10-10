@@ -93,25 +93,33 @@ export function AuditLogPanel() {
   };
 
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
-      {/* Header */}
-      <div className="px-5 py-4 border-b border-outline-variant bg-surface-container-low flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
+      <div className="flex flex-col gap-3 border-b border-outline-variant bg-gradient-to-r from-primary-fixed/30 to-secondary-fixed/20 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div>
           <h3 className="text-headline-sm text-on-surface">Database Audit Trail</h3>
           <p className="text-body-sm text-on-surface-variant">
             Live mutation logs captured by database triggers across clinical and financial records
           </p>
         </div>
-        <div className="text-label-md text-on-surface-variant">
-          Total records: <span className="font-semibold text-on-surface">{total}</span>
+        <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-secondary-fixed/50 px-3 py-1.5 text-label-md font-medium text-on-secondary-fixed">
+          <span className="material-symbols-outlined text-[16px]" aria-hidden="true">history</span>
+          Total records: <span className="font-bold">{total.toLocaleString()}</span>
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="p-4 border-b border-outline-variant bg-surface-container-lowest grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        <div>
-          <label className="block text-label-md text-on-surface-variant mb-1">Table Affected</label>
+      <div className="border-b border-outline-variant bg-surface-container-lowest p-4 sm:p-5">
+        <div className="mb-4 flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-fixed text-primary">
+            <span className="material-symbols-outlined text-[20px]" aria-hidden="true">filter_alt</span>
+          </span>
+          <div>
+            <h4 className="text-body-md font-semibold text-on-surface">Filter audit logs</h4>
+            <p className="mt-0.5 text-body-sm text-on-surface-variant">Narrow results by table, action, staff member, or date.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Select
+            label="Table affected"
             options={TABLE_OPTIONS}
             value={tableAffected}
             onChange={(e) => {
@@ -119,11 +127,8 @@ export function AuditLogPanel() {
               setPage(1);
             }}
           />
-        </div>
-
-        <div>
-          <label className="block text-label-md text-on-surface-variant mb-1">Action Type</label>
           <Select
+            label="Action type"
             options={ACTION_OPTIONS}
             value={actionType}
             onChange={(e) => {
@@ -131,11 +136,8 @@ export function AuditLogPanel() {
               setPage(1);
             }}
           />
-        </div>
-
-        <div>
-          <label className="block text-label-md text-on-surface-variant mb-1">Staff ID</label>
           <Input
+            label="Staff ID"
             placeholder="e.g. 1"
             value={staffIdInput}
             onChange={(e) => {
@@ -143,36 +145,27 @@ export function AuditLogPanel() {
               setPage(1);
             }}
           />
-        </div>
-
-        <div>
-          <label className="block text-label-md text-on-surface-variant mb-1">From Date</label>
-          <input
+          <Input
+            label="From date"
             type="date"
             value={fromTime}
             onChange={(e) => {
               setFromTime(e.target.value);
               setPage(1);
             }}
-            className="w-full rounded border border-outline-variant bg-surface px-3 py-1.5 text-body-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
           />
-        </div>
-
-        <div>
-          <label className="block text-label-md text-on-surface-variant mb-1">To Date</label>
-          <input
+          <Input
+            label="To date"
             type="date"
             value={toTime}
             onChange={(e) => {
               setToTime(e.target.value);
               setPage(1);
             }}
-            className="w-full rounded border border-outline-variant bg-surface px-3 py-1.5 text-body-sm text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
       </div>
 
-      {/* Table Content */}
       {logsAsync.error ? (
         <div className="p-4">
           <ErrorBanner message={logsAsync.error} onRetry={logsAsync.reload} />
@@ -191,25 +184,25 @@ export function AuditLogPanel() {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full min-w-[820px] border-collapse text-left">
             <thead>
-              <tr className="border-b border-outline-variant bg-surface-bright">
-                <th className="p-table-cell-padding text-label-md text-on-surface-variant font-medium">Log ID</th>
-                <th className="p-table-cell-padding text-label-md text-on-surface-variant font-medium">Timestamp</th>
-                <th className="p-table-cell-padding text-label-md text-on-surface-variant font-medium">Action</th>
-                <th className="p-table-cell-padding text-label-md text-on-surface-variant font-medium">Table</th>
-                <th className="p-table-cell-padding text-label-md text-on-surface-variant font-medium">Record ID</th>
-                <th className="p-table-cell-padding text-label-md text-on-surface-variant font-medium">Staff ID</th>
-                <th className="p-table-cell-padding text-label-md text-on-surface-variant font-medium text-right">Details</th>
+              <tr className="border-b border-outline-variant bg-primary-fixed/20">
+                <th scope="col" className="p-table-cell-padding text-label-md font-semibold text-on-surface-variant">Log ID</th>
+                <th scope="col" className="p-table-cell-padding text-label-md font-semibold text-on-surface-variant">Timestamp</th>
+                <th scope="col" className="p-table-cell-padding text-label-md font-semibold text-on-surface-variant">Action</th>
+                <th scope="col" className="p-table-cell-padding text-label-md font-semibold text-on-surface-variant">Table</th>
+                <th scope="col" className="p-table-cell-padding text-label-md font-semibold text-on-surface-variant">Record ID</th>
+                <th scope="col" className="p-table-cell-padding text-label-md font-semibold text-on-surface-variant">Staff ID</th>
+                <th scope="col" className="p-table-cell-padding text-right text-label-md font-semibold text-on-surface-variant">Details</th>
               </tr>
             </thead>
             <tbody className="text-table-data">
               {items.map((log) => (
                 <tr
                   key={log.logId}
-                  className="border-b border-outline-variant hover:bg-surface-container-high transition-colors"
+                  className="border-b border-outline-variant odd:bg-surface-container-lowest even:bg-secondary-fixed/10 transition-colors hover:bg-primary-fixed/25"
                 >
-                  <td className="p-table-cell-padding font-mono text-body-sm text-on-surface-variant">
+                  <td className="p-table-cell-padding font-mono text-body-sm font-medium text-primary">
                     #{log.logId}
                   </td>
                   <td className="p-table-cell-padding text-body-sm text-on-surface-variant whitespace-nowrap">

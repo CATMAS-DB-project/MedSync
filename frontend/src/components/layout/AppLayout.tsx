@@ -14,7 +14,7 @@ export function AppLayout() {
       <Sidebar currentUser={currentUser} />
       <Topbar currentUser={currentUser} />
 
-      <div className="flex-1 flex flex-col min-w-0 md:ml-sidebar-width pt-14 pb-16 md:pb-0">
+      <div className="flex-1 flex flex-col min-w-0 md:ml-sidebar-width pt-16 pb-16 md:pb-0">
         <main className="flex-1 p-container-padding">
           <Outlet />
         </main>

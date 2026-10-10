@@ -187,16 +187,16 @@ export function QaVerificationPanel() {
     treatmentsAsync.error || specialtiesAsync.error || branchesAsync.error;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-3">
       {/* 1. System Health Card */}
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-5 flex flex-col justify-between">
+      <section className="flex min-w-0 flex-col justify-between overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-elevated">
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="p-1 rounded bg-surface-container-high text-on-surface">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="rounded-xl bg-primary-fixed p-2 text-primary">
                 <Icon name="monitor_heart" size={18} />
               </span>
-              <h3 className="text-headline-sm text-on-surface">System Health</h3>
+              <h3 className="text-headline-sm font-semibold text-on-surface">System Health</h3>
             </div>
             <Button
               variant="ghost"
@@ -209,25 +209,25 @@ export function QaVerificationPanel() {
             </Button>
           </div>
 
-          <p className="text-body-sm text-on-surface-variant mb-4">
+          <p className="mb-4 text-body-sm text-on-surface-variant">
             Live backend health endpoint verification (<code className="text-xs">/api/health</code>).
           </p>
 
           {healthError ? (
-            <div className="p-3 rounded-lg bg-error-container/20 border border-error/30 text-error text-body-sm">
+            <div className="rounded-xl border border-error/30 bg-error-container/30 p-4 text-body-sm text-error" role="alert">
               <p className="font-semibold">Health check failed</p>
               <p className="text-xs mt-0.5">{healthError}</p>
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-surface-container-low border border-outline-variant">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-outline-variant bg-surface-container-low p-3">
                 <span className="text-body-sm text-on-surface-variant">API Status</span>
-                <Badge tone={healthStatus === 'ok' ? 'success' : 'error'}>
+                <Badge tone={healthStatus === 'ok' ? 'success' : healthStatus ? 'error' : 'neutral'}>
                   {healthStatus ?? 'Checking…'}
                 </Badge>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-lg bg-surface-container-low border border-outline-variant">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-outline-variant bg-surface-container-low p-3">
                 <span className="text-body-sm text-on-surface-variant">Response Time (Browser)</span>
                 <span className="text-body-md font-semibold font-mono text-on-surface">
                   {latencyMs !== null ? `${latencyMs} ms` : '—'}
@@ -237,20 +237,20 @@ export function QaVerificationPanel() {
           )}
         </div>
 
-        <p className="text-[11px] text-outline mt-4">
+        <p className="mt-4 text-[11px] text-outline">
           Status directly returned by server; response time measured locally.
         </p>
-      </div>
+      </section>
 
       {/* 2. Reference & Catalogue Integrity Card */}
-      <div className="lg:col-span-2 bg-surface-container-lowest border border-outline-variant rounded-lg p-5 flex flex-col justify-between">
+      <section className="flex min-w-0 flex-col justify-between overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 shadow-elevated xl:col-span-2">
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span className="p-1 rounded bg-surface-container-high text-on-surface">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="rounded-xl bg-secondary-container p-2 text-secondary">
                 <Icon name="fact_check" size={18} />
               </span>
-              <h3 className="text-headline-sm text-on-surface">Reference Data Verification</h3>
+              <h3 className="text-headline-sm font-semibold text-on-surface">Reference Data Verification</h3>
             </div>
             <Button
               variant="ghost"
@@ -266,7 +266,7 @@ export function QaVerificationPanel() {
             </Button>
           </div>
 
-          <p className="text-body-sm text-on-surface-variant mb-3">
+          <p className="mb-3 text-body-sm text-on-surface-variant">
             Real-time validation across treatment catalogue pricing, medical specialties, and branch definitions.
           </p>
 
@@ -280,12 +280,12 @@ export function QaVerificationPanel() {
               }}
             />
           ) : isLoadingReferences ? (
-            <div className="py-8 text-center text-body-sm text-on-surface-variant animate-pulse">
+            <div className="rounded-xl border border-outline-variant bg-surface-container-low px-4 py-8 text-center text-body-sm text-on-surface-variant animate-pulse" role="status">
               Auditing reference entities and catalogue prices…
             </div>
           ) : anomalies.length === 0 ? (
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 border border-green-200 text-green-900">
-              <span className="p-1.5 rounded-full bg-green-100 text-green-700">
+            <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-green-900">
+              <span className="shrink-0 rounded-full bg-green-100 p-1.5 text-green-700">
                 <Icon name="check_circle" size={20} />
               </span>
               <div>
@@ -298,19 +298,19 @@ export function QaVerificationPanel() {
               </div>
             </div>
           ) : (
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              <div className="text-label-md text-error font-medium mb-1">
-                {anomalies.length} anomaly detected:
+            <div className="max-h-64 space-y-2 overflow-y-auto rounded-xl border border-amber-200 bg-amber-50/50 p-3">
+              <div className="mb-1 text-label-md font-semibold text-error">
+                {anomalies.length} {anomalies.length === 1 ? 'anomaly detected' : 'anomalies detected'}
               </div>
               {anomalies.map((item) => (
                 <div
                   key={item.id}
-                  className="p-2.5 rounded-md border border-amber-200 bg-amber-50 text-on-surface text-body-sm flex items-center justify-between"
+                  className="flex min-w-0 flex-col items-start gap-2 rounded-lg border border-outline-variant bg-surface-container-lowest p-3 text-body-sm text-on-surface sm:flex-row sm:items-center"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <Badge tone="warning">{item.category}</Badge>
-                    <span className="font-semibold text-xs">{item.entity}:</span>
-                    <span className="text-xs text-on-surface-variant">{item.issue}</span>
+                    <span className="break-all text-xs font-semibold">{item.entity}</span>
+                    <span className="break-words text-xs text-on-surface-variant">{item.issue}</span>
                   </div>
                 </div>
               ))}
@@ -318,15 +318,12 @@ export function QaVerificationPanel() {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-4 pt-3 mt-3 border-t border-outline-variant text-label-md text-on-surface-variant">
-          <span>Treatments: {treatmentsAsync.data?.items.length ?? 0}</span>
-          <span>·</span>
-          <span>Specialties: {specialtiesAsync.data?.items.length ?? 0}</span>
-          <span>·</span>
-          <span>Branches: {branchesAsync.data?.items.length ?? 0}</span>
+        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 border-t border-outline-variant pt-4 text-label-md text-on-surface-variant">
+          <span><span className="font-semibold text-on-surface">{treatmentsAsync.data?.items.length ?? 0}</span> Treatments</span>
+          <span><span className="font-semibold text-on-surface">{specialtiesAsync.data?.items.length ?? 0}</span> Specialties</span>
+          <span><span className="font-semibold text-on-surface">{branchesAsync.data?.items.length ?? 0}</span> Branches</span>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
-

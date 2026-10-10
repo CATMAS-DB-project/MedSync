@@ -45,8 +45,8 @@ export function TodaySchedule({ branchId }: TodayScheduleProps) {
   };
 
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
-      <div className="px-5 py-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+    <div className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant bg-gradient-to-r from-primary-fixed/30 to-secondary-fixed/20 px-4 py-4 sm:px-5">
         <div>
           <h3 className="text-headline-sm text-on-surface">Today&apos;s Appointments</h3>
           <p className="text-body-sm text-on-surface-variant">Live appointment queue for today</p>
@@ -55,7 +55,7 @@ export function TodaySchedule({ branchId }: TodayScheduleProps) {
           <button
             type="button"
             onClick={() => navigate(ROUTES.APPOINTMENTS)}
-            className="text-primary text-label-md hover:underline flex items-center gap-1 font-medium"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-label-md font-medium text-primary transition-colors hover:bg-primary-fixed/40 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             View All
           </button>
@@ -90,9 +90,9 @@ export function TodaySchedule({ branchId }: TodayScheduleProps) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full min-w-[680px] border-collapse text-left">
             <thead>
-              <tr className="border-b border-outline-variant bg-surface-bright">
+              <tr className="border-b border-outline-variant bg-primary-fixed/20">
                 <th className="p-table-cell-padding text-label-md text-on-surface-variant font-medium">Patient</th>
                 <th className="p-table-cell-padding text-label-md text-on-surface-variant font-medium">Time</th>
                 <th className="p-table-cell-padding text-label-md text-on-surface-variant font-medium">Doctor</th>
@@ -105,12 +105,12 @@ export function TodaySchedule({ branchId }: TodayScheduleProps) {
                 <tr
                   key={appointment.appointmentId}
                   onClick={canOpenConsultation ? () => openConsultation(appointment.appointmentId) : undefined}
-                  className={`border-b border-outline-variant hover:bg-surface-container-high transition-colors ${
+                  className={`border-b border-outline-variant odd:bg-surface-container-lowest even:bg-secondary-fixed/10 hover:bg-primary-fixed/25 transition-colors ${
                     canOpenConsultation ? 'cursor-pointer' : ''
                   }`}
                   title={canOpenConsultation ? 'Click to open consultation' : undefined}
                 >
-                  <td className="p-table-cell-padding font-medium text-on-surface">
+                  <td className="p-table-cell-padding font-semibold text-on-surface">
                     {appointment.patientName}
                   </td>
                   <td className="p-table-cell-padding text-on-surface-variant">

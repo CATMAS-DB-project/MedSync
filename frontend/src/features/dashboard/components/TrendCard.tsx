@@ -65,7 +65,8 @@ export function TrendCard({ branchId, dateRange }: TrendCardProps) {
   }, [data]);
 
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-5">
+    <div className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated sm:p-5">
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-secondary" />
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
         <div>
           <h3 className="text-headline-sm text-on-surface">Appointment Trends</h3>

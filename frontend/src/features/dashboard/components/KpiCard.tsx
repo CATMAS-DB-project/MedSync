@@ -24,6 +24,16 @@ const ICON_TONE_CLASSES: Record<KpiIconTone, string> = {
   purple: 'text-purple-700 bg-purple-100',
 };
 
+const ACCENT_TONE_CLASSES: Record<KpiIconTone, string> = {
+  primary: 'from-primary to-primary-fixed',
+  error: 'from-error to-error-container',
+  secondary: 'from-secondary to-secondary-fixed',
+  success: 'from-green-700 to-green-300',
+  warning: 'from-amber-700 to-amber-300',
+  teal: 'from-teal-700 to-teal-300',
+  purple: 'from-purple-700 to-purple-300',
+};
+
 export function KpiCard({
   label,
   value,
@@ -37,26 +47,31 @@ export function KpiCard({
 }: KpiCardProps) {
   const Wrapper = onClick ? 'button' : 'div';
   const wrapperProps = onClick
-    ? { type: 'button' as const, onClick, className: 'w-full text-left' }
+    ? {
+        type: 'button' as const,
+        onClick,
+        className: 'group w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+      }
     : { className: '' };
 
   return (
     <Wrapper {...wrapperProps}>
       <div
         className={[
-          'bg-surface-container-lowest border border-outline-variant rounded-lg p-5 flex flex-col gap-3 h-full',
-          onClick ? 'hover:bg-surface-container-low transition-colors cursor-pointer' : '',
+          'relative flex h-full flex-col gap-3 overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-5 shadow-elevated transition-all',
+          onClick ? 'cursor-pointer group-hover:-translate-y-0.5 group-hover:shadow-lg' : '',
         ].join(' ')}
       >
-        <div className="flex justify-between items-start">
+        <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${ACCENT_TONE_CLASSES[iconTone]}`} />
+        <div className="flex items-start justify-between gap-3 pt-1">
           <h3 className="text-label-md text-on-surface-variant uppercase tracking-wide">{label}</h3>
-          <span className={`rounded p-1.5 shrink-0 ${ICON_TONE_CLASSES[iconTone]}`}>
-            <Icon name={icon} size={16} />
+          <span className={`shrink-0 rounded-lg p-2 ${ICON_TONE_CLASSES[iconTone]}`}>
+            <Icon name={icon} size={18} />
           </span>
         </div>
 
         <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-bold text-on-surface tabular-nums">{value}</span>
+          <span className="text-3xl font-bold tracking-tight text-on-surface tabular-nums">{value}</span>
           {trend && (
             <span
               className={[
