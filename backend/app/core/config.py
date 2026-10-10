@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     refresh_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     refresh_cookie_path: str = "/api/v1/auth"
 
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5174, http://localhost:5173"
 
     @property
     def cors_origin_list(self) -> list[str]:
