@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-AppointmentStatus = Literal["Scheduled", "Completed", "Cancelled"]
+AppointmentStatus = Literal["Scheduled", "Completed", "Cancelled", "Re-Scheduled"]
 
 
 class AppointmentCreate(BaseModel):
@@ -24,6 +24,28 @@ class AppointmentCancel(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("reason must not be blank")
+        return value
+
+
+class AppointmentReschedule(BaseModel):
+    appointment_date: date
+    appointment_time: time
+    reason: str | None = Field(default=None, max_length=255)
+
+    @field_validator("reason")
+    @classmethod
+    def normalize_reason(cls, value: str | None) -> str | None:
+        if value is not None:
+            value = value.strip()
+            if not value:
+                return None
+        return value
+
+    @field_validator("appointment_date")
+    @classmethod
+    def validate_not_past(cls, value: date) -> date:
+        if value < date.today():
+            raise ValueError("appointment_date cannot be in the past")
         return value
 
 
