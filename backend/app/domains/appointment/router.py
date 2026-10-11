@@ -196,14 +196,14 @@ async def reschedule_appointment(
     return {"data": data, "error": None}
 
 
-@router.get("/appointments/{appointment_id}/reschedule-history")
-async def get_reschedule_history(
-    appointment_id: int,
-    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[
-        UserIdentity,
-        Depends(require_role("Receptionist", "Doctor", "Admin", "Branch Manager")),
-    ],
-) -> dict:
-    data = await service.get_reschedule_history(conn, appointment_id)
-    return {"data": data, "error": None}
+# @router.get("/appointments/{appointment_id}/reschedule-history")
+# async def get_reschedule_history(
+#     appointment_id: int,
+#     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+#     _user: Annotated[
+#         UserIdentity,
+#         Depends(require_role("Receptionist", "Doctor", "Admin", "Branch Manager")),
+#     ],
+# ) -> dict:
+#     data = await service.get_reschedule_history(conn, appointment_id)
+#     return {"data": data, "error": None}

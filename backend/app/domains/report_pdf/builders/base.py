@@ -25,14 +25,14 @@ from app.domains.report_pdf.styles import (
 
 
 def format_currency(value: Decimal | float | None) -> str:
-    """Format numeric value as USD currency string ($X,XXX.XX)."""
+    """Format numeric value as LKR currency string (LKR X,XXX.XX)."""
     if value is None:
-        return "$0.00"
+        return "LKR0.00"
     try:
         val = float(value)
-        return f"${val:,.2f}"
+        return f"LKR{val:,.2f}"
     except ValueError, TypeError:
-        return "$0.00"
+        return "LKR0.00"
 
 
 def format_int(value: int | None) -> str:
