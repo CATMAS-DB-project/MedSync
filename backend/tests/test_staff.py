@@ -430,6 +430,32 @@ class TestDoctorSubtype:
         assert r.status_code == 201
         assert r.json()["data"]["license_no"] == f"SLMC-{PREFIX}-D1"
 
+    def test_promote_existing_user_account_409(self, client, tokens):
+        sid = _create_staff(client, tokens, "DOCACC")
+        username = f"{PREFIX.lower()}docacc"
+        assert client.post(
+            f"{BASE}/staff/{sid}/account",
+            headers=h(tokens["admin"]),
+            json={
+                "username": username,
+                "password": PASSWORD,
+                "role_name": "Receptionist",
+            },
+        ).status_code == 201
+
+        r = client.post(
+            f"{BASE}/staff/{sid}/doctor",
+            headers=h(tokens["admin"]),
+            json={
+                "license_no": f"SLMC-{PREFIX}-DOCACC",
+                "years_of_experience": 1,
+                "consultation_fee": 1000.0,
+            },
+        )
+
+        assert r.status_code == 409
+        assert "existing user account" in r.json()["error"]["message"]
+
     def test_promote_twice_409(self, client, tokens):
         sid = _create_staff(client, tokens, "D2")
         payload = {"license_no": f"SLMC-{PREFIX}-D2",

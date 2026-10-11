@@ -188,6 +188,14 @@ async def promote_to_doctor(
     user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
 ) -> dict:
     await _require_staff_branch(conn, user, staff_id)
+    if await conn.fetchval(
+        "SELECT 1 FROM user_account WHERE staff_id = $1",
+        staff_id,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Staff with an existing user account cannot be promoted to Doctor",
+        )
     data = await service.promote_to_doctor(conn, staff_id, body.model_dump())
     return {"data": data, "error": None}
 

@@ -2,6 +2,7 @@ import { apiGet } from './client';
 
 export interface ReportQueryParams extends Record<string, unknown> {
   branchId?: number;
+  patientId?: number;
   category?: string;
   from?: string;
   to?: string;
@@ -64,7 +65,7 @@ export async function fetchDoctorRevenue(
 }
 
 export async function fetchOutstandingBalances(
-  params?: Pick<ReportQueryParams, 'branchId'>,
+  params?: Pick<ReportQueryParams, 'branchId' | 'patientId'>,
 ): Promise<OutstandingBalanceReportItem[]> {
   return apiGet<OutstandingBalanceReportItem[]>('/reports/outstanding-balances', params);
 }

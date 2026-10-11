@@ -119,7 +119,7 @@ The following table provides an exhaustive side-by-side comparison of every endp
 | 26 | `POST` | `/staff/{id}/doctor/specialties` | `staff/router.py`: `link_specialty` | `doctor.ts`: `linkDoctorSpecialty` | Aligned (`SpecialtyLink`). | Backend returns `{ staff_id, specialty_id }`, NOT `Specialty` (`{ specialtyId, specialtyName }`). | 🟠 Medium: Type mismatch on return value. |
 | 27 | `DELETE`| `/staff/{id}/doctor/specialties/{sid}` | `staff/router.py`: `unlink_specialty` | `doctor.ts`: `unlinkDoctorSpecialty` | Path params. Returns 204. | None. | 🟢 Aligned. |
 | 28 | `GET` | `/doctors` | `staff/router.py`: `list_doctors` | `doctorOptions.ts`: `fetchDoctorOptions` vs `doctor.ts`: `fetchDoctors` | Query: `branch_id`, `specialty_id` (unpaginated). | Backend returns array of `{ doctorName, specialties: string[] }`. `doctor.ts` incorrectly expects `Doctor[]`. | 🔴 High: Conflicting services. `doctor.ts` types are inaccurate and can cause runtime bugs. |
-| 29 | `GET` | `/staff/{id}/account`| **MISSING IN ROUTER** | `accounts.ts`: `fetchUserAccount` | Service has `get_account`, but route is not registered! | 404 / 405 error on call. | 🔴 Critical: Endpoint completely missing in backend router. |
+| 29 | `GET` | `/staff/{id}/account`| `staff/router.py`: `get_account` | `accounts.ts`: `fetchUserAccount` | Admin-only route calls the existing `get_account` service. | Returns `{ data, error }`; returns 404 when no account exists. | 🟢 Fixed. |
 | 30 | `POST` | `/staff/{id}/account`| `staff/router.py`: `create_account` | `accounts.ts`: `createUserAccount` | Aligned (`AccountCreate`). | Backend returns `role_name` (`roleName`), frontend `UserAccount` expects `role`. | 🟠 Medium: Field naming mismatch on return type. |
 | 31 | `PATCH` | `/staff/{id}/account`| `staff/router.py`: `update_account` | `accounts.ts`: `updateUserAccount` | Aligned (`AccountUpdate`). | Same: `roleName` vs `role`. | 🟠 Medium: Field naming mismatch on return type. |
 | 32 | `POST` | `/staff/{id}/account/reset-password` | `staff/router.py`: `reset_password` | `accounts.ts`: `resetStaffPassword` | Backend requires `new_password` (min 6 chars); frontend typed input as optional `{}`. | None (returns 204). | 🟠 Medium: Calling with default `{}` triggers 422 error. |
@@ -171,7 +171,7 @@ The following table provides an exhaustive side-by-side comparison of every endp
 | **Reports** | | | | | | | |
 | 74 | `GET` | `/reports/appointments-summary` | `report/router.py`: `appointments_summary` | `reports.ts`: `fetchAppointmentsSummary` | Query: `branch_id`, `from`, `to`. | Aligned (`AppointmentSummaryReportItem[]`). | 🟢 Aligned. |
 | 75 | `GET` | `/reports/doctor-revenue` | `report/router.py`: `doctor_revenue` | `reports.ts`: `fetchDoctorRevenue` | Query: `branch_id`, `from`, `to`. | Aligned (`DoctorRevenueReportItem[]`). | 🟢 Aligned. |
-| 76 | `GET` | `/reports/outstanding-balances` | `report/router.py`: `outstanding_balances` | `reports.ts`: `fetchOutstandingBalances` | Backend requires `patient_id` for Receptionists; frontend type omits `patientId`! | Aligned (`OutstandingBalanceReportItem[]`). | 🔴 High: Receptionists will always encounter 422 error. |
+| 76 | `GET` | `/reports/outstanding-balances` | `report/router.py`: `outstanding_balances` | `reports.ts`: `fetchOutstandingBalances` | Supports optional `branchId` and `patientId`; Receptionists are scoped to their own branch. | Aligned (`OutstandingBalanceReportItem[]`). | 🟢 Fixed. |
 | 77 | `GET` | `/reports/treatment-frequency` | `report/router.py`: `treatment_frequency` | `reports.ts`: `fetchTreatmentFrequency` | Backend supports `branch_id`; frontend parameter type omits it. | Aligned (`TreatmentFrequencyReportItem[]`). | 🟡 Low: Typing restriction prevents branch filtering. |
 | 78 | `GET` | `/reports/insurance-vs-outofpocket` | `report/router.py`: `insurance_vs_outofpocket` | `reports.ts`: `fetchInsuranceVsOutOfPocket` | Query: `branch_id`, `from`, `to`. | Aligned (`InsuranceVsOutOfPocketReport`). | 🟢 Aligned. |
 | 79–83| `GET` | `/reports/pdf/*` (5 endpoints) | `report_pdf/router.py` (5 routes) | **MISSING IN FRONTEND** | Query filters match report queries. Returns binary PDF. | None in frontend. | 🟠 Medium: 5 complete PDF endpoints unintegrated in frontend. |
@@ -199,10 +199,10 @@ The following table provides an exhaustive side-by-side comparison of every endp
 ---
 
 ### 4.2 Staff, Doctor & User Account Domain
-#### Issue 3: Missing `GET /staff/{staff_id}/account` Endpoint (Critical)
-- **Current Behavior:** `accounts.ts` defines `fetchUserAccount(staffId: number): Promise<UserAccount>`, making a call to `GET /staff/${staffId}/account`. Calling this from any frontend screen fails with 404 Not Found.
+#### Issue 3: Missing `GET /staff/{staff_id}/account` Endpoint (Critical) — **Fixed**
+- **Current Behavior:** `accounts.ts` defines `fetchUserAccount(staffId: number): Promise<UserAccount>`, making a call to `GET /staff/${staffId}/account`. The Admin-only backend route now returns the account detail successfully.
 - **Root Cause:** While the backend service function `get_account(conn, staff_id)` is fully implemented in `backend/app/domains/staff/service.py`, the corresponding route was omitted from `backend/app/domains/staff/router.py`.
-- **Solution:** Add `@router.get("/staff/{staff_id}/account")` in `backend/app/domains/staff/router.py` restricted to role `Admin`, returning `_success(await service.get_account(conn, staff_id))`.
+- **Solution:** **Implemented** in `backend/app/domains/staff/router.py` with Admin authorization, the standard success envelope, and a 404 response when no account exists.
 
 #### Issue 4: Property Name Mismatch for Role in `UserAccount`
 - **Current Behavior:** In `backend/app/domains/staff/service.py`, `get_account` queries:
@@ -280,19 +280,10 @@ The following table provides an exhaustive side-by-side comparison of every endp
 ---
 
 ### 4.6 Reports & PDF Export Domain
-#### Issue 13: Receptionist 422 Error on `GET /reports/outstanding-balances` (High)
-- **Current Behavior:** In `backend/app/domains/report/router.py`:
-  ```python
-  if user.role == "Receptionist" and patient_id is None:
-      raise HTTPException(422, "Receptionists must provide patient_id")
-  ```
-  However, in `frontend/src/services/api/reports.ts`:
-  ```typescript
-  export async function fetchOutstandingBalances(params?: Pick<ReportQueryParams, 'branchId'>)
-  ```
-  The type strictly permits only `branchId`. It is impossible for a caller to supply `patientId`.
-- **Root Cause:** Frontend parameter type was restricted using `Pick<..., 'branchId'>` without including `patientId`.
-- **Solution:** Update `ReportQueryParams` in `frontend/src/services/api/reports.ts` to include `patientId?: number`, and allow `patientId` in `fetchOutstandingBalances`.
+#### Issue 13: Receptionist 422 Error on `GET /reports/outstanding-balances` (High) — **Fixed**
+- **Current Behavior:** Receptionists can query outstanding balances using the existing branch-scoped dashboard request, while the frontend service also supports an optional patient filter.
+- **Root Cause:** The backend rejected branch-scoped Receptionist requests without `patient_id`, and the frontend service type did not expose `patientId`.
+- **Solution:** **Implemented** by removing the unnecessary 422 restriction, retaining `_effective_branch_id` branch scoping, and adding `patientId?: number` to the frontend report query contract.
 
 #### Issue 14: Treatment Frequency Query Lacks `branchId` in Frontend
 - **Current Behavior:** Backend supports `branch_id: int | None` on `GET /reports/treatment-frequency`. Frontend types `params?: Pick<ReportQueryParams, 'category' | 'from' | 'to'>`, preventing managers from filtering treatment frequency by branch.
