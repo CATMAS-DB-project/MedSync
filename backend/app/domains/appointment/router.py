@@ -130,9 +130,15 @@ async def cancel_appointment(
     appointment_id: int,
     body: AppointmentCancel,
     conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
-    _user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
+    user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
 ) -> dict:
-    data = await service.cancel_appointment(conn, appointment_id, body.reason)
+    data = await service.cancel_appointment(
+        conn,
+        appointment_id,
+        body.reason,
+        staff_id=user.staff_id,
+        branch_id=user.branch_id,
+    )
     if data is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

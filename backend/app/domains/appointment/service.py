@@ -113,15 +113,24 @@ async def create_appointment(
 
 
 async def cancel_appointment(
-    conn: PoolConnectionProxy, appointment_id: int, reason: str
+    conn: PoolConnectionProxy,
+    appointment_id: int,
+    reason: str,
+    *,
+    staff_id: int,
+    branch_id: int | None,
 ) -> dict | None:
     row = await conn.fetchrow(
         "UPDATE appointment "
         "SET status = 'Cancelled', cancel_reschedule_reason = $2 "
         "WHERE appointment_id = $1 AND status = 'Scheduled' "
+        "AND (booked_by_staff_id = $3 "
+        "OR ($4::int IS NOT NULL AND branch_id = $4)) "
         "RETURNING appointment_id",
         appointment_id,
         reason,
+        staff_id,
+        branch_id,
     )
     if not row:
         return None
