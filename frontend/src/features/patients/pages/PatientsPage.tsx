@@ -14,6 +14,7 @@ import { EmptyState } from '../../../components/common/EmptyState';
 import { useToast } from '../../../components/common/ToastProvider';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
+import { useBranchNames } from '../../../hooks/useBranchNames';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { fetchPatients } from '../../../services/api/patients';
 import {
@@ -32,6 +33,7 @@ export function PatientsPage() {
   const isReceptionist = currentUser?.role === 'Receptionist';
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { getBranchName } = useBranchNames();
 
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, 300);
@@ -145,14 +147,17 @@ export function PatientsPage() {
       key: 'branch',
       header: 'Branch',
       hideOnMobile: true,
-      cell: (row) =>
-        row.registeredBranchName ? (
+      cell: (row) => {
+        const branchName =
+          row.registeredBranchName ?? getBranchName(row.registeredBranchId);
+        return branchName ? (
           <Badge tone="primary" pill>
-            {row.registeredBranchName}
+            {branchName}
           </Badge>
         ) : (
           <span className="text-on-surface-variant">—</span>
-        ),
+        );
+      },
     },
   ];
 

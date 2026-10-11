@@ -48,6 +48,7 @@ function PatientDetailDrawerInner({
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const isReceptionist = currentUser?.role === 'Receptionist';
+  const canSeeInvoices = currentUser?.role !== 'Doctor';
   const isOpen = patientId !== null;
 
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
@@ -68,10 +69,10 @@ function PatientDetailDrawerInner({
 
   const invoices = useAsync(
     () =>
-      patientId === null || activeTab !== 'invoices'
+      !canSeeInvoices || patientId === null || activeTab !== 'invoices'
         ? Promise.resolve(null)
         : fetchInvoices({ patientId, pageSize: 50 }),
-    [patientId, activeTab],
+    [canSeeInvoices, patientId, activeTab],
   );
 
   const data = patientId !== null && patient.data?.patientId === patientId ? patient.data : null;
@@ -81,7 +82,7 @@ function PatientDetailDrawerInner({
     { value: 'overview', label: 'Overview' },
     { value: 'insurance', label: 'Insurance' },
     { value: 'appointments', label: 'Appointments' },
-    { value: 'invoices', label: 'Invoices' },
+    ...(canSeeInvoices ? [{ value: 'invoices' as const, label: 'Invoices' }] : []),
   ];
 
   return (
@@ -169,7 +170,7 @@ function PatientDetailDrawerInner({
                 onRetry={appointments.reload}
               />
             )}
-            {activeTab === 'invoices' && (
+            {canSeeInvoices && activeTab === 'invoices' && (
               <InvoicesTab
                 data={invoices.data?.items ?? []}
                 loading={invoices.isLoading}

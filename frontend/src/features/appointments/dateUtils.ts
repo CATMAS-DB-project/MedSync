@@ -1,6 +1,6 @@
 // Local helpers for the Appointments feature. Not exported from anywhere else.
 
-export function parseIsoDate(iso: string): Date {
+function parseIsoDate(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
