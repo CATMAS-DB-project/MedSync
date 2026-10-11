@@ -122,14 +122,14 @@ export function AuditDetailDrawer({ logId, onClose }: AuditDetailDrawerProps) {
                 <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
                   <span className="text-label-md block text-on-surface-variant">Record ID Affected</span>
                   <span className="mt-2 block font-mono text-body-md text-on-surface">
-                    {String(entry.recordId ?? '—')}
+                    {entry.recordIdAffected || '—'}
                   </span>
                 </div>
 
                 <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
                   <span className="text-label-md block text-on-surface-variant">Staff ID</span>
                   <span className="mt-2 block text-body-md text-on-surface">
-                    {entry.staffId !== undefined ? `#${entry.staffId}` : '—'}
+                    {entry.staffId !== undefined && entry.staffId !== null ? `#${entry.staffId}` : '—'}
                   </span>
                 </div>
               </div>
@@ -137,11 +137,11 @@ export function AuditDetailDrawer({ logId, onClose }: AuditDetailDrawerProps) {
               <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 text-body-sm">
                 <span className="text-label-md block text-on-surface-variant">Timestamp</span>
                 <span className="mt-2 block text-body-md text-on-surface">
-                  {entry.createdAt ? formatDate(entry.createdAt) : '—'}
+                  {entry.logTimestamp ? formatDate(entry.logTimestamp) : '—'}
                 </span>
-                {entry.createdAt && (
+                {entry.logTimestamp && (
                   <span className="mt-1 block break-all font-mono text-xs text-on-surface-variant">
-                    {entry.createdAt}
+                    {entry.logTimestamp}
                   </span>
                 )}
               </div>

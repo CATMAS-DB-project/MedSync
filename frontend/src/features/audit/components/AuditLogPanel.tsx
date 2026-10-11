@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAsync } from '../../../hooks/useAsync';
-import { fetchAuditLogs, type AuditLog } from '../../../services/api/auditLogs';
+import { fetchAuditLogs, type AuditLogListParams } from '../../../services/api/auditLogs';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { Select } from '../../../components/ui/Select';
@@ -40,7 +40,7 @@ export function AuditLogPanel() {
   const [inspectLogId, setInspectLogId] = useState<number | null>(null);
 
   const logsAsync = useAsync(async () => {
-    const params: Record<string, unknown> = {
+    const params: AuditLogListParams = {
       page,
       pageSize: PAGE_SIZE,
     };
@@ -64,16 +64,7 @@ export function AuditLogPanel() {
       params.to = `${toTime}T23:59:59Z`;
     }
 
-    const res = await fetchAuditLogs(params);
-    // Handle both direct array and paged response envelope
-    if (Array.isArray(res)) {
-      return { items: res, total: res.length };
-    }
-    const paged = res as unknown as { items?: AuditLog[]; total?: number };
-    return {
-      items: paged.items ?? [],
-      total: paged.total ?? 0,
-    };
+    return fetchAuditLogs(params);
   }, [tableAffected, actionType, staffIdInput, fromTime, toTime, page]);
 
   const items = logsAsync.data?.items ?? [];
@@ -206,7 +197,7 @@ export function AuditLogPanel() {
                     #{log.logId}
                   </td>
                   <td className="p-table-cell-padding text-body-sm text-on-surface-variant whitespace-nowrap">
-                    {formatDate(log.createdAt || (log as unknown as { logTimestamp?: string }).logTimestamp)}
+                    {formatDate(log.logTimestamp)}
                   </td>
                   <td className="p-table-cell-padding">
                     <Badge tone={getActionTone(log.actionType)}>
@@ -217,7 +208,7 @@ export function AuditLogPanel() {
                     {log.tableAffected}
                   </td>
                   <td className="p-table-cell-padding font-mono text-body-sm text-on-surface-variant">
-                    {String(log.recordId ?? (log as unknown as { recordIdAffected?: string }).recordIdAffected ?? '—')}
+                    {log.recordIdAffected || '—'}
                   </td>
                   <td className="p-table-cell-padding text-body-sm text-on-surface-variant">
                     {log.staffId ? `#${log.staffId}` : '—'}

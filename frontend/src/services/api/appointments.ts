@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost } from './client';
+import { apiGet, apiPost } from './client';
 import type { Appointment, AppointmentStatus, AvailabilitySlot, PagedResult } from '../../types';
 
 export interface AppointmentListParams
@@ -36,21 +36,6 @@ export async function fetchAppointmentById(appointmentId: number): Promise<Appoi
 
 export async function bookAppointment(input: BookAppointmentInput): Promise<Appointment> {
   return apiPost<Appointment>('/appointments', input);
-}
-
-/**
- * NOTE: the backend does not have this route yet (no PATCH /appointments/{id}),
- * so calling it will fail until the backend adds it.
- */
-export async function rescheduleAppointment(
-  appointmentId: number,
-  input: {
-    appointmentDate: string;
-    appointmentTime: string;
-    reason?: string;
-  },
-): Promise<Appointment> {
-  return apiPatch<Appointment>(`/appointments/${appointmentId}`, input);
 }
 
 export async function cancelAppointment(

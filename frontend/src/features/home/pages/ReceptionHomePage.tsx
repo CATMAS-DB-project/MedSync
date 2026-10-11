@@ -20,7 +20,6 @@ import { useAsync } from '../../../hooks/useAsync';
 import { fetchAppointments } from '../../../services/api/appointments';
 import { fetchBranches } from '../../../services/api/branches';
 import { fetchInvoices } from '../../../services/api/invoices';
-import { fetchOutstandingBalances } from '../../../services/api/reports';
 import type { OutstandingBalanceReportItem } from '../../../services/api/reports';
 import { ROUTES } from '../../../constants/routes';
 import { formatDate } from '../../../utils/formatters';
@@ -127,11 +126,24 @@ export function ReceptionHomePage() {
   );
 
   const outstandingBalances = useAsync(
-    () =>
-      branchId
-        ? fetchOutstandingBalances({ branchId })
-        : Promise.resolve([] as OutstandingBalanceReportItem[]),
-    [branchId],
+    async (): Promise<OutstandingBalanceReportItem[]> => {
+      if (!branchId) return [];
+      const res = await fetchInvoices({ branchId, page: 1, pageSize: 100 });
+      return res.items
+        .filter((inv) => inv.status !== 'Draft' && (inv.outstandingAmount ?? 0) > 0)
+        .map((inv) => ({
+          invoiceId: inv.invoiceId,
+          appointmentId: inv.appointmentId,
+          patientId: inv.patientId ?? 0,
+          patientName: inv.patientName ?? `Patient #${inv.patientId ?? '—'}`,
+          branchId: inv.branchId ?? branchId,
+          branchName: inv.branchName ?? branchName,
+          payableAmount: inv.payableAmount ?? 0,
+          amountPaid: inv.amountPaid ?? 0,
+          outstandingAmount: inv.outstandingAmount ?? 0,
+        }));
+    },
+    [branchId, branchName],
   );
 
   const reloadAppointments = appointmentsToday.reload;

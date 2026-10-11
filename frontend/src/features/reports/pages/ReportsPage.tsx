@@ -87,7 +87,7 @@ export function ReportsPage() {
   const volume = useAsync(() => fetchAppointmentsSummary({ branchId, ...range }), [branchId, applied.from, applied.to]);
   const revenue = useAsync(() => fetchDoctorRevenue({ branchId, ...range }), [branchId, applied.from, applied.to]);
   const outstanding = useAsync(() => fetchOutstandingBalances({ branchId }), [branchId]);
-  const treatments = useAsync(() => fetchTreatmentFrequency(range), [applied.from, applied.to]);
+  const treatments = useAsync(() => fetchTreatmentFrequency({ branchId, ...range }), [branchId, applied.from, applied.to]);
   const insurance = useAsync(() => fetchInsuranceVsOutOfPocket({ branchId, ...range }), [branchId, applied.from, applied.to]);
 
   function applyFilters() {
