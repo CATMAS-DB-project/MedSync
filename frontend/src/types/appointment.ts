@@ -16,6 +16,7 @@ export interface Appointment {
   cancelRescheduleReason?: string;
   consultationNotes?: string;
   createdAt: string;
+  previousAppointmentId?: number;
 }
 export interface AvailabilitySlot {
   time: string;
