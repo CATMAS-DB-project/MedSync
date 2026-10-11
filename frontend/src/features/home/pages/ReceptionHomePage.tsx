@@ -17,8 +17,8 @@ import { ReceptionBillingCard } from '../components/ReceptionBillingCard';
 import type { BillingTab } from '../components/ReceptionBillingCard';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
+import { useBranchNames } from '../../../hooks/useBranchNames';
 import { fetchAppointments } from '../../../services/api/appointments';
-import { fetchBranches } from '../../../services/api/branches';
 import { fetchInvoices } from '../../../services/api/invoices';
 import type { OutstandingBalanceReportItem } from '../../../services/api/reports';
 import { ROUTES } from '../../../constants/routes';
@@ -103,11 +103,9 @@ export function ReceptionHomePage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const branchId = currentUser?.branchId;
-
-  const branches = useAsync(() => fetchBranches(1, 100), []);
+  const { getBranchName } = useBranchNames(Boolean(branchId && !currentUser?.branchName));
   const branchName =
-    branches.data?.items.find((branch) => branch.branchId === branchId)?.branchName ??
-    'Current branch';
+    currentUser?.branchName ?? getBranchName(branchId) ?? 'Current branch';
 
   const appointmentsToday = useAsync(
     () =>
@@ -137,13 +135,14 @@ export function ReceptionHomePage() {
           patientId: inv.patientId ?? 0,
           patientName: inv.patientName ?? `Patient #${inv.patientId ?? '—'}`,
           branchId: inv.branchId ?? branchId,
-          branchName: inv.branchName ?? branchName,
+          branchName:
+            inv.branchName ?? currentUser?.branchName ?? 'Current branch',
           payableAmount: inv.payableAmount ?? 0,
           amountPaid: inv.amountPaid ?? 0,
           outstandingAmount: inv.outstandingAmount ?? 0,
         }));
     },
-    [branchId, branchName],
+    [branchId],
   );
 
   const reloadAppointments = appointmentsToday.reload;

@@ -14,7 +14,6 @@ import type { CurrentUser } from '../../types';
 export interface TopbarProps {
   currentUser: CurrentUser;
   onMenuClick?: () => void;
-  titleSlot?: React.ReactNode;
 }
 
 const PAGE_TITLES: { pattern: string; title: string }[] = [
@@ -42,7 +41,7 @@ function usePageTitle(): string {
   return 'Medsync';
 }
 
-export function Topbar({ currentUser, onMenuClick, titleSlot }: TopbarProps) {
+export function Topbar({ currentUser, onMenuClick }: TopbarProps) {
   const fullName = formatFullName(currentUser.firstName, currentUser.lastName);
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -75,9 +74,7 @@ export function Topbar({ currentUser, onMenuClick, titleSlot }: TopbarProps) {
           onClick={onMenuClick}
           className="md:hidden"
         />
-        {titleSlot ?? (
-          <h1 className="truncate text-headline-sm font-semibold text-on-surface">{title}</h1>
-        )}
+        <h1 className="truncate text-headline-sm font-semibold text-on-surface">{title}</h1>
       </div>
 
       {/* Right */}

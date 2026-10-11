@@ -11,7 +11,7 @@ export interface AppointmentRowActionsProps {
   onOpenConsultation: (appointmentId: number) => void;
 }
 
-export function buildAppointmentActions({
+function buildAppointmentActions({
   appointment,
   role,
   onViewPatient,

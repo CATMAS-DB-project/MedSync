@@ -53,5 +53,5 @@ export async function fetchAppointmentAvailability(
   doctorId: number,
   date: string,
 ): Promise<AvailabilitySlot[]> {
-  return apiGet<AvailabilitySlot[]>('/appointments/availability', { doctor_id: doctorId, date });
+  return apiGet<AvailabilitySlot[]>('/appointments/availability', { doctorId, date });
 }

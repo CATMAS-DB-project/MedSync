@@ -13,7 +13,7 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   [ROUTES.STAFF]: ['Admin', 'Branch Manager'],
   [ROUTES.BILLING]: ['Admin', 'Branch Manager', 'Receptionist'],
   [ROUTES.CONSULTATION]: ['Admin', 'Doctor'],
-  [ROUTES.WALK_IN]: ['Admin', 'Branch Manager', 'Receptionist'],
+  [ROUTES.WALK_IN]: ['Receptionist'],
   [ROUTES.REPORTS]: ['Admin', 'Branch Manager'],
 };
 
