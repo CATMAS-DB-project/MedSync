@@ -29,11 +29,18 @@ export interface UserAccount {
   staffId: number;
   username: string;
   role: Role;
+  roleId?: number;
+  roleName?: Role;
   accountStatus: AccountStatus;
   lastLogin?: string;
+  createdAt?: string;
 }
 
 export interface StaffRecord extends Staff {
+  isDoctor: boolean;
+  hasAccount: boolean;
+  createdAt?: string;
   doctor?: Doctor;
   userAccount?: UserAccount;
 }
+

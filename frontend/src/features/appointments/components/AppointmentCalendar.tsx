@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Avatar } from '../../../components/ui/Avatar';
-import { Badge } from '../../../components/ui/Badge';
 import { Skeleton } from '../../../components/ui/Skeleton';
 import { ErrorBanner } from '../../../components/common/ErrorBanner';
 import { cn } from '../../../utils/cn';
@@ -235,6 +233,3 @@ export function AppointmentCalendar({
     </div>
   );
 }
-
-// Silence unused-import warnings if any refactor drops these.
-export type { Role as _Role, Appointment as _Appointment, Avatar as _Avatar, Badge as _Badge };

@@ -19,7 +19,7 @@ export interface NavGroup {
  * Flat list of everything that can appear in the app navigation.
  * `group` drives the sidebar section headings.
  */
-export const SIDEBAR_NAV_ITEMS: NavItem[] = [
+const SIDEBAR_NAV_ITEMS: NavItem[] = [
   { label: 'Home', path: ROUTES.DASHBOARD, icon: 'home', group: null },
   { label: 'Appointments', path: ROUTES.APPOINTMENTS, icon: 'calendar_today', group: 'Clinic' },
   { label: 'Walk-in', path: ROUTES.WALK_IN, icon: 'directions_walk', group: 'Clinic' },
@@ -30,11 +30,10 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
 ];
 
 /**
- * Kept for backwards compat. New code should use `getGroupedNavForRole`.
- * Filters by ROLE_ROLES, always allows the Home item, and rewrites the
+ * Filters by ROUTE_ROLES, always allows the Home item, and rewrites the
  * Home label/path per role using ROLE_HOME.
  */
-export function filterNavItemsByRole(items: NavItem[], role: Role): NavItem[] {
+function filterNavItemsByRole(items: NavItem[], role: Role): NavItem[] {
   return items
     .filter((item) => {
       if (item.comingSoon) return true;
@@ -73,12 +72,4 @@ export function getGroupedNavForRole(role: Role): NavGroup[] {
   }
 
   return groups.filter((g) => g.items.length > 0);
-}
-
-/**
- * Flat list of every nav item a role can see. Used by the mobile bottom
- * sheet to build its "More" list.
- */
-export function getNavItemsForRole(role: Role): NavItem[] {
-  return filterNavItemsByRole(SIDEBAR_NAV_ITEMS, role);
 }

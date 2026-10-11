@@ -1,73 +1,159 @@
-import { useAuth } from '../../../context/AuthContext';
+import { useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Badge } from '../../../components/ui/Badge';
+import { Icon } from '../../../components/ui/Icon';
+import { Tabs } from '../../../components/ui/Tabs';
+import type { TabItem } from '../../../components/ui/Tabs';
+import { EmptyState } from '../../../components/common/EmptyState';
+import { useAuth } from '../../../context/AuthContext';
+import { useAsync } from '../../../hooks/useAsync';
+import { fetchAuditLogs } from '../../../services/api/auditLogs';
 import { formatDate } from '../../../utils/formatters';
 import { todayIso } from '../../../utils/dates';
-import { AuditLogPanel } from '../../audit/components/AuditLogPanel';
+import { useSystemHealth } from '../useSystemHealth';
+import { useDataChecks } from '../useDataChecks';
+import { QaStatCard } from '../components/QaStatCard';
 import { QaVerificationPanel } from '../components/QaVerificationPanel';
+import { AuditLogPanel } from '../../audit/components/AuditLogPanel';
+import type { AuditLogEntry, PagedResult } from '../../../types';
+
+type QaTab = 'audit' | 'checks';
+
+const TAB_ITEMS: TabItem<QaTab>[] = [
+  { value: 'audit', label: 'Audit log' },
+  { value: 'checks', label: 'Data checks' },
+];
+
+function parseTab(value: string | null): QaTab {
+  return value === 'checks' ? 'checks' : 'audit';
+}
 
 export function QAHomePage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser } = useAuth();
+  const isQa = currentUser?.role === 'QA Tester';
   const today = todayIso();
 
-  if (!currentUser || currentUser.role !== 'QA Tester') {
+  const health = useSystemHealth(isQa);
+  const checks = useDataChecks(isQa);
+
+  const auditToday = useAsync<PagedResult<AuditLogEntry>>(
+    () =>
+      isQa
+        ? fetchAuditLogs({
+            from: `${today}T00:00:00Z`,
+            to: `${today}T23:59:59Z`,
+            page: 1,
+            pageSize: 1,
+          })
+        : Promise.resolve({ items: [], total: 0, page: 1, pageSize: 1 }),
+    [isQa, today],
+  );
+
+  const tab = parseTab(searchParams.get('tab'));
+
+  const updateTab = useCallback(
+    (next: QaTab) => {
+      const sp = new URLSearchParams(searchParams);
+      if (next === 'audit') sp.delete('tab');
+      else sp.set('tab', next);
+      setSearchParams(sp, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const goToAuditToday = useCallback(() => {
+    const sp = new URLSearchParams(searchParams);
+    sp.delete('tab');
+    sp.set('from', today);
+    sp.set('to', today);
+    sp.delete('page');
+    setSearchParams(sp, { replace: true });
+  }, [searchParams, setSearchParams, today]);
+
+  if (!isQa || !currentUser) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-display-sm text-on-surface">QA Workspace</h1>
-          <p className="mt-2 text-body-md text-on-surface-variant">Access restricted to QA testers.</p>
-        </div>
+      <div className="mx-auto flex min-h-[60vh] w-full max-w-[1400px] items-center justify-center">
+        <EmptyState icon="lock" title="Access restricted" />
       </div>
     );
   }
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const greeting =
+    hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  const systemStatus = health.state.status;
+  const systemValue =
+    systemStatus === 'ok' ? 'Online' : systemStatus === 'down' ? 'Down' : '—';
+  const systemDot: 'success' | 'error' | 'neutral' =
+    systemStatus === 'ok' ? 'success' : systemStatus === 'down' ? 'error' : 'neutral';
+
+  const dataIssueCount = checks.anomalies.length;
+
+  const systemLoading = systemStatus === 'idle' && health.isChecking;
+  const checksLoading = checks.isLoading && checks.anomalies.length === 0;
+  const auditLoading = auditToday.isLoading && auditToday.data === undefined;
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
-      <header className="relative isolate flex flex-col gap-5 overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-secondary p-5 shadow-elevated sm:flex-row sm:items-center sm:justify-between sm:p-7">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-24 z-0 h-64 w-64 rounded-full border-[36px] border-white/5" />
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-elevated">
-            <span className="material-symbols-outlined text-[26px]" aria-hidden="true">fact_check</span>
-          </div>
-          <div>
-            <div className="mb-1 flex flex-wrap items-center gap-2">
-              <span className="text-label-md font-semibold uppercase tracking-[0.16em] text-white/75">Quality assurance workspace</span>
-              <Badge tone="secondary">QA Tester</Badge>
-            </div>
-            <h1 className="text-display-sm text-white">
-              {greeting}, {currentUser.firstName || currentUser.username || 'QA Tester'}
-            </h1>
-          </div>
-        </div>
-        <div className="relative z-10 flex flex-col items-start gap-1 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-left text-body-sm text-white/85">
-          <span className="inline-flex items-center gap-2"><span className="material-symbols-outlined text-[16px]" aria-hidden="true">today</span>{formatDate(today)}</span>
-          <span className="inline-flex items-center gap-2"><span className="material-symbols-outlined text-[16px]" aria-hidden="true">location_on</span>{currentUser.branchName}</span>
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
+      <header className="flex flex-col gap-2">
+        <h1 className="text-display-sm text-on-surface">
+          {greeting}, {currentUser.firstName || 'QA Tester'}
+        </h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="neutral" pill>
+            <Icon name="today" size={12} />
+            {formatDate(today)}
+          </Badge>
+          <Badge tone="secondary" pill>
+            QA Tester
+          </Badge>
         </div>
       </header>
 
-      <section className="space-y-3">
-        <div className="flex flex-col gap-1 border-l-4 border-primary pl-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-label-md font-semibold uppercase tracking-wider text-primary">Platform checks</p>
-            <h2 className="text-headline-sm text-on-surface">Feature Verification &amp; System Status</h2>
-          </div>
-          <span className="text-body-sm text-on-surface-variant">System health &amp; reference audit</span>
-        </div>
-        <QaVerificationPanel />
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <QaStatCard
+          label="System"
+          value={systemValue}
+          description={
+            health.state.latencyMs !== null ? `${health.state.latencyMs} ms` : undefined
+          }
+          dotTone={systemDot}
+          loading={systemLoading}
+          error={systemStatus === 'down' ? health.state.error : null}
+          onRetry={health.check}
+        />
+        <QaStatCard
+          label="Data issues"
+          value={checksLoading ? '—' : dataIssueCount.toLocaleString()}
+          dotTone={dataIssueCount > 0 ? 'warning' : 'success'}
+          valueTone={dataIssueCount > 0 ? 'warning' : 'success'}
+          loading={checksLoading}
+          error={checks.error}
+          onRetry={checks.reload}
+          onClick={() => updateTab('checks')}
+        />
+        <QaStatCard
+          label="Audit events today"
+          value={auditToday.data ? auditToday.data.total.toLocaleString() : '—'}
+          loading={auditLoading}
+          error={auditToday.error}
+          onRetry={auditToday.reload}
+          onClick={goToAuditToday}
+        />
       </section>
 
-      <section className="space-y-3">
-        <div className="flex flex-col gap-1 border-l-4 border-secondary pl-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-label-md font-semibold uppercase tracking-wider text-secondary">Data integrity</p>
-            <h2 className="text-headline-sm text-on-surface">Database Audit Panel</h2>
-          </div>
-          <span className="text-body-sm text-on-surface-variant">Audit logs &amp; mutation tracking</span>
-        </div>
-        <AuditLogPanel />
-      </section>
+      <Tabs<QaTab>
+        items={TAB_ITEMS}
+        value={tab}
+        onChange={updateTab}
+        ariaLabel="QA workspace sections"
+        className="self-start"
+      />
+
+      {tab === 'audit' && <AuditLogPanel />}
+      {tab === 'checks' && <QaVerificationPanel checks={checks} health={health} />}
     </div>
   );
 }

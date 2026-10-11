@@ -52,6 +52,7 @@ export interface PatientRaw {
   address?: string | null;
   registeredBranchId: number;
   registeredBranch?: string;
+  registeredBranchName?: string;
   createdAt: string;
   phones?: unknown;
   guardians?: unknown;
@@ -68,7 +69,7 @@ export function toPatient(raw: PatientRaw): Patient {
     gender: raw.gender,
     address: raw.address ?? undefined,
     registeredBranchId: raw.registeredBranchId,
-    registeredBranchName: raw.registeredBranch,
+    registeredBranchName: raw.registeredBranch ?? raw.registeredBranchName,
     createdAt: raw.createdAt,
   };
 
@@ -81,7 +82,10 @@ export function toPatient(raw: PatientRaw): Patient {
     );
   }
   if (raw.insurance !== undefined) {
-    patient.insurance = asArray<InsurancePolicy>(raw.insurance);
+    patient.insurance = asArray<InsurancePolicy>(raw.insurance).map((policy) => ({
+      ...policy,
+      patientId: policy.patientId ?? raw.patientId,
+    }));
   }
   return patient;
 }

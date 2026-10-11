@@ -10,16 +10,15 @@ import { Select } from '../../../components/ui/Select';
 import { Skeleton } from '../../../components/ui/Skeleton';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
+import { useBranchNames } from '../../../hooks/useBranchNames';
 import { ApiError } from '../../../services/api/ApiError';
-import { fetchBranches } from '../../../services/api/branches';
 import { registerPatientWithDetails } from '../../../services/api/patientRegistration';
 import { fetchPatientById, updatePatient } from '../../../services/api/patients';
 import type { UpdatePatientInput } from '../../../services/api/patients';
-import { addPatientPhone, deletePatientPhone, fetchPatientPhones } from '../../../services/api/patientPhones';
+import { addPatientPhone, deletePatientPhone } from '../../../services/api/patientPhones';
 import {
   linkGuardianToPatient,
   unlinkGuardianFromPatient,
-  fetchPatientGuardians,
 } from '../../../services/api/patientGuardians';
 import { addGuardianPhone } from '../../../services/api/guardians';
 import type { Gender, Patient, PatientGuardianLink, Phone, PhoneType } from '../../../types';
@@ -189,16 +188,16 @@ export function PatientFormModal({
   const isEdit = patientId !== null;
   const formId = useId();
 
-  const branches = useAsync(() => fetchBranches(1, 100), []);
+  const { branches } = useBranchNames(isOpen && isReceptionist);
   const preload = useAsync(
     () =>
-      !isEdit || !isReceptionist
+      !isOpen || !isEdit || !isReceptionist
         ? Promise.resolve(null)
-        : Promise.all([
-            fetchPatientById(patientId as number),
-            fetchPatientPhones(patientId as number),
-            fetchPatientGuardians(patientId as number),
-          ]).then(([patient, phones, guardians]) => ({ patient, phones, guardians })),
+        : fetchPatientById(patientId as number).then((patient) => ({
+            patient,
+            phones: patient.phones ?? [],
+            guardians: patient.guardians ?? [],
+          })),
     [patientId, isEdit, isReceptionist, isOpen],
   );
 
@@ -249,11 +248,11 @@ export function PatientFormModal({
 
   const branchOptions = useMemo(
     () =>
-      (branches.data?.items ?? []).map((b) => ({
+      branches.map((b) => ({
         label: b.branchName,
         value: String(b.branchId),
       })),
-    [branches.data],
+    [branches],
   );
 
   // ------ field helpers ------

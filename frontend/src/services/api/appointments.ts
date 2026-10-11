@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost } from './client';
+import { apiGet, apiPost } from './client';
 import type { Appointment, AppointmentStatus, AvailabilitySlot, PagedResult } from '../../types';
 
 export interface AppointmentListParams
@@ -38,17 +38,6 @@ export async function bookAppointment(input: BookAppointmentInput): Promise<Appo
   return apiPost<Appointment>('/appointments', input);
 }
 
-export async function rescheduleAppointment(
-  appointmentId: number,
-  input: {
-    appointmentDate: string;
-    appointmentTime: string;
-    reason?: string;
-  },
-): Promise<Appointment> {
-  return apiPatch<Appointment>(`/appointments/${appointmentId}`, input);
-}
-
 export async function cancelAppointment(
   appointmentId: number,
   input: { reason: string },
@@ -64,7 +53,7 @@ export async function fetchAppointmentAvailability(
   doctorId: number,
   date: string,
 ): Promise<AvailabilitySlot[]> {
-  return apiGet<AvailabilitySlot[]>('/appointments/availability', { doctor_id: doctorId, date });
+  return apiGet<AvailabilitySlot[]>('/appointments/availability', { doctorId, date });
 }
 
 export async function fetchRescheduleHistory(

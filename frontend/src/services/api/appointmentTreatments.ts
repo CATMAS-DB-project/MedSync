@@ -8,7 +8,7 @@ export async function fetchAppointmentTreatments(appointmentId: number): Promise
 export async function logAppointmentTreatment(
   appointmentId: number,
   input: {
-    service_code: string;
+    serviceCode: string;
   },
 ): Promise<AppointmentTreatment> {
   return apiPost<AppointmentTreatment>(`/appointments/${appointmentId}/treatments`, input);
@@ -17,8 +17,8 @@ export async function logAppointmentTreatment(
 export async function amendAppointmentTreatment(
   appointmentTreatmentId: number,
   input: {
-    service_code: string;
-    amendment_reason: string;
+    serviceCode: string;
+    amendmentReason: string;
   },
 ): Promise<AppointmentTreatment> {
   return apiPost<AppointmentTreatment>(`/appointment-treatments/${appointmentTreatmentId}/amend`, input);
