@@ -6,6 +6,11 @@ const PAGE_SIZE = 100;
 let cachedCatalogue: TreatmentCatalogueItem[] | null = null;
 let inFlightCatalogue: Promise<TreatmentCatalogueItem[]> | null = null;
 
+export function invalidateTreatmentsCache(): void {
+  cachedCatalogue = null;
+  inFlightCatalogue = null;
+}
+
 export async function fetchAllTreatments(): Promise<TreatmentCatalogueItem[]> {
   if (cachedCatalogue !== null) {
     return cachedCatalogue;

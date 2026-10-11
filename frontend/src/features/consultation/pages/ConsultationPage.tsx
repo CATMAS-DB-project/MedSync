@@ -88,7 +88,13 @@ export function ConsultationPage() {
 
   // ---- Complete visit (explicit path) ----
   const handleComplete = useCallback(async () => {
-    if (!isDoctor || !appt || appt.status !== 'Scheduled') return;
+    if (
+      !isDoctor ||
+      !appt ||
+      (appt.status !== 'Scheduled' && appt.status !== 'Re-Scheduled')
+    ) {
+      return;
+    }
     setIsCompleting(true);
     setActionError(null);
     try {
@@ -122,9 +128,9 @@ export function ConsultationPage() {
       await flushNotesRef.current();
       if (!isMountedRef.current) return;
 
-      // 2. Complete the visit if it's still Scheduled. The backend only accepts
+      // 2. Complete the visit if it's still Scheduled / Re-Scheduled. The backend only accepts
       //    treatment logging on Completed appointments.
-      if (appt.status === 'Scheduled') {
+      if (appt.status === 'Scheduled' || appt.status === 'Re-Scheduled') {
         await completeAppointment(appointmentId);
         if (!isMountedRef.current) return;
         // Reload so the header badge and the invoice state refresh behind the modal.
@@ -155,11 +161,15 @@ export function ConsultationPage() {
   ]);
 
   const status = appt?.status;
-  const canEditNotes = isDoctor && isOwnAppointment && status === 'Scheduled';
+  const isActiveVisit = status === 'Scheduled' || status === 'Re-Scheduled';
+  const canEditNotes = isDoctor && isOwnAppointment && isActiveVisit;
   // Doctors can act on treatments from the moment they land on the page, as long
   // as the appointment is not Cancelled. The chained action handles the
-  // Scheduled → Completed transition internally.
-  const canManageTreatments = isDoctor && isOwnAppointment && status !== 'Cancelled';
+  // Scheduled/Re-Scheduled → Completed transition internally.
+  const canManageTreatments =
+    isDoctor &&
+    isOwnAppointment &&
+    status !== 'Cancelled';
   const canAmendTreatments = canManageTreatments && status === 'Completed';
   const canAddTreatments = canManageTreatments;
 
@@ -170,7 +180,7 @@ export function ConsultationPage() {
   ) : undefined;
 
   const showStickyBar =
-    isDoctor && isOwnAppointment && (status === 'Scheduled' || status === 'Completed');
+    isDoctor && isOwnAppointment && (isActiveVisit || status === 'Completed');
 
   // ---- Loading / errors / guards ----
   if (appointment.isLoading && !appt) {
@@ -222,6 +232,16 @@ export function ConsultationPage() {
         <div className="flex items-start gap-2 rounded-2xl bg-error-container/60 px-4 py-3 text-body-sm text-on-error-container">
           <Icon name="event_busy" size={18} className="mt-0.5 shrink-0" />
           <span>This appointment was cancelled</span>
+        </div>
+      )}
+
+      {status === 'Re-Scheduled' && (
+        <div className="flex items-start gap-2 rounded-2xl bg-secondary-container/60 px-4 py-3 text-body-sm text-on-secondary-container">
+          <Icon name="event_repeat" size={18} className="mt-0.5 shrink-0" />
+          <span>
+            This appointment was rescheduled
+            {appt.cancelRescheduleReason ? ` (${appt.cancelRescheduleReason})` : ''}
+          </span>
         </div>
       )}
 
@@ -339,7 +359,7 @@ export function ConsultationPage() {
           <div className="mx-auto w-full max-w-[1400px]">
             <Card padding="md" className="shadow-modal">
               <div className="flex justify-end gap-2">
-                {status === 'Scheduled' && (
+                {isActiveVisit && (
                   <Button
                     variant="primary"
                     icon="check_circle"

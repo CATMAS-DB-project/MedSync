@@ -90,7 +90,9 @@ export function DoctorHomePage() {
 
   // Next patient
   const nextPatient = useMemo(() => {
-    const scheduled = items.filter((a) => a.status === 'Scheduled');
+    const scheduled = items.filter(
+      (a) => a.status === 'Scheduled' || a.status === 'Re-Scheduled',
+    );
     if (scheduled.length === 0) return null;
     const sorted = [...scheduled].sort((a, b) =>
       a.appointmentTime.localeCompare(b.appointmentTime),
@@ -103,7 +105,9 @@ export function DoctorHomePage() {
   // Stats
   const stats = useMemo(() => {
     const completed = items.filter((a) => a.status === 'Completed').length;
-    const scheduled = items.filter((a) => a.status === 'Scheduled').length;
+    const scheduled = items.filter(
+      (a) => a.status === 'Scheduled' || a.status === 'Re-Scheduled',
+    ).length;
     return { total: items.length, completed, remaining: scheduled };
   }, [items]);
 

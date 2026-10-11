@@ -1,5 +1,10 @@
-import { apiGet, apiPost } from './client';
-import type { Appointment, AppointmentStatus, AvailabilitySlot, PagedResult } from '../../types';
+import { apiGet, apiPatch, apiPost } from './client';
+import type {
+  Appointment,
+  AppointmentStatus,
+  AvailabilitySlot,
+  PagedResult,
+} from '../../types';
 
 export interface AppointmentListParams
   extends Record<string, string | number | boolean | undefined> {
@@ -26,6 +31,12 @@ export interface BookAppointmentInput {
   isWalkIn?: boolean;
 }
 
+export interface RescheduleAppointmentInput {
+  appointmentDate: string; // YYYY-MM-DD
+  appointmentTime: string; // HH:MM
+  reason?: string;
+}
+
 export async function fetchAppointments(params?: AppointmentListParams): Promise<PagedResult<Appointment>> {
   return apiGet<PagedResult<Appointment>>('/appointments', params);
 }
@@ -36,6 +47,13 @@ export async function fetchAppointmentById(appointmentId: number): Promise<Appoi
 
 export async function bookAppointment(input: BookAppointmentInput): Promise<Appointment> {
   return apiPost<Appointment>('/appointments', input);
+}
+
+export async function rescheduleAppointment(
+  appointmentId: number,
+  input: RescheduleAppointmentInput,
+): Promise<Appointment> {
+  return apiPatch<Appointment>(`/appointments/${appointmentId}`, input);
 }
 
 export async function cancelAppointment(
@@ -56,8 +74,3 @@ export async function fetchAppointmentAvailability(
   return apiGet<AvailabilitySlot[]>('/appointments/availability', { doctorId, date });
 }
 
-export async function fetchRescheduleHistory(
-  appointmentId: number,
-): Promise<Appointment[]> {
-  return apiGet<Appointment[]>(`/appointments/${appointmentId}/reschedule-history`);
-}

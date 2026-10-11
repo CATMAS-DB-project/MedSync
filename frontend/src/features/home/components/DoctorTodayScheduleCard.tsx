@@ -26,6 +26,7 @@ export interface DoctorTodayScheduleCardProps {
 const DOT_COLOR: Record<AppointmentStatus, string> = {
   Scheduled: 'bg-primary',
   Completed: 'bg-success',
+  'Re-Scheduled': 'bg-secondary',
   Cancelled: 'bg-outline',
 };
 

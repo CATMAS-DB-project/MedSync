@@ -27,6 +27,7 @@ const SIDEBAR_NAV_ITEMS: NavItem[] = [
   { label: 'Billing', path: ROUTES.BILLING, icon: 'receipt_long', group: 'Finance' },
   { label: 'Reports', path: ROUTES.REPORTS, icon: 'analytics', group: 'Insights' },
   { label: 'Staff', path: ROUTES.STAFF, icon: 'person', group: 'Administration' },
+  { label: 'Treatments', path: ROUTES.TREATMENTS, icon: 'medical_services', group: 'Administration' },
 ];
 
 /**
