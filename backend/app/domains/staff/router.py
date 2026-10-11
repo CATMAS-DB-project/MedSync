@@ -267,6 +267,18 @@ async def create_account(
     return {"data": data, "error": None}
 
 
+@router.get("/staff/{staff_id}/account")
+async def get_account(
+    staff_id: int,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[UserIdentity, Depends(require_role("Admin"))],
+) -> dict:
+    data = await service.get_account(conn, staff_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return {"data": data, "error": None}
+
+
 @router.patch("/staff/{staff_id}/account")
 async def update_account(
     staff_id: int,

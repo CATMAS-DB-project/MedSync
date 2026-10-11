@@ -521,6 +521,49 @@ class TestUserAccount:
                               "role_name": "Receptionist"})
         assert r.status_code == 403
 
+    def test_get_200_for_admin(self, client, tokens):
+        sid = _create_staff(client, tokens, "A0")
+        username = f"{PREFIX.lower()}a0"
+        client.post(
+            f"{BASE}/staff/{sid}/account",
+            headers=h(tokens["admin"]),
+            json={
+                "username": username,
+                "password": PASSWORD,
+                "role_name": "Receptionist",
+            },
+        )
+
+        r = client.get(f"{BASE}/staff/{sid}/account", headers=h(tokens["admin"]))
+
+        assert r.status_code == 200
+        assert r.json()["error"] is None
+        assert r.json()["data"]["staff_id"] == sid
+        assert r.json()["data"]["username"] == username
+
+    def test_get_non_admin_403(self, client, tokens):
+        sid = _create_staff(client, tokens, "A0B")
+        client.post(
+            f"{BASE}/staff/{sid}/account",
+            headers=h(tokens["admin"]),
+            json={
+                "username": f"{PREFIX.lower()}a0b",
+                "password": PASSWORD,
+                "role_name": "Receptionist",
+            },
+        )
+
+        r = client.get(f"{BASE}/staff/{sid}/account", headers=h(tokens["bm"]))
+
+        assert r.status_code == 403
+
+    def test_get_404_for_missing_account(self, client, tokens):
+        sid = _create_staff(client, tokens, "A0C")
+
+        r = client.get(f"{BASE}/staff/{sid}/account", headers=h(tokens["admin"]))
+
+        assert r.status_code == 404
+
     def test_create_201_normalized(self, client, tokens):
         sid = _create_staff(client, tokens, "A2")
         username = f"{PREFIX.lower()}a2"
