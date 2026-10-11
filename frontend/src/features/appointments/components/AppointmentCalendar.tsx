@@ -3,8 +3,7 @@ import { Skeleton } from '../../../components/ui/Skeleton';
 import { ErrorBanner } from '../../../components/common/ErrorBanner';
 import { cn } from '../../../utils/cn';
 import { dayNumber, weekDaysFrom, weekdayShort } from '../dateUtils';
-import type { Appointment, Role } from '../../../types';
-import { AppointmentRowActions } from './AppointmentRowActions';
+import type { Appointment } from '../../../types';
 
 export interface AppointmentCalendarProps {
   weekStart: string;
@@ -15,10 +14,7 @@ export interface AppointmentCalendarProps {
   dayErrors: Record<string, string>;
   onDayErrorRetry: () => void;
   onSelectDay: (iso: string) => void;
-  role: Role | undefined;
-  onViewPatient: (patientId: number) => void;
-  onCancel: (appointment: Appointment) => void;
-  onOpenConsultation: (appointmentId: number) => void;
+  onSelectAppointment?: (appointment: Appointment) => void;
 }
 
 export function AppointmentCalendar({
@@ -30,10 +26,7 @@ export function AppointmentCalendar({
   dayErrors,
   onDayErrorRetry,
   onSelectDay,
-  role,
-  onViewPatient,
-  onCancel,
-  onOpenConsultation,
+  onSelectAppointment,
 }: AppointmentCalendarProps) {
   const days = useMemo(() => weekDaysFrom(weekStart), [weekStart]);
   const [mobileDay, setMobileDay] = useState<string>(selectedDate);
@@ -58,7 +51,11 @@ export function AppointmentCalendar({
   const renderChip = (appointment: Appointment) => (
     <div
       key={appointment.appointmentId}
-      className="rounded-xl border border-outline-variant bg-surface-container-lowest p-2 text-left transition-colors hover:bg-primary-container/30"
+      onClick={onSelectAppointment ? () => onSelectAppointment(appointment) : undefined}
+      className={cn(
+        'rounded-xl border border-outline-variant bg-surface-container-lowest p-2 text-left transition-colors hover:bg-primary-container/30',
+        onSelectAppointment && 'cursor-pointer',
+      )}
     >
       <div className="flex items-start gap-2">
         <span
@@ -67,6 +64,7 @@ export function AppointmentCalendar({
             'mt-0.5 h-8 w-1 shrink-0 rounded-full',
             appointment.status === 'Scheduled' && 'bg-primary',
             appointment.status === 'Completed' && 'bg-success',
+            appointment.status === 'Re-Scheduled' && 'bg-secondary',
             appointment.status === 'Cancelled' && 'bg-outline',
           )}
         />
@@ -83,15 +81,6 @@ export function AppointmentCalendar({
           <div className="truncate text-label-md text-on-surface-variant">
             {appointment.doctorName ?? '—'}
           </div>
-        </div>
-        <div className="shrink-0">
-          <AppointmentRowActions
-            appointment={appointment}
-            role={role}
-            onViewPatient={onViewPatient}
-            onCancel={onCancel}
-            onOpenConsultation={onOpenConsultation}
-          />
         </div>
       </div>
     </div>

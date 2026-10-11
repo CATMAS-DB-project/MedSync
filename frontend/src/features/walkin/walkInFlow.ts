@@ -49,7 +49,9 @@ export async function findCurrentTarget(
 
     const scheduledByTime = new Map<string, Appointment>();
     for (const a of appointments.items) {
-      if (a.status === 'Scheduled') scheduledByTime.set(a.appointmentTime, a);
+      if (a.status === 'Scheduled' || a.status === 'Re-Scheduled') {
+        scheduledByTime.set(a.appointmentTime, a);
+      }
     }
 
     const availByTime = new Map<string, boolean>();
@@ -179,7 +181,9 @@ export async function executeMove(input: MoveInput): Promise<MoveResult> {
       pageSize: 100,
     });
     const current = fresh.items.find(
-      (a) => a.appointmentTime === input.targetTime && a.status === 'Scheduled',
+      (a) =>
+        a.appointmentTime === input.targetTime &&
+        (a.status === 'Scheduled' || a.status === 'Re-Scheduled'),
     );
     if (!current || current.appointmentId !== input.targetAppointment.appointmentId) {
       return { kind: 'occupant_changed' };

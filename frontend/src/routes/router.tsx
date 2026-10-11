@@ -17,6 +17,7 @@ import { ConsultationPage } from '../features/consultation/pages/ConsultationPag
 import { WalkInPage } from '../features/walkin/pages/WalkInPage';
 import { ReportsPage } from '../features/reports/pages/ReportsPage';
 import { AppointmentBookingPage } from '../features/appointments/pages/AppointmentBookingPage';
+import { TreatmentsPage } from '../features/treatments/pages/TreatmentsPage';
 
 export const router = createBrowserRouter([
   { path: ROUTES.LOGIN, element: <LoginPage /> },
@@ -123,6 +124,14 @@ export const router = createBrowserRouter([
             element: (
               <RoleRoute>
                 <ReportsPage />
+              </RoleRoute>
+            ),
+          },
+          {
+            path: ROUTES.TREATMENTS,
+            element: (
+              <RoleRoute>
+                <TreatmentsPage />
               </RoleRoute>
             ),
           },

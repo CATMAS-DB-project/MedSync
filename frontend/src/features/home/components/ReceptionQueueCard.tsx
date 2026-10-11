@@ -6,7 +6,6 @@ import type { TabItem } from '../../../components/ui/Tabs';
 import { Badge } from '../../../components/ui/Badge';
 import { Avatar } from '../../../components/ui/Avatar';
 import { IconButton } from '../../../components/ui/IconButton';
-import { DropdownMenu } from '../../../components/ui/DropdownMenu';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ErrorBanner } from '../../../components/common/ErrorBanner';
 import { formatTime } from '../../../utils/formatters';
@@ -23,8 +22,7 @@ export interface ReceptionQueueCardProps {
   onRetry: () => void;
   onRefresh: () => void;
   lastUpdated: Date | null;
-  onViewPatient: (patientId: number) => void;
-  onCancel: (appointment: Appointment) => void;
+  onSelectAppointment?: (appointment: Appointment) => void;
 }
 
 export function ReceptionQueueCard({
@@ -34,8 +32,7 @@ export function ReceptionQueueCard({
   onRetry,
   onRefresh,
   lastUpdated,
-  onViewPatient,
-  onCancel,
+  onSelectAppointment,
 }: ReceptionQueueCardProps) {
   const [activeTab, setActiveTab] = useState<QueueTab>('All');
 
@@ -44,6 +41,7 @@ export function ReceptionQueueCard({
       total: appointments.length,
       scheduled: appointments.filter((a) => a.status === 'Scheduled').length,
       completed: appointments.filter((a) => a.status === 'Completed').length,
+      rescheduled: appointments.filter((a) => a.status === 'Re-Scheduled').length,
       cancelled: appointments.filter((a) => a.status === 'Cancelled').length,
     }),
     [appointments],
@@ -68,7 +66,9 @@ export function ReceptionQueueCard({
     const mm = String(now.getMinutes()).padStart(2, '0');
     const nowTime = `${hh}:${mm}`;
     const next = sorted.find(
-      (a) => a.status === 'Scheduled' && a.appointmentTime >= nowTime,
+      (a) =>
+        (a.status === 'Scheduled' || a.status === 'Re-Scheduled') &&
+        a.appointmentTime >= nowTime,
     );
     return next?.appointmentId ?? null;
   }, [sorted]);
@@ -77,6 +77,7 @@ export function ReceptionQueueCard({
     { value: 'All', label: `All (${counts.total})` },
     { value: 'Scheduled', label: `Scheduled (${counts.scheduled})` },
     { value: 'Completed', label: `Completed (${counts.completed})` },
+    { value: 'Re-Scheduled', label: `Re-Scheduled (${counts.rescheduled})` },
     { value: 'Cancelled', label: `Cancelled (${counts.cancelled})` },
   ];
 
@@ -125,9 +126,19 @@ export function ReceptionQueueCard({
       key: 'status',
       header: 'Status',
       cell: (row) => (
-        <Badge tone={APPOINTMENT_STATUS_TONE[row.status]} dot pill>
-          {row.status}
-        </Badge>
+        <div className="flex flex-col items-start gap-1">
+          <Badge tone={APPOINTMENT_STATUS_TONE[row.status]} dot pill>
+            {row.status}
+          </Badge>
+          {row.cancelRescheduleReason && (
+            <span
+              className="max-w-[220px] truncate text-label-sm text-on-surface-variant"
+              title={row.cancelRescheduleReason}
+            >
+              {row.cancelRescheduleReason}
+            </span>
+          )}
+        </div>
       ),
     },
   ];
@@ -172,6 +183,7 @@ export function ReceptionQueueCard({
         columns={columns}
         rows={filtered}
         rowKey={(row) => String(row.appointmentId)}
+        onRowClick={onSelectAppointment}
         rowClassName={(row) =>
           row.appointmentId === nextUpcomingId ? 'bg-primary-container/30' : undefined
         }
@@ -185,32 +197,9 @@ export function ReceptionQueueCard({
             <EmptyState icon="filter_alt_off" title="No appointments match this filter" />
           )
         }
-        rowActions={(row) => (
-          <DropdownMenu
-            ariaLabel="Appointment actions"
-            trigger={<IconButton icon="more_horiz" size="sm" aria-label="Actions" />}
-            items={[
-              {
-                id: 'view-patient',
-                label: 'View patient',
-                icon: 'person',
-                onSelect: () => onViewPatient(row.patientId),
-              },
-              ...(row.status === 'Scheduled'
-                ? [
-                    {
-                      id: 'cancel',
-                      label: 'Cancel appointment',
-                      icon: 'event_busy',
-                      danger: true,
-                      onSelect: () => onCancel(row),
-                    },
-                  ]
-                : []),
-            ]}
-          />
-        )}
       />
     </section>
   );
 }
+
+

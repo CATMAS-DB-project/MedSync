@@ -29,6 +29,7 @@ const PAGE_TITLES: { pattern: string; title: string }[] = [
   { pattern: ROUTES.CONSULTATION, title: 'Consultation' },
   { pattern: ROUTES.WALK_IN, title: 'Walk-in' },
   { pattern: ROUTES.REPORTS, title: 'Reports' },
+  { pattern: ROUTES.TREATMENTS, title: 'Treatments' },
 ];
 
 function usePageTitle(): string {

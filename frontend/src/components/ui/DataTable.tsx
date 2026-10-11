@@ -157,7 +157,7 @@ export function DataTable<T>({
                     {rowActions && (
                       <td className="px-4 py-3 align-middle text-right">
                         <div
-                          className="flex justify-end opacity-100 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 transition-opacity"
+                          className="flex justify-end"
                           onClick={(event) => event.stopPropagation()}
                         >
                           {rowActions(row)}

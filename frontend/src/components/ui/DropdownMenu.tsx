@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '../../utils/cn';
 import { Icon } from './Icon';
 
@@ -31,25 +32,57 @@ export function DropdownMenu({
 }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuId = useId();
+
+  useLayoutEffect(() => {
+    if (!isOpen || !containerRef.current) return;
+
+    const updatePosition = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const panelWidth = panelRef.current?.offsetWidth ?? 200;
+      const panelHeight = panelRef.current?.offsetHeight ?? 160;
+
+      let top = rect.bottom + 6;
+      if (top + panelHeight > window.innerHeight - 8 && rect.top - panelHeight - 6 > 8) {
+        top = rect.top - panelHeight - 6;
+      }
+
+      let left = align === 'right' ? rect.right - panelWidth : rect.left;
+      left = Math.max(8, Math.min(left, window.innerWidth - panelWidth - 8));
+
+      setCoords({ top, left });
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [isOpen, align, items.length]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const onDocClick = (event: MouseEvent) => {
-      if (!containerRef.current) return;
-      if (!containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+      const target = event.target as Node;
+      if (
+        containerRef.current?.contains(target) ||
+        panelRef.current?.contains(target)
+      ) {
+        return;
       }
+      setIsOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
         setIsOpen(false);
-        triggerRef.current?.focus();
       }
     };
 
@@ -98,59 +131,65 @@ export function DropdownMenu({
 
   return (
     <div ref={containerRef} className={cn('relative inline-flex', className)}>
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={isOpen}
-        aria-controls={isOpen ? menuId : undefined}
-        aria-label={ariaLabel}
-        onClick={() => setIsOpen((v) => !v)}
-        className="inline-flex items-center rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+      <div
+        role="presentation"
+        onClick={(event) => {
+          event.stopPropagation();
+          setIsOpen((v) => !v);
+        }}
+        className="inline-flex items-center rounded-xl"
       >
         {trigger}
-      </button>
+      </div>
 
-      {isOpen && (
-        <div
-          ref={panelRef}
-          id={menuId}
-          role="menu"
-          aria-label={ariaLabel}
-          onKeyDown={handleMenuKeyDown}
-          className={cn(
-            'absolute top-[calc(100%+6px)] z-50 min-w-[180px] overflow-hidden rounded-xl bg-surface-container-lowest p-1 shadow-popover',
-            'border border-outline-variant animate-scale-in',
-            align === 'right' ? 'right-0' : 'left-0',
-            menuClassName,
-          )}
-        >
-          {items.map((item) => (
-            <button
-              key={item.id}
-              role="menuitem"
-              type="button"
-              tabIndex={-1}
-              disabled={item.disabled}
-              onClick={() => {
-                setIsOpen(false);
-                item.onSelect();
-              }}
-              className={cn(
-                'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-body-sm font-medium transition-colors',
-                'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
-                item.danger
-                  ? 'text-error hover:bg-error-container focus:bg-error-container'
-                  : 'text-on-surface hover:bg-surface-container-high focus:bg-surface-container-high',
-                item.disabled && 'cursor-not-allowed opacity-50',
-              )}
-            >
-              {item.icon && <Icon name={item.icon} size={18} />}
-              <span className="flex-1 truncate">{item.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {isOpen &&
+        createPortal(
+          <div
+            ref={panelRef}
+            id={menuId}
+            role="menu"
+            aria-label={ariaLabel}
+            onKeyDown={handleMenuKeyDown}
+            onClick={(event) => event.stopPropagation()}
+            style={
+              coords
+                ? { top: `${coords.top}px`, left: `${coords.left}px` }
+                : { top: '-9999px', left: '-9999px' }
+            }
+            className={cn(
+              'fixed z-[90] min-w-[190px] overflow-hidden rounded-xl bg-surface-container-lowest p-1 shadow-popover',
+              'border border-outline-variant animate-scale-in',
+              menuClassName,
+            )}
+          >
+            {items.map((item) => (
+              <button
+                key={item.id}
+                role="menuitem"
+                type="button"
+                tabIndex={-1}
+                disabled={item.disabled}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsOpen(false);
+                  item.onSelect();
+                }}
+                className={cn(
+                  'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-body-sm font-medium transition-colors',
+                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
+                  item.danger
+                    ? 'text-error hover:bg-error-container focus:bg-error-container'
+                    : 'text-on-surface hover:bg-surface-container-high focus:bg-surface-container-high',
+                  item.disabled && 'cursor-not-allowed opacity-50',
+                )}
+              >
+                {item.icon && <Icon name={item.icon} size={18} />}
+                <span className="flex-1 truncate">{item.label}</span>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
