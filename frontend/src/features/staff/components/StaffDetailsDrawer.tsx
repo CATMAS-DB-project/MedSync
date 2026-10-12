@@ -12,6 +12,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { ApiError } from '../../../services/api/ApiError';
 import {
   createUserAccount,
+  deleteUserAccount,
   resetStaffPassword,
   updateUserAccount,
 } from '../../../services/api/accounts';
@@ -335,6 +336,39 @@ export function StaffDetailsDrawer({
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!isAdmin || !staff || !hasAccount || isSubmitting) return;
+    if (
+      !window.confirm(
+        `Delete the system account for ${formatFullName(staff.firstName, staff.lastName)}? The staff record will not be deleted.`,
+      )
+    ) {
+      return;
+    }
+
+    setSubmitError(null);
+    setIsSubmitting(true);
+    try {
+      await deleteUserAccount(staff.staffId);
+      setHasAccount(false);
+      setAccountProfile(null);
+      setAccountErrors({});
+      setAccountForm({
+        username: '',
+        password: '',
+        role: isDoctor ? 'Doctor' : 'Receptionist',
+      });
+      toast.success('System account deleted');
+      onSaved();
+    } catch (err) {
+      setSubmitError(
+        err instanceof ApiError ? err.message : 'Failed to delete system account.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const fullName = staff ? formatFullName(staff.firstName, staff.lastName) : '';
   const linkedIds = new Set(
     (doctorProfile?.specialties ?? []).map((s) => s.specialtyId),
@@ -543,6 +577,16 @@ export function StaffDetailsDrawer({
                   onChange={(e) => setEditStatus(e.target.value as AccountStatus)}
                 />
               </div>
+              <div className="mt-4 flex justify-end border-t border-outline-variant pt-4">
+                <Button
+                  variant="danger"
+                  icon="delete"
+                  onClick={handleDeleteAccount}
+                  isLoading={isSubmitting}
+                >
+                  Delete System Account
+                </Button>
+              </div>
             </DrawerSection>
 
             <DrawerSection title="Reset Password" icon="lock_reset">
@@ -574,6 +618,16 @@ export function StaffDetailsDrawer({
             <p className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 text-body-sm text-on-surface-variant">
               This staff member already has a system login account. Only an Administrator can view or modify account credentials and roles.
             </p>
+            <div className="flex justify-end">
+              <Button
+                variant="danger"
+                icon="delete"
+                onClick={handleDeleteAccount}
+                isLoading={isSubmitting}
+              >
+                Delete System Account
+              </Button>
+            </div>
           </DrawerSection>
         )
       ) : (
