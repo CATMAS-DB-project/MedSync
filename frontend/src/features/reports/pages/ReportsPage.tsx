@@ -1,344 +1,462 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { PageHeader } from '../../../components/ui/PageHeader';
 import { Button } from '../../../components/ui/Button';
-import { Input } from '../../../components/ui/Input';
+import { Card } from '../../../components/ui/Card';
+import { Tabs } from '../../../components/ui/Tabs';
+import type { TabItem } from '../../../components/ui/Tabs';
 import { Select } from '../../../components/ui/Select';
+import { Input } from '../../../components/ui/Input';
+import { EmptyState } from '../../../components/common/EmptyState';
+import { ErrorBanner } from '../../../components/common/ErrorBanner';
+import { useToast } from '../../../components/common/ToastProvider';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
 import { fetchBranches } from '../../../services/api/branches';
+import { fetchTreatments } from '../../../services/api/treatments';
 import {
+  downloadAppointmentsSummaryPdf,
+  downloadDoctorRevenuePdf,
+  downloadInsuranceSummaryPdf,
+  downloadOutstandingBalancesPdf,
+  downloadTreatmentFrequencyPdf,
   fetchAppointmentsSummary,
   fetchDoctorRevenue,
   fetchInsuranceVsOutOfPocket,
   fetchOutstandingBalances,
   fetchTreatmentFrequency,
 } from '../../../services/api/reports';
-import { formatCurrency } from '../../../utils/formatters';
-import { toIsoDate, todayIso } from '../../../utils/dates';
+import { todayIso, daysAgoIso, toIsoDate } from '../../../utils/dates';
+import { InvoiceDetailDrawer } from '../../billing/components/InvoiceDetailDrawer';
+import { ReportAppointmentsTab } from '../components/ReportAppointmentsTab';
+import { ReportDoctorRevenueTab } from '../components/ReportDoctorRevenueTab';
+import { ReportOutstandingTab } from '../components/ReportOutstandingTab';
+import { ReportTreatmentsTab } from '../components/ReportTreatmentsTab';
+import { ReportInsuranceTab } from '../components/ReportInsuranceTab';
+import type { AppointmentSummaryReportItem, DoctorRevenueReportItem, InsuranceVsOutOfPocketReport, OutstandingBalanceReportItem, TreatmentFrequencyReportItem } from '../../../services/api/reports';
 
-interface Filters {
-  branch: string; // 'all' or a branch id
-  from: string;
-  to: string;
+type TabValue = 'appointments' | 'doctor-revenue' | 'outstanding' | 'treatments' | 'insurance';
+type PresetValue = '7d' | '30d' | '90d' | 'month' | 'custom';
+
+const TAB_ITEMS: TabItem<TabValue>[] = [
+  { value: 'appointments', label: 'Appointments' },
+  { value: 'doctor-revenue', label: 'Doctor revenue' },
+  { value: 'outstanding', label: 'Outstanding' },
+  { value: 'treatments', label: 'Treatments' },
+  { value: 'insurance', label: 'Insurance' },
+];
+
+const PRESET_ITEMS: TabItem<PresetValue>[] = [
+  { value: '7d', label: '7 days' },
+  { value: '30d', label: '30 days' },
+  { value: '90d', label: '90 days' },
+  { value: 'month', label: 'This month' },
+  { value: 'custom', label: 'Custom' },
+];
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseTab(v: string | null): TabValue {
+  if (
+    v === 'appointments' ||
+    v === 'doctor-revenue' ||
+    v === 'outstanding' ||
+    v === 'treatments' ||
+    v === 'insurance'
+  ) {
+    return v;
+  }
+  return 'appointments';
 }
 
-function daysAgoIso(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return toIsoDate(d);
+function parseDate(v: string | null, fallback: string): string {
+  return v && ISO_DATE.test(v) ? v : fallback;
 }
 
-function downloadCsv(filename: string, rows: (string | number)[][]) {
-  const escape = (cell: string | number) => `"${String(cell).replace(/"/g, '""')}"`;
-  const csv = rows.map((row) => row.map(escape).join(',')).join('\n');
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+function parseId(v: string | null): number | undefined {
+  if (!v) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function firstOfMonthIso(): string {
+  const now = new Date();
+  return toIsoDate(new Date(now.getFullYear(), now.getMonth(), 1));
+}
+
+function presetRange(preset: PresetValue): { from: string; to: string } {
+  const to = todayIso();
+  switch (preset) {
+    case '7d':
+      return { from: daysAgoIso(6), to };
+    case '30d':
+      return { from: daysAgoIso(29), to };
+    case '90d':
+      return { from: daysAgoIso(89), to };
+    case 'month':
+      return { from: firstOfMonthIso(), to };
+    case 'custom':
+      return { from: daysAgoIso(29), to };
+  }
+}
+
+function detectPreset(from: string, to: string): PresetValue {
+  if (to !== todayIso()) return 'custom';
+  if (from === daysAgoIso(6)) return '7d';
+  if (from === daysAgoIso(29)) return '30d';
+  if (from === daysAgoIso(89)) return '90d';
+  if (from === firstOfMonthIso()) return 'month';
+  return 'custom';
+}
+
+function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
+  document.body.appendChild(link);
   link.click();
+  document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
 
-function SectionCard({
-  title,
-  subtitle,
-  error,
-  loading,
-  className = '',
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  error: string | null;
-  loading: boolean;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={`bg-surface-container-lowest border border-outline-variant rounded-lg p-5 flex flex-col gap-4 ${className}`}>
-      <div className="flex justify-between items-center border-b border-outline-variant pb-2">
-        <h2 className="text-headline-sm text-on-surface">{title}</h2>
-        {subtitle && <span className="text-body-sm text-on-surface-variant">{subtitle}</span>}
-      </div>
-      {error ? (
-        <p className="text-body-sm text-error">{error}</p>
-      ) : loading ? (
-        <p className="text-body-sm text-on-surface-variant">Loading…</p>
-      ) : (
-        children
-      )}
-    </div>
-  );
-}
-
 export function ReportsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser } = useAuth();
+  const toast = useToast();
+
   const isBranchManager = currentUser?.role === 'Branch Manager';
+  const isAdmin = currentUser?.role === 'Admin';
 
-  const initial: Filters = { branch: 'all', from: daysAgoIso(29), to: todayIso() };
-  const [draft, setDraft] = useState<Filters>(initial);
-  const [applied, setApplied] = useState<Filters>(initial);
-  const [filterError, setFilterError] = useState<string | null>(null);
+  if (!isAdmin && !isBranchManager) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] w-full max-w-[1400px] items-center justify-center">
+        <EmptyState icon="lock" title="Access restricted" />
+      </div>
+    );
+  }
 
-  const branches = useAsync(() => fetchBranches(1, 100), []);
+  const tab = parseTab(searchParams.get('tab'));
+  const from = parseDate(searchParams.get('from'), daysAgoIso(29));
+  const to = parseDate(searchParams.get('to'), todayIso());
+  const branchParam = parseId(searchParams.get('branchId'));
+  const category = searchParams.get('category') ?? '';
 
-  // Branch Managers are locked to their own branch by the backend.
-  const branchId = isBranchManager
+  const updateParams = useCallback(
+    (updates: Record<string, string | null>) => {
+      const next = new URLSearchParams(searchParams);
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null || value === '') next.delete(key);
+        else next.set(key, value);
+      }
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const preset = useMemo(() => detectPreset(from, to), [from, to]);
+
+  const effectiveBranchId = isBranchManager
     ? currentUser?.branchId
-    : applied.branch === 'all'
-      ? undefined
-      : Number(applied.branch);
-  const range = { from: applied.from, to: applied.to };
+    : branchParam;
 
-  const volume = useAsync(() => fetchAppointmentsSummary({ branchId, ...range }), [branchId, applied.from, applied.to]);
-  const revenue = useAsync(() => fetchDoctorRevenue({ branchId, ...range }), [branchId, applied.from, applied.to]);
-  const outstanding = useAsync(() => fetchOutstandingBalances({ branchId }), [branchId]);
-  const treatments = useAsync(() => fetchTreatmentFrequency(range), [applied.from, applied.to]);
-  const insurance = useAsync(() => fetchInsuranceVsOutOfPocket({ branchId, ...range }), [branchId, applied.from, applied.to]);
+  // Lazy activation of each tab so we don't fetch all reports upfront.
+  const [activated, setActivated] = useState<Set<TabValue>>(
+    () => new Set<TabValue>([tab]),
+  );
+  useEffect(() => {
+    setActivated((prev) => {
+      if (prev.has(tab)) return prev;
+      const next = new Set(prev);
+      next.add(tab);
+      return next;
+    });
+  }, [tab]);
 
-  function applyFilters() {
-    if (!draft.from || !draft.to) return setFilterError('Choose both a start and end date.');
-    if (draft.from > draft.to) return setFilterError('The start date must be on or before the end date.');
-    setFilterError(null);
-    setApplied(draft);
-  }
+  const activeAppointments = activated.has('appointments');
+  const activeDoctorRevenue = activated.has('doctor-revenue');
+  const activeOutstanding = activated.has('outstanding');
+  const activeTreatments = activated.has('treatments');
+  const activeInsurance = activated.has('insurance');
 
-  const branchOptions = [
-    { label: 'All Branches', value: 'all' },
-    ...(branches.data?.items ?? []).map((b) => ({ label: b.branchName, value: String(b.branchId) })),
-  ];
+  const branches = useAsync(
+    () => (isAdmin ? fetchBranches(1, 100) : Promise.resolve(null)),
+    [isAdmin],
+  );
 
-  // Appointment volume bars (most recent 31 days of the range)
-  const volumeRows = (volume.data ?? []).slice(-31);
-  const maxVolume = Math.max(1, ...volumeRows.map((d) => d.totalCount));
+  const branchOptions = useMemo(() => {
+    const opts = [{ label: 'All branches', value: '' }];
+    for (const b of branches.data?.items ?? []) {
+      opts.push({ label: b.branchName, value: String(b.branchId) });
+    }
+    return opts;
+  }, [branches.data]);
 
-  // Revenue by provider
-  const revenueRows = [...(revenue.data ?? [])].sort((a, b) => Number(b.revenue) - Number(a.revenue));
-  const maxRevenue = Math.max(1, ...revenueRows.map((r) => Number(r.revenue)));
+  const catalogue = useAsync(
+    () => (activeTreatments ? fetchTreatments(undefined, 1, 100) : Promise.resolve(null)),
+    [activeTreatments],
+  );
 
-  // Outstanding balances
-  const outstandingRows = outstanding.data ?? [];
-  const outstandingTotal = outstandingRows.reduce((s, r) => s + Number(r.outstandingAmount), 0);
-
-  // Insurance split
-  const ins = insurance.data;
-  const insuranceShare = ins && Number(ins.subtotalAmount) > 0 ? (Number(ins.insuranceAmount) / Number(ins.subtotalAmount)) * 100 : 0;
-
-  function exportCsv() {
-    const rows: (string | number)[][] = [
-      ['Report period', `${applied.from} to ${applied.to}`],
-      [],
-      ['Appointments by day'],
-      ['Date', 'Total', 'Scheduled', 'Completed', 'Cancelled'],
-      ...(volume.data ?? []).map((d) => [d.appointmentDate.slice(0, 10), d.totalCount, d.scheduledCount, d.completedCount, d.cancelledCount]),
-      [],
-      ['Revenue by provider'],
-      ['Branch', 'Doctor', 'Appointments', 'Revenue', 'Rank in branch'],
-      ...revenueRows.map((r) => [r.branchName, r.doctorName, r.appointmentCount, Number(r.revenue), r.revenueRank]),
-      [],
-      ['Outstanding balances'],
-      ['Invoice', 'Patient', 'Branch', 'Payable', 'Paid', 'Outstanding'],
-      ...outstandingRows.map((r) => [r.invoiceId, r.patientName, r.branchName, Number(r.payableAmount), Number(r.amountPaid), Number(r.outstandingAmount)]),
-      [],
-      ['Treatment frequency'],
-      ['Service code', 'Treatment', 'Category', 'Count'],
-      ...(treatments.data ?? []).map((t) => [t.serviceCode, t.treatmentName, t.category, t.treatmentCount]),
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const t of catalogue.data?.items ?? []) if (t.category) set.add(t.category);
+    return [
+      { label: 'All categories', value: '' },
+      ...[...set].sort().map((c) => ({ label: c, value: c })),
     ];
-    downloadCsv(`catms-report-${applied.from}-to-${applied.to}.csv`, rows);
-  }
+  }, [catalogue.data]);
+
+  const appointments = useAsync<AppointmentSummaryReportItem[]>(
+    () =>
+      activeAppointments
+        ? fetchAppointmentsSummary({
+            branchId: effectiveBranchId,
+            from,
+            to,
+          })
+        : Promise.resolve([] as AppointmentSummaryReportItem[]),
+    [activeAppointments, effectiveBranchId, from, to],
+  );
+
+  const doctorRevenue = useAsync<DoctorRevenueReportItem[]>(
+    () =>
+      activeDoctorRevenue
+        ? fetchDoctorRevenue({ branchId: effectiveBranchId, from, to })
+        : Promise.resolve([] as DoctorRevenueReportItem[]),
+    [activeDoctorRevenue, effectiveBranchId, from, to],
+  );
+
+  const outstanding = useAsync<OutstandingBalanceReportItem[]>(
+    () =>
+      activeOutstanding
+        ? fetchOutstandingBalances({ branchId: effectiveBranchId })
+        : Promise.resolve([] as OutstandingBalanceReportItem[]),
+    [activeOutstanding, effectiveBranchId],
+  );
+
+  const treatments = useAsync<TreatmentFrequencyReportItem[]>(
+    () =>
+      activeTreatments
+        ? fetchTreatmentFrequency({
+            branchId: effectiveBranchId,
+            category: category || undefined,
+            from,
+            to,
+          })
+        : Promise.resolve([] as TreatmentFrequencyReportItem[]),
+    [activeTreatments, effectiveBranchId, category, from, to],
+  );
+
+  const insurance = useAsync<InsuranceVsOutOfPocketReport | null>(
+    () =>
+      activeInsurance
+        ? fetchInsuranceVsOutOfPocket({ branchId: effectiveBranchId, from, to })
+        : Promise.resolve(null),
+    [activeInsurance, effectiveBranchId, from, to],
+  );
+
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      let blob: Blob;
+      let filename: string;
+      switch (tab) {
+        case 'appointments':
+          blob = await downloadAppointmentsSummaryPdf({ branchId: effectiveBranchId, from, to });
+          filename = `medsync-appointments-${from}-${to}.pdf`;
+          break;
+        case 'doctor-revenue':
+          blob = await downloadDoctorRevenuePdf({ branchId: effectiveBranchId, from, to });
+          filename = `medsync-doctor-revenue-${from}-${to}.pdf`;
+          break;
+        case 'outstanding':
+          blob = await downloadOutstandingBalancesPdf({ branchId: effectiveBranchId });
+          filename = 'medsync-outstanding.pdf';
+          break;
+        case 'treatments':
+          blob = await downloadTreatmentFrequencyPdf({
+            branchId: effectiveBranchId,
+            category: category || undefined,
+            from,
+            to,
+          });
+          filename = `medsync-treatments-${from}-${to}.pdf`;
+          break;
+        case 'insurance':
+          blob = await downloadInsuranceSummaryPdf({ branchId: effectiveBranchId, from, to });
+          filename = `medsync-insurance-${from}-${to}.pdf`;
+          break;
+      }
+      saveBlob(blob, filename);
+      toast.success('PDF downloaded');
+    } catch {
+      toast.error('Could not download the PDF');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const presetRangeFor = (p: PresetValue) => presetRange(p);
+
+  const showDateControls = tab !== 'outstanding';
+  const showCategorySelect = tab === 'treatments';
 
   return (
-    <div className="max-w-7xl mx-auto flex flex-col gap-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-display-sm text-on-surface">Reports</h1>
-          <p className="text-body-sm text-on-surface-variant mt-1">
-            Key performance metrics and financial overviews.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 print:hidden">
-          <Button variant="primary" icon="print" onClick={() => window.print()}>
-            Print / Save PDF
-          </Button>
-          <Button variant="secondary" icon="table_view" onClick={exportCsv}>
-            Export CSV
-          </Button>
-        </div>
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
+      <PageHeader title="Reports" />
+
+      <div className="-mx-1 overflow-x-auto px-1">
+        <Tabs<TabValue>
+          items={TAB_ITEMS}
+          value={tab}
+          onChange={(next) => updateParams({ tab: next })}
+          ariaLabel="Report type"
+        />
       </div>
 
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-4 flex flex-wrap gap-4 items-end print:hidden">
-        {!isBranchManager && (
-          <div className="flex-1 min-w-[200px]">
-            <Select
-              label="Branch Location"
-              options={branchOptions}
-              value={draft.branch}
-              onChange={(event) => setDraft({ ...draft, branch: event.target.value })}
+      <Card padding="md">
+        <div className="flex flex-col gap-3">
+          {showDateControls && (
+            <Tabs<PresetValue>
+              items={PRESET_ITEMS}
+              value={preset}
+              onChange={(next) => {
+                if (next === 'custom') {
+                  updateParams({ from, to });
+                } else {
+                  const r = presetRangeFor(next);
+                  updateParams({ from: r.from, to: r.to });
+                }
+              }}
+              ariaLabel="Date range"
+              className="self-start"
             />
-          </div>
-        )}
-        <div className="min-w-[160px]">
-          <Input label="From" type="date" value={draft.from} max={draft.to} onChange={(e) => setDraft({ ...draft, from: e.target.value })} />
-        </div>
-        <div className="min-w-[160px]">
-          <Input label="To" type="date" value={draft.to} min={draft.from} onChange={(e) => setDraft({ ...draft, to: e.target.value })} />
-        </div>
-        <Button variant="secondary" onClick={applyFilters}>
-          Apply Filters
-        </Button>
-        {filterError && <p className="w-full text-body-sm text-error">{filterError}</p>}
-      </div>
+          )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <SectionCard
-          title="Appointment Volume"
-          subtitle={`${applied.from} → ${applied.to}`}
-          error={volume.error}
-          loading={volume.isLoading && !volume.data}
-          className="col-span-1 lg:col-span-2"
-        >
-          {volumeRows.length === 0 ? (
-            <p className="text-body-sm text-on-surface-variant">No appointments in this period.</p>
-          ) : (
-            <div className="flex items-end justify-between gap-1 pt-4 pb-2 h-48">
-              {volumeRows.map((day, index) => {
-                const iso = day.appointmentDate.slice(0, 10);
-                const isPeak = day.totalCount === maxVolume;
-                const showLabel = volumeRows.length <= 12 || index % 5 === 0;
-                return (
-                  <div key={iso} className="flex-1 flex flex-col items-center gap-2 h-full justify-end min-w-0">
-                    <div
-                      className={`w-full rounded-t ${isPeak ? 'bg-primary-container' : 'bg-primary-container/40'}`}
-                      style={{ height: `${Math.max(6, (day.totalCount / maxVolume) * 100)}%` }}
-                      title={`${iso}: ${day.totalCount} total · ${day.completedCount} completed · ${day.cancelledCount} cancelled`}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-end sm:gap-3">
+              {showDateControls && preset === 'custom' && (
+                <>
+                  <div className="sm:w-44">
+                    <Input
+                      label="From"
+                      type="date"
+                      value={from}
+                      max={to}
+                      onChange={(e) => updateParams({ from: e.target.value })}
                     />
-                    <span className="text-label-md text-on-surface-variant h-4 whitespace-nowrap">
-                      {showLabel ? new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
-                    </span>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </SectionCard>
+                  <div className="sm:w-44">
+                    <Input
+                      label="To"
+                      type="date"
+                      value={to}
+                      min={from}
+                      onChange={(e) => updateParams({ to: e.target.value })}
+                    />
+                  </div>
+                </>
+              )}
 
-        <SectionCard
-          title="Insurance vs Out-of-Pocket"
-          error={insurance.error}
-          loading={insurance.isLoading && !insurance.data}
-        >
-          {ins && (
-            <div className="flex flex-col gap-3">
-              <div className="w-full bg-surface-container-high h-3 rounded-full overflow-hidden">
-                <div className="bg-primary h-full" style={{ width: `${insuranceShare}%` }} />
-              </div>
-              <div className="flex justify-between text-body-sm">
-                <span className="text-on-surface-variant">Insurance</span>
-                <span className="font-semibold text-on-surface">{formatCurrency(Number(ins.insuranceAmount))}</span>
-              </div>
-              <div className="flex justify-between text-body-sm">
-                <span className="text-on-surface-variant">Out-of-pocket</span>
-                <span className="font-semibold text-on-surface">{formatCurrency(Number(ins.outOfPocketAmount))}</span>
-              </div>
-              <div className="flex justify-between text-body-sm border-t border-outline-variant pt-2">
-                <span className="text-on-surface-variant">{ins.invoiceCount} invoices · subtotal</span>
-                <span className="font-semibold text-on-surface">{formatCurrency(Number(ins.subtotalAmount))}</span>
-              </div>
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard
-          title="Revenue by Provider"
-          subtitle="Payable amount, grouped by doctor"
-          error={revenue.error}
-          loading={revenue.isLoading && !revenue.data}
-          className="col-span-1 lg:col-span-3"
-        >
-          {revenueRows.length === 0 ? (
-            <p className="text-body-sm text-on-surface-variant">No revenue in this period.</p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {revenueRows.map((row) => (
-                <div key={`${row.branchId}-${row.doctorStaffId}`} className="flex items-center gap-4">
-                  <div className="w-48 truncate text-body-sm text-on-surface" title={`${row.doctorName} · ${row.branchName}`}>
-                    Dr. {row.doctorName}
-                    <span className="block text-label-md text-on-surface-variant">{row.branchName}</span>
-                  </div>
-                  <div className="bg-surface-container-high h-6 rounded flex-1 overflow-hidden">
-                    <div
-                      className="bg-primary-container h-full flex items-center px-2 text-on-primary-container text-xs font-medium whitespace-nowrap"
-                      style={{ width: `${Math.max(8, (Number(row.revenue) / maxRevenue) * 100)}%` }}
-                    >
-                      {formatCurrency(Number(row.revenue))} · {row.appointmentCount} visits
-                    </div>
-                  </div>
+              {isAdmin && (
+                <div className="sm:w-56">
+                  <Select
+                    label="Branch"
+                    value={branchParam !== undefined ? String(branchParam) : ''}
+                    onChange={(e) =>
+                      updateParams({ branchId: e.target.value || null })
+                    }
+                    options={branchOptions}
+                  />
                 </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
+              )}
 
-        <SectionCard
-          title="Outstanding Balances"
-          subtitle={`${formatCurrency(outstandingTotal)} · ${outstandingRows.length} invoices`}
+              {showCategorySelect && (
+                <div className="sm:w-56">
+                  <Select
+                    label="Category"
+                    value={category}
+                    onChange={(e) =>
+                      updateParams({ category: e.target.value || null })
+                    }
+                    options={categoryOptions}
+                  />
+                </div>
+              )}
+            </div>
+
+            <Button
+              variant="secondary"
+              icon="download"
+              onClick={handleDownloadPdf}
+              isLoading={isDownloading}
+              disabled={isDownloading}
+            >
+              Download PDF
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {tab === 'appointments' && (
+        <ReportAppointmentsTab
+          data={appointments.data ?? []}
+          loading={appointments.isLoading}
+          error={appointments.error}
+          onRetry={appointments.reload}
+        />
+      )}
+
+      {tab === 'doctor-revenue' && (
+        <ReportDoctorRevenueTab
+          data={doctorRevenue.data ?? []}
+          loading={doctorRevenue.isLoading}
+          error={doctorRevenue.error}
+          onRetry={doctorRevenue.reload}
+        />
+      )}
+
+      {tab === 'outstanding' && (
+        <ReportOutstandingTab
+          data={outstanding.data ?? []}
+          loading={outstanding.isLoading}
           error={outstanding.error}
-          loading={outstanding.isLoading && !outstanding.data}
-          className="col-span-1 lg:col-span-2"
-        >
-          {outstandingRows.length === 0 ? (
-            <p className="text-body-sm text-on-surface-variant">No outstanding balances.</p>
-          ) : (
-            <div className="overflow-x-auto max-h-72 overflow-y-auto">
-              <table className="w-full text-left border-collapse text-body-sm">
-                <thead className="text-label-md text-on-surface-variant border-b border-outline-variant">
-                  <tr>
-                    <th className="py-1.5">Patient</th>
-                    <th className="py-1.5">Branch</th>
-                    <th className="py-1.5 text-right">Payable</th>
-                    <th className="py-1.5 text-right">Outstanding</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {outstandingRows.map((row) => (
-                    <tr key={row.invoiceId} className="border-b border-outline-variant">
-                      <td className="py-1.5 text-on-surface">
-                        {row.patientName}
-                        <span className="ml-2 font-mono text-xs text-on-surface-variant">#{row.invoiceId}</span>
-                      </td>
-                      <td className="py-1.5 text-on-surface-variant">{row.branchName}</td>
-                      <td className="py-1.5 text-right">{formatCurrency(Number(row.payableAmount))}</td>
-                      <td className="py-1.5 text-right font-semibold">{formatCurrency(Number(row.outstandingAmount))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </SectionCard>
+          onRetry={outstanding.reload}
+          onOpenInvoice={setSelectedInvoiceId}
+        />
+      )}
 
-        <SectionCard
-          title="Top Treatments"
-          subtitle={isBranchManager ? 'Your branch' : 'All branches'}
+      {tab === 'treatments' && (
+        <ReportTreatmentsTab
+          data={treatments.data ?? []}
+          loading={treatments.isLoading}
           error={treatments.error}
-          loading={treatments.isLoading && !treatments.data}
-        >
-          {(treatments.data ?? []).length === 0 ? (
-            <p className="text-body-sm text-on-surface-variant">No treatments in this period.</p>
-          ) : (
-            <ul className="flex flex-col gap-2 text-body-sm">
-              {(treatments.data ?? []).slice(0, 10).map((t) => (
-                <li key={t.serviceCode} className="flex items-center justify-between gap-2">
-                  <span className="text-on-surface truncate">
-                    {t.treatmentName}
-                    <span className="block text-label-md text-on-surface-variant">{t.category}</span>
-                  </span>
-                  <span className="font-semibold text-on-surface">{t.treatmentCount}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </SectionCard>
-      </div>
+          onRetry={treatments.reload}
+        />
+      )}
+
+      {tab === 'insurance' && (
+        <ReportInsuranceTab
+          data={insurance.data ?? null}
+          loading={insurance.isLoading}
+          error={insurance.error}
+          onRetry={insurance.reload}
+        />
+      )}
+
+      {tab === 'outstanding' && outstanding.error && (
+        <ErrorBanner message={outstanding.error} onRetry={outstanding.reload} />
+      )}
+
+      <InvoiceDetailDrawer
+        invoiceId={selectedInvoiceId}
+        onClose={() => setSelectedInvoiceId(null)}
+        onChanged={outstanding.reload}
+      />
     </div>
   );
 }

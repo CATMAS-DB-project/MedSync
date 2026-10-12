@@ -1,7 +1,7 @@
 import { apiGet, apiPatch, apiPost } from './client';
 import { toPatient } from './mappers';
 import type { PatientRaw } from './mappers';
-import type { Gender, PagedResult, Patient } from '../../types';
+import type { Appointment, Gender, PagedResult, Patient } from '../../types';
 
 export interface PatientListParams {
   search?: string;
@@ -72,3 +72,11 @@ export async function updatePatient(
   const raw = await apiPatch<PatientRaw>(`/patients/${patientId}`, updates);
   return toPatient(raw);
 }
+
+export async function fetchPatientAppointments(
+  patientId: number,
+  params?: { page?: number; pageSize?: number },
+): Promise<PagedResult<Appointment>> {
+  return apiGet<PagedResult<Appointment>>(`/patients/${patientId}/appointments`, params);
+}
+

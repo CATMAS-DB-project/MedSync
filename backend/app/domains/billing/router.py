@@ -30,8 +30,12 @@ def _success_list(items: list, total: int, page: int, page_size: int) -> dict:
 
 @router.get("/invoices")
 async def list_invoices(conn: Annotated[PoolConnectionProxy, Depends(get_conn)], user: Annotated[UserIdentity, BILLING_READ], paging: Annotated[dict[str, int], Depends(pagination)], status_filter: InvoiceStatus | None = Query(default=None, alias="status"), branch_id: int | None = Query(default=None, ge=1), patient_id: int | None = Query(default=None, ge=1)):
-    rows = await conn.fetch("""SELECT v.*, a.patient_id, a.branch_id, COUNT(*) OVER() AS total
-        FROM v_invoice_outstanding v JOIN appointment a USING(appointment_id)
+    rows = await conn.fetch("""SELECT v.*, a.patient_id, a.branch_id,
+        p.first_name || ' ' || p.last_name AS patient_name,
+        COUNT(*) OVER() AS total
+        FROM v_invoice_outstanding v
+        JOIN appointment a USING(appointment_id)
+        JOIN patient p USING(patient_id)
         WHERE ($1::text IS NULL OR v.status::text=$1) AND ($2::int IS NULL OR a.branch_id=$2)
           AND ($3::int IS NULL OR a.patient_id=$3)
         ORDER BY v.invoice_id DESC LIMIT $4 OFFSET $5""", status_filter, branch_id, patient_id, paging["limit"], paging["offset"])

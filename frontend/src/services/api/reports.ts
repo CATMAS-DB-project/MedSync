@@ -1,7 +1,8 @@
-import { apiGet } from './client';
+import { apiGet, apiGetBlob } from './client';
 
-export interface ReportQueryParams {
+export interface ReportQueryParams extends Record<string, unknown> {
   branchId?: number;
+  patientId?: number;
   category?: string;
   from?: string;
   to?: string;
@@ -52,31 +53,91 @@ export interface InsuranceVsOutOfPocketReport {
 }
 
 export async function fetchAppointmentsSummary(
-  params?: ReportQueryParams,
+  params?: Pick<ReportQueryParams, 'branchId' | 'from' | 'to'>,
 ): Promise<AppointmentSummaryReportItem[]> {
-  return apiGet<AppointmentSummaryReportItem[]>('/reports/appointments-summary', params);
+  const rows = await apiGet<AppointmentSummaryReportItem[]>('/reports/appointments-summary', params);
+  return rows.map((row) => ({
+    ...row,
+    totalCount: Number(row.totalCount),
+    scheduledCount: Number(row.scheduledCount),
+    completedCount: Number(row.completedCount),
+    cancelledCount: Number(row.cancelledCount),
+  }));
 }
 
 export async function fetchDoctorRevenue(
-  params?: ReportQueryParams,
+  params?: Pick<ReportQueryParams, 'branchId' | 'from' | 'to'>,
 ): Promise<DoctorRevenueReportItem[]> {
-  return apiGet<DoctorRevenueReportItem[]>('/reports/doctor-revenue', params);
+  const rows = await apiGet<DoctorRevenueReportItem[]>('/reports/doctor-revenue', params);
+  return rows.map((row) => ({
+    ...row,
+    appointmentCount: Number(row.appointmentCount),
+    revenue: Number(row.revenue),
+    revenueRank: Number(row.revenueRank),
+  }));
 }
 
 export async function fetchOutstandingBalances(
-  params?: Pick<ReportQueryParams, 'branchId'>,
+  params?: Pick<ReportQueryParams, 'branchId' | 'patientId'>,
 ): Promise<OutstandingBalanceReportItem[]> {
-  return apiGet<OutstandingBalanceReportItem[]>('/reports/outstanding-balances', params);
+  const rows = await apiGet<OutstandingBalanceReportItem[]>('/reports/outstanding-balances', params);
+  return rows.map((row) => ({
+    ...row,
+    payableAmount: Number(row.payableAmount),
+    amountPaid: Number(row.amountPaid),
+    outstandingAmount: Number(row.outstandingAmount),
+  }));
 }
 
 export async function fetchTreatmentFrequency(
-  params?: Pick<ReportQueryParams, 'category' | 'from' | 'to'>,
+  params?: Pick<ReportQueryParams, 'branchId' | 'category' | 'from' | 'to'>,
 ): Promise<TreatmentFrequencyReportItem[]> {
-  return apiGet<TreatmentFrequencyReportItem[]>('/reports/treatment-frequency', params);
+  const rows = await apiGet<TreatmentFrequencyReportItem[]>('/reports/treatment-frequency', params);
+  return rows.map((row) => ({
+    ...row,
+    treatmentCount: Number(row.treatmentCount),
+  }));
 }
 
 export async function fetchInsuranceVsOutOfPocket(
-  params?: ReportQueryParams,
+  params?: Pick<ReportQueryParams, 'branchId' | 'from' | 'to'>,
 ): Promise<InsuranceVsOutOfPocketReport> {
-  return apiGet<InsuranceVsOutOfPocketReport>('/reports/insurance-vs-outofpocket', params);
+  const raw = await apiGet<InsuranceVsOutOfPocketReport>('/reports/insurance-vs-outofpocket', params);
+  return {
+    invoiceCount: Number(raw.invoiceCount),
+    subtotalAmount: Number(raw.subtotalAmount),
+    insuranceAmount: Number(raw.insuranceAmount),
+    outOfPocketAmount: Number(raw.outOfPocketAmount),
+  };
 }
+
+export async function downloadAppointmentsSummaryPdf(
+  params?: Pick<ReportQueryParams, 'branchId' | 'from' | 'to'>,
+): Promise<Blob> {
+  return apiGetBlob('/reports/pdf/appointments-summary', params);
+}
+
+export async function downloadDoctorRevenuePdf(
+  params?: Pick<ReportQueryParams, 'branchId' | 'from' | 'to'>,
+): Promise<Blob> {
+  return apiGetBlob('/reports/pdf/doctor-revenue', params);
+}
+
+export async function downloadOutstandingBalancesPdf(
+  params?: Pick<ReportQueryParams, 'branchId'>,
+): Promise<Blob> {
+  return apiGetBlob('/reports/pdf/outstanding-balances', params);
+}
+
+export async function downloadTreatmentFrequencyPdf(
+  params?: Pick<ReportQueryParams, 'branchId' | 'category' | 'from' | 'to'>,
+): Promise<Blob> {
+  return apiGetBlob('/reports/pdf/treatment-frequency', params);
+}
+
+export async function downloadInsuranceSummaryPdf(
+  params?: Pick<ReportQueryParams, 'branchId' | 'from' | 'to'>,
+): Promise<Blob> {
+  return apiGetBlob('/reports/pdf/insurance-summary', params);
+}
+

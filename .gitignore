@@ -5,7 +5,7 @@
 .venv/
 venv/
 env/
-
+docs/
 .vscode/
 
 node_modules

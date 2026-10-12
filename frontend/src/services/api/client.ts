@@ -120,6 +120,10 @@ apiClient.interceptors.response.use(
       return response;
     }
 
+    if (typeof Blob !== 'undefined' && body instanceof Blob) {
+      return response;
+    }
+
     if (isEnvelope(body)) {
       if (body.error) {
         throw new ApiError(body.error.message, body.error.code, response.status);
@@ -164,6 +168,11 @@ export async function apiGet<T>(path: string, params?: Record<string, unknown>):
   return response.data;
 }
 
+export async function apiGetBlob(path: string, params?: Record<string, unknown>): Promise<Blob> {
+  const response = await apiClient.get<Blob>(path, { params, responseType: 'blob' });
+  return response.data;
+}
+
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   const response = await apiClient.post<T>(path, body);
   return response.data;
@@ -178,3 +187,4 @@ export async function apiDelete<T>(path: string): Promise<T> {
   const response = await apiClient.delete<T>(path);
   return response.data;
 }
+

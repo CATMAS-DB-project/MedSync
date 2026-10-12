@@ -1,5 +1,14 @@
+import { useEffect, useState } from 'react';
+import { matchPath, useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../ui/Icon';
-import { getInitials, formatFullName } from '../../utils/formatters';
+import { IconButton } from '../ui/IconButton';
+import { Avatar } from '../ui/Avatar';
+import { Badge } from '../ui/Badge';
+import { DropdownMenu } from '../ui/DropdownMenu';
+import { formatFullName } from '../../utils/formatters';
+import { cn } from '../../utils/cn';
+import { useAuth } from '../../context/AuthContext';
+import { ROUTES } from '../../constants/routes';
 import type { CurrentUser } from '../../types';
 
 export interface TopbarProps {
@@ -7,73 +16,112 @@ export interface TopbarProps {
   onMenuClick?: () => void;
 }
 
+const PAGE_TITLES: { pattern: string; title: string }[] = [
+  { pattern: ROUTES.DASHBOARD, title: 'Dashboard' },
+  { pattern: ROUTES.RECEPTION_HOME, title: 'Home' },
+  { pattern: ROUTES.DOCTOR_HOME, title: 'Home' },
+  { pattern: ROUTES.QA_HOME, title: 'Home' },
+  { pattern: ROUTES.APPOINTMENTS, title: 'Appointments' },
+  { pattern: ROUTES.APPOINTMENT_BOOKING, title: 'Book Appointment' },
+  { pattern: ROUTES.PATIENTS, title: 'Patients' },
+  { pattern: ROUTES.STAFF, title: 'Staff' },
+  { pattern: ROUTES.BILLING, title: 'Billing' },
+  { pattern: ROUTES.CONSULTATION, title: 'Consultation' },
+  { pattern: ROUTES.WALK_IN, title: 'Walk-in' },
+  { pattern: ROUTES.REPORTS, title: 'Reports' },
+  { pattern: ROUTES.TREATMENTS, title: 'Treatments' },
+];
+
+function usePageTitle(): string {
+  const { pathname } = useLocation();
+  for (const entry of PAGE_TITLES) {
+    if (matchPath({ path: entry.pattern, end: entry.pattern === ROUTES.DASHBOARD }, pathname)) {
+      return entry.title;
+    }
+  }
+  return 'Medsync';
+}
+
 export function Topbar({ currentUser, onMenuClick }: TopbarProps) {
   const fullName = formatFullName(currentUser.firstName, currentUser.lastName);
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const title = usePageTitle();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setIsMenuOpen(false);
+  }, [title]);
+
+  const handleSignOut = async () => {
+    await logout();
+    navigate(ROUTES.LOGIN, { replace: true });
+  };
 
   return (
-    <header className="fixed top-0 z-50 flex h-14 w-full items-center justify-between border-b border-outline-variant bg-surface/80 px-container-padding backdrop-blur-md md:left-sidebar-width md:w-[calc(100%-240px)]">
-      {/* Left: menu + brand + branch */}
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
+    <header
+      className={cn(
+        'fixed right-0 top-0 z-40 flex h-topbar-height items-center justify-between gap-3',
+        'bg-surface-container-lowest px-4 sm:px-6 md:shadow-card',
+        'left-0 md:left-sidebar-width',
+      )}
+    >
+      {/* Left */}
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <IconButton
+          icon="menu"
+          size="md"
+          aria-label="Open navigation"
           onClick={onMenuClick}
-          className="-ml-1 flex h-9 w-9 items-center justify-center rounded-full text-primary transition-colors hover:bg-surface-container-low active:opacity-80 md:hidden"
-          aria-label="Open menu"
-        >
-          <Icon name="menu" />
-        </button>
-
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-blue-600 to-teal-500 shadow-sm shadow-blue-500/20">
-            <Icon name="clinical_notes" size={18} className="text-white" />
-          </div>
-          <h1 className="hidden text-headline-sm font-semibold tracking-tight text-primary sm:block">
-            CATMS
-          </h1>
-        </div>
-
-        <div className="hidden h-6 w-px bg-outline-variant sm:block" />
-
-        <div
-          className="hidden items-center gap-1.5 rounded-full bg-surface-container-low px-3 py-1.5 sm:flex"
-          title="Your assigned branch"
-        >
-          <Icon name="location_on" size={16} className="text-outline" />
-          <span className="text-body-sm font-medium text-on-surface">{currentUser.branchName}</span>
-        </div>
+          className="md:hidden"
+        />
+        <h1 className="truncate text-headline-sm font-semibold text-on-surface">{title}</h1>
       </div>
 
-      {/* Right: status + avatar */}
-      <div className="flex items-center gap-2">
-        <div className="hidden items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1.5 lg:flex">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-teal-500" />
-          </span>
-          <span className="text-[11px] font-medium uppercase tracking-wide text-teal-700">
-            Online
-          </span>
-        </div>
+      {/* Right */}
+      <div className="flex shrink-0 items-center gap-2">
+        <DropdownMenu
+          ariaLabel="Account menu"
+          align="right"
+          menuClassName="min-w-[240px]"
+          trigger={
+            <span
+              className={cn(
+                'flex items-center gap-2 rounded-xl p-1 pr-2 transition-colors',
+                'hover:bg-surface-container-low',
+              )}
+            >
+              <Avatar name={fullName} size="sm" />
+              <span className="hidden text-left leading-tight sm:block">
+                <span className="block max-w-[10rem] truncate text-body-sm font-medium text-on-surface">
+                  {fullName}
+                </span>
+                <span className="block text-label-sm uppercase tracking-wider text-on-surface-variant">
+                  {currentUser.role}
+                </span>
+              </span>
+              <Icon name="expand_more" size={18} className="hidden text-on-surface-variant sm:block" />
+            </span>
+          }
+          items={[
+            {
+              id: 'signout',
+              label: 'Sign out',
+              icon: 'logout',
+              danger: true,
+              onSelect: handleSignOut,
+            },
+          ]}
+        />
 
-        <button
-          type="button"
-          className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 transition-colors hover:bg-surface-container-low sm:pr-3"
-          aria-label="Account menu"
-        >
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-container text-label-md font-bold text-on-primary-container">
-            {getInitials(fullName)}
-          </div>
-          <div className="hidden text-left leading-tight sm:block">
-            <p className="max-w-[10rem] truncate text-body-sm font-medium text-on-surface">
-              {fullName}
-            </p>
-            <p className="text-[10px] uppercase tracking-wider text-outline">
-              {currentUser.role}
-            </p>
-          </div>
-          <Icon name="expand_more" size={16} className="hidden text-outline sm:block" />
-        </button>
+        {/* Hidden full details menu — DropdownMenu above shows actions; keep the details out of the trigger */}
+        <span className="sr-only" aria-hidden="true">
+          <Badge tone="primary">{currentUser.role}</Badge>
+        </span>
       </div>
+
+      {/* Avoid unused-var warning when isMenuOpen never changes — kept for future extension */}
+      <span className="hidden">{isMenuOpen ? '' : ''}</span>
     </header>
   );
 }

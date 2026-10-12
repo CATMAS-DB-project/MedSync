@@ -1,350 +1,439 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Icon } from '../../../components/ui/Icon';
+import { PageHeader } from '../../../components/ui/PageHeader';
 import { Button } from '../../../components/ui/Button';
-import { Input } from '../../../components/ui/Input';
 import { Badge } from '../../../components/ui/Badge';
-import { TextArea } from '../../../components/ui/TextArea';
+import { Avatar } from '../../../components/ui/Avatar';
+import { Card } from '../../../components/ui/Card';
+import { Icon } from '../../../components/ui/Icon';
+import { Skeleton } from '../../../components/ui/Skeleton';
+import { EmptyState } from '../../../components/common/EmptyState';
+import { ErrorBanner } from '../../../components/common/ErrorBanner';
+import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
+import { useToast } from '../../../components/common/ToastProvider';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
 import { ApiError } from '../../../services/api/ApiError';
 import { completeAppointment, fetchAppointmentById } from '../../../services/api/appointments';
-import {
-  fetchAppointmentTreatments,
-  logAppointmentTreatment,
-  saveConsultationNotes,
-} from '../../../services/api/appointmentTreatments';
+import { fetchAppointmentTreatments } from '../../../services/api/appointmentTreatments';
 import { fetchPatientById } from '../../../services/api/patients';
-import { fetchTreatments } from '../../../services/api/treatments';
-import {
-  calculateAge,
-  formatCurrency,
-  formatDate,
-  formatTime,
-  getInitials,
-} from '../../../utils/formatters';
+import { calculateAge, formatDate, formatFullName, formatTime } from '../../../utils/formatters';
 import { ROUTES } from '../../../constants/routes';
 import { APPOINTMENT_STATUS_TONE } from '../../appointments/statusStyles';
-import { AmendTreatmentDrawer } from '../components/AmendTreatmentDrawer';
+import { PatientDetailDrawer } from '../../patients/components/PatientDetailDrawer';
+import { ConsultationNotesCard } from '../components/ConsultationNotesCard';
+import { ConsultationTreatmentsCard } from '../components/ConsultationTreatmentsCard';
+import { AddTreatmentModal } from '../components/AddTreatmentModal';
+import { AmendTreatmentModal } from '../components/AmendTreatmentModal';
 import type { AppointmentTreatment } from '../../../types';
 
-function messageOf(err: unknown, fallback: string): string {
-  return err instanceof ApiError ? err.message : fallback;
-}
-
 export function ConsultationPage() {
-  const navigate = useNavigate();
   const { appointmentId: idParam } = useParams();
   const appointmentId = Number(idParam);
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
+  const toast = useToast();
 
-  // Backend: only Doctors can write notes/treatments/complete, and only
-  // Doctors and Receptionists may read the treatment list. Admin gets a read-only view.
   const isDoctor = currentUser?.role === 'Doctor';
+  const isAdmin = currentUser?.role === 'Admin';
+  const isAllowedRole = isDoctor || isAdmin;
 
-  const appointment = useAsync(() => fetchAppointmentById(appointmentId), [appointmentId]);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isCompleteOpen, setIsCompleteOpen] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isPreparingToAdd, setIsPreparingToAdd] = useState(false);
+  const [toAmend, setToAmend] = useState<AppointmentTreatment | null>(null);
+  const [patientDrawerOpen, setPatientDrawerOpen] = useState(false);
+
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const appointment = useAsync(
+    () =>
+      Number.isNaN(appointmentId) || appointmentId <= 0
+        ? Promise.reject(new Error('Invalid appointment id'))
+        : fetchAppointmentById(appointmentId),
+    [appointmentId],
+  );
   const appt = appointment.data;
+
+  const isOwnAppointment =
+    !isDoctor || (appt && currentUser ? appt.doctorStaffId === currentUser.staffId : true);
+
   const patient = useAsync(
     () => (appt ? fetchPatientById(appt.patientId) : Promise.resolve(null)),
     [appt?.patientId],
   );
-  const catalogue = useAsync(() => fetchTreatments(undefined, 1, 100), []);
+
   const treatments = useAsync(
-    () => (isDoctor ? fetchAppointmentTreatments(appointmentId) : Promise.resolve([] as AppointmentTreatment[])),
-    [appointmentId, isDoctor],
-  );
-
-  const [notes, setNotes] = useState('');
-  const [notesSavedAt, setNotesSavedAt] = useState<string | null>(null);
-  const [catalogueQuery, setCatalogueQuery] = useState('');
-  const [busyCode, setBusyCode] = useState<string | null>(null);
-  const [isSavingNotes, setSavingNotes] = useState(false);
-  const [isCompleting, setCompleting] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [toAmend, setToAmend] = useState<AppointmentTreatment | null>(null);
-
-  useEffect(() => {
-    if (appt) setNotes(appt.consultationNotes ?? '');
-  }, [appt?.appointmentId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const catalogueItems = useMemo(
     () =>
-      (catalogue.data?.items ?? []).filter((item) =>
-        `${item.treatmentName} ${item.serviceCode}`.toLowerCase().includes(catalogueQuery.toLowerCase()),
-      ),
-    [catalogue.data, catalogueQuery],
+      isDoctor && appt
+        ? fetchAppointmentTreatments(appointmentId)
+        : Promise.resolve([] as AppointmentTreatment[]),
+    [appointmentId, isDoctor, appt?.appointmentId],
   );
 
-  const records = treatments.data ?? [];
-  // A record that has been corrected by an amendment is superseded and not counted.
-  const supersededIds = new Set(records.map((r) => r.originalRecordId).filter((id) => id != null));
-  const activeRecords = records.filter((r) => !supersededIds.has(r.appointmentTreatmentId));
-  const treatmentsTotal = activeRecords.reduce((sum, r) => sum + Number(r.priceAtTime), 0);
+  const flushNotesRef = useRef<() => Promise<void>>(async () => undefined);
+  const registerFlush = useCallback((flush: () => Promise<void>) => {
+    flushNotesRef.current = flush;
+  }, []);
 
-  const status = appt?.status;
-  const canEditNotes = isDoctor && status !== 'Cancelled';
-  const canComplete = isDoctor && status === 'Scheduled';
-  const canLogTreatments = isDoctor && status === 'Completed';
+  const backTo = isDoctor ? ROUTES.DOCTOR_HOME : ROUTES.APPOINTMENTS;
 
-  async function handleSaveNotes() {
-    setSavingNotes(true);
-    setActionError(null);
-    try {
-      await saveConsultationNotes(appointmentId, notes);
-      setNotesSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    } catch (err) {
-      setActionError(messageOf(err, 'Could not save notes.'));
-    } finally {
-      setSavingNotes(false);
+  // ---- Complete visit (explicit path) ----
+  const handleComplete = useCallback(async () => {
+    if (
+      !isDoctor ||
+      !appt ||
+      (appt.status !== 'Scheduled' && appt.status !== 'Re-Scheduled')
+    ) {
+      return;
     }
-  }
-
-  async function handleComplete() {
-    const confirmed = window.confirm(
-      'Complete this visit? An invoice will be created automatically. You can still log treatments afterwards.',
-    );
-    if (!confirmed) return;
-    setCompleting(true);
+    setIsCompleting(true);
     setActionError(null);
     try {
-      // Save any unsaved notes first so nothing is lost.
-      await saveConsultationNotes(appointmentId, notes);
+      await flushNotesRef.current();
       await completeAppointment(appointmentId);
+      if (!isMountedRef.current) return;
+      setIsCompleteOpen(false);
+      toast.success('Visit completed');
       appointment.reload();
       treatments.reload();
     } catch (err) {
-      setActionError(messageOf(err, 'Could not complete the visit.'));
+      if (!isMountedRef.current) return;
+      setActionError(err instanceof ApiError ? err.message : 'Could not complete the visit.');
+      setIsCompleteOpen(false);
     } finally {
-      setCompleting(false);
+      if (isMountedRef.current) setIsCompleting(false);
     }
-  }
+  }, [isDoctor, appt, appointmentId, appointment, treatments, toast]);
 
-  async function handleLogTreatment(serviceCode: string) {
-    setBusyCode(serviceCode);
+  // ---- Add treatment (chained: flush → complete if needed → open picker) ----
+  const handleAddTreatmentClick = useCallback(async () => {
+    if (!isDoctor || !appt || !isOwnAppointment) return;
+    if (appt.status === 'Cancelled') return;
+    if (isPreparingToAdd) return;
+
+    setIsPreparingToAdd(true);
     setActionError(null);
-    try {
-      await logAppointmentTreatment(appointmentId, { service_code: serviceCode });
-      treatments.reload();
-    } catch (err) {
-      setActionError(messageOf(err, 'Could not log the treatment.'));
-    } finally {
-      setBusyCode(null);
-    }
-  }
 
+    try {
+      // 1. Flush any pending notes so the completion step saves them too.
+      await flushNotesRef.current();
+      if (!isMountedRef.current) return;
+
+      // 2. Complete the visit if it's still Scheduled / Re-Scheduled. The backend only accepts
+      //    treatment logging on Completed appointments.
+      if (appt.status === 'Scheduled' || appt.status === 'Re-Scheduled') {
+        await completeAppointment(appointmentId);
+        if (!isMountedRef.current) return;
+        // Reload so the header badge and the invoice state refresh behind the modal.
+        appointment.reload();
+        treatments.reload();
+      }
+
+      // 3. Open the treatment picker.
+      setIsAddOpen(true);
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      setActionError(
+        err instanceof ApiError
+          ? err.message
+          : 'Could not prepare the visit for treatment logging.',
+      );
+    } finally {
+      if (isMountedRef.current) setIsPreparingToAdd(false);
+    }
+  }, [
+    isDoctor,
+    appt,
+    isOwnAppointment,
+    isPreparingToAdd,
+    appointmentId,
+    appointment,
+    treatments,
+  ]);
+
+  const status = appt?.status;
+  const isActiveVisit = status === 'Scheduled' || status === 'Re-Scheduled';
+  const canEditNotes = isDoctor && isOwnAppointment && isActiveVisit;
+  // Doctors can act on treatments from the moment they land on the page, as long
+  // as the appointment is not Cancelled. The chained action handles the
+  // Scheduled/Re-Scheduled → Completed transition internally.
+  const canManageTreatments =
+    isDoctor &&
+    isOwnAppointment &&
+    status !== 'Cancelled';
+  const canAmendTreatments = canManageTreatments && status === 'Completed';
+  const canAddTreatments = canManageTreatments;
+
+  const statusBadge = appt ? (
+    <Badge tone={APPOINTMENT_STATUS_TONE[appt.status]} dot pill>
+      {appt.status}
+    </Badge>
+  ) : undefined;
+
+  const showStickyBar =
+    isDoctor && isOwnAppointment && (isActiveVisit || status === 'Completed');
+
+  // ---- Loading / errors / guards ----
   if (appointment.isLoading && !appt) {
-    return <p className="text-body-md text-on-surface-variant">Loading consultation…</p>;
-  }
-  if (appointment.error || !appt) {
     return (
-      <div className="max-w-xl mx-auto flex flex-col gap-3">
-        <p className="text-body-md text-error">{appointment.error ?? 'Appointment not found.'}</p>
-        <div>
-          <Button variant="secondary" onClick={() => navigate(ROUTES.APPOINTMENTS)}>
-            Back to Appointments
-          </Button>
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4">
+        <Skeleton height={32} width={200} rounded="lg" />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="flex flex-col gap-6 lg:col-span-2">
+            <Skeleton height={320} rounded="xl" />
+            <Skeleton height={240} rounded="xl" />
+          </div>
+          <div className="flex flex-col gap-6 lg:col-span-1">
+            <Skeleton height={140} rounded="xl" />
+            <Skeleton height={180} rounded="xl" />
+          </div>
         </div>
       </div>
     );
   }
 
-  const age = calculateAge(patient.data?.dateOfBirth);
+  if (!isAllowedRole || appointment.error || !appt || !isOwnAppointment) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] w-full max-w-[1400px] items-center justify-center">
+        <EmptyState
+          icon="search_off"
+          title="Appointment not found"
+          action={
+            <Button variant="secondary" onClick={() => navigate(backTo)}>
+              Back
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  const patientFullName = patient.data
+    ? formatFullName(patient.data.firstName, patient.data.lastName)
+    : appt.patientName ?? 'Patient';
+  const age = patient.data ? calculateAge(patient.data.dateOfBirth) : null;
+  const gender = patient.data?.gender;
+  const nic = patient.data?.nicPassportNo;
 
   return (
-    <div className="max-w-7xl mx-auto h-full flex flex-col gap-6">
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-elevated">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center text-headline-sm font-bold border border-outline-variant shrink-0">
-            {getInitials(appt.patientName ?? '')}
-          </div>
-          <div>
-            <h1 className="text-display-sm text-on-surface">{appt.patientName}</h1>
-            <div className="flex items-center gap-3 mt-1 flex-wrap">
-              {age !== null && <span className="text-body-md text-on-surface-variant">Age: {age}</span>}
-              <span className="text-body-md text-on-surface-variant">Patient #{appt.patientId}</span>
-              <Badge tone={APPOINTMENT_STATUS_TONE[appt.status]}>{appt.status}</Badge>
-              {appt.isWalkIn && <Badge tone="secondary">Walk-in</Badge>}
-            </div>
-          </div>
-        </div>
-        <div className="bg-surface-container-low p-3 rounded border border-outline-variant max-w-sm w-full md:w-auto">
-          <div className="text-label-md text-on-surface-variant mb-1 uppercase tracking-wider">Appointment</div>
-          <div className="text-body-md text-on-surface font-medium">
-            {formatDate(appt.appointmentDate)} · {formatTime(appt.appointmentTime)}
-          </div>
-          <div className="text-body-sm text-on-surface-variant">
-            Dr. {appt.doctorName} · {appt.branchName}
-          </div>
-        </div>
-      </div>
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 pb-24 lg:pb-0">
+      <PageHeader title="Consultation" backTo={backTo} actions={statusBadge} />
 
-      {!isDoctor && (
-        <div className="rounded border border-tertiary/40 bg-tertiary/10 p-3 text-body-sm text-on-surface">
-          Read-only view. Only the treating doctor can edit notes, log treatments or complete a visit.
+      {status === 'Cancelled' && (
+        <div className="flex items-start gap-2 rounded-2xl bg-error-container/60 px-4 py-3 text-body-sm text-on-error-container">
+          <Icon name="event_busy" size={18} className="mt-0.5 shrink-0" />
+          <span>This appointment was cancelled</span>
         </div>
       )}
+
+      {status === 'Re-Scheduled' && (
+        <div className="flex items-start gap-2 rounded-2xl bg-secondary-container/60 px-4 py-3 text-body-sm text-on-secondary-container">
+          <Icon name="event_repeat" size={18} className="mt-0.5 shrink-0" />
+          <span>
+            This appointment was rescheduled
+            {appt.cancelRescheduleReason ? ` (${appt.cancelRescheduleReason})` : ''}
+          </span>
+        </div>
+      )}
+
       {actionError && (
-        <div className="rounded border border-error/40 bg-error/10 p-3 text-body-sm text-error">{actionError}</div>
+        <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />
       )}
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
-        <div className="lg:col-span-2 flex flex-col gap-4">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col overflow-hidden">
-            <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
-              <h2 className="text-headline-sm text-on-surface flex items-center gap-2">
-                <Icon name="edit_document" className="text-primary" />
-                Clinical Notes
-              </h2>
-              {canEditNotes && (
-                <div className="flex items-center gap-3">
-                  {notesSavedAt && (
-                    <span className="text-label-md text-on-surface-variant">Saved {notesSavedAt}</span>
-                  )}
-                  <Button variant="secondary" size="sm" onClick={handleSaveNotes} disabled={isSavingNotes}>
-                    {isSavingNotes ? 'Saving…' : 'Save Notes'}
-                  </Button>
-                </div>
-              )}
-            </div>
-            <TextArea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              readOnly={!canEditNotes}
-              placeholder="Enter objective findings, assessment, and plan here..."
-              className="w-full min-h-[240px] border-none rounded-none focus:ring-0"
-              rows={10}
-            />
-          </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Left (2/3) — notes + treatments */}
+        <div className="order-2 flex flex-col gap-6 lg:order-1 lg:col-span-2">
+          <ConsultationNotesCard
+            key={appt.appointmentId}
+            appointmentId={appt.appointmentId}
+            initialNotes={appt.consultationNotes ?? ''}
+            canEdit={canEditNotes}
+            registerFlush={registerFlush}
+          />
 
           {isDoctor && (
-            <div className="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
-              <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
-                <h2 className="text-headline-sm text-on-surface">Logged Treatments</h2>
-                <span className="text-body-md font-semibold text-on-surface">{formatCurrency(treatmentsTotal)}</span>
-              </div>
-              {treatments.error && <p className="p-4 text-body-sm text-error">{treatments.error}</p>}
-              {records.length === 0 && !treatments.error && (
-                <p className="p-4 text-body-sm text-on-surface-variant">
-                  {status === 'Completed' ? 'No treatments logged yet.' : 'Treatments can be logged once the visit is completed.'}
-                </p>
-              )}
-              <ul className="divide-y divide-outline-variant">
-                {records.map((record) => {
-                  const superseded = supersededIds.has(record.appointmentTreatmentId);
-                  return (
-                    <li key={record.appointmentTreatmentId} className="px-4 py-2 flex items-center justify-between gap-3">
-                      <div className={superseded ? 'line-through text-on-surface-variant' : ''}>
-                        <div className="text-body-sm text-on-surface">{record.treatmentName ?? record.serviceCode}</div>
-                        <div className="text-label-md text-on-surface-variant">
-                          {record.serviceCode}
-                          {record.isAmended && record.amendmentReason ? ` · Amended: ${record.amendmentReason}` : ''}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-body-sm">{formatCurrency(Number(record.priceAtTime))}</span>
-                        {canLogTreatments && !superseded && (
-                          <button
-                            type="button"
-                            onClick={() => setToAmend(record)}
-                            className="text-primary text-label-md hover:underline"
-                          >
-                            Amend
-                          </button>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+            <ConsultationTreatmentsCard
+              status={appt.status}
+              records={treatments.data ?? []}
+              loading={treatments.isLoading}
+              error={treatments.error}
+              onRetry={treatments.reload}
+              canAmend={canAmendTreatments}
+              canAdd={canAddTreatments}
+              isPreparingToAdd={isPreparingToAdd}
+              onAmend={setToAmend}
+              onAdd={handleAddTreatmentClick}
+            />
           )}
         </div>
 
-        <div className="flex flex-col bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden h-full">
-          <div className="px-4 py-3 border-b border-outline-variant bg-surface-container-low">
-            <h2 className="text-headline-sm text-on-surface flex items-center gap-2">
-              <Icon name="medication" className="text-secondary" />
-              Treatment Catalogue
-            </h2>
-            <div className="mt-3">
-              <Input
-                icon="search"
-                placeholder="Search treatments..."
-                value={catalogueQuery}
-                onChange={(event) => setCatalogueQuery(event.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-2">
-            {catalogue.error && <p className="text-body-sm text-error p-2">{catalogue.error}</p>}
-            {catalogueItems.map((item) => (
-              <div
-                key={item.serviceCode}
-                className="w-full flex items-center justify-between gap-2 p-2 mb-1 rounded border border-transparent hover:border-outline-variant hover:bg-surface-container-low"
-              >
-                <div>
-                  <div className="text-body-sm text-on-surface">{item.treatmentName}</div>
-                  <div className="text-label-md text-on-surface-variant">
-                    {item.serviceCode} · {item.category} · {formatCurrency(item.unitPrice)}
-                  </div>
+        {/* Right (1/3) — patient + appointment */}
+        <aside className="order-1 flex flex-col gap-6 lg:order-2 lg:col-span-1 lg:sticky lg:top-4 lg:self-start">
+          <Card padding="lg">
+            <div className="flex items-center gap-3">
+              <Avatar name={patientFullName} size="lg" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-headline-sm text-on-surface">
+                  {patientFullName}
                 </div>
-                {canLogTreatments && (
+                {patient.isLoading && patient.data === undefined ? (
+                  <Skeleton height={12} width="60%" rounded="sm" />
+                ) : (
+                  <>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {age !== null && (
+                        <Badge tone="neutral" pill>
+                          {age} yrs
+                        </Badge>
+                      )}
+                      {gender && (
+                        <Badge tone="info" pill>
+                          {gender}
+                        </Badge>
+                      )}
+                    </div>
+                    {nic && (
+                      <div className="mt-1 truncate text-label-md text-on-surface-variant">
+                        {nic}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {patient.data && (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="person"
+                onClick={() => setPatientDrawerOpen(true)}
+                className="mt-3 w-full"
+              >
+                View full record
+              </Button>
+            )}
+          </Card>
+
+          <Card padding="lg">
+            <h2 className="text-headline-sm text-on-surface">Appointment</h2>
+            <dl className="mt-3 flex flex-col gap-1.5">
+              <KeyValue label="Date" value={formatDate(appt.appointmentDate)} />
+              <KeyValue label="Time" value={formatTime(appt.appointmentTime)} />
+              <KeyValue label="Doctor" value={appt.doctorName ?? '—'} />
+              <KeyValue label="Branch" value={appt.branchName ?? '—'} />
+              <KeyValue
+                label="Status"
+                value={
+                  <Badge tone={APPOINTMENT_STATUS_TONE[appt.status]} dot pill>
+                    {appt.status}
+                  </Badge>
+                }
+              />
+              {appt.isWalkIn && (
+                <KeyValue
+                  label="Type"
+                  value={
+                    <Badge tone="secondary" pill>
+                      Walk-in
+                    </Badge>
+                  }
+                />
+              )}
+            </dl>
+          </Card>
+        </aside>
+      </div>
+
+      {showStickyBar && (
+        <div className="fixed inset-x-0 bottom-16 z-30 px-3 pb-3 lg:sticky lg:bottom-4 lg:left-auto lg:right-auto lg:inset-x-auto">
+          <div className="mx-auto w-full max-w-[1400px]">
+            <Card padding="md" className="shadow-modal">
+              <div className="flex justify-end gap-2">
+                {isActiveVisit && (
+                  <Button
+                    variant="primary"
+                    icon="check_circle"
+                    onClick={() => setIsCompleteOpen(true)}
+                    disabled={isCompleting || isPreparingToAdd}
+                    isLoading={isCompleting}
+                    className="w-full sm:w-auto"
+                  >
+                    Complete visit
+                  </Button>
+                )}
+                {status === 'Completed' && (
                   <Button
                     variant="secondary"
-                    size="sm"
-                    onClick={() => handleLogTreatment(item.serviceCode)}
-                    disabled={busyCode !== null}
+                    icon="arrow_back"
+                    onClick={() => navigate(ROUTES.DOCTOR_HOME)}
+                    className="w-full sm:w-auto"
                   >
-                    {busyCode === item.serviceCode ? '…' : 'Add'}
+                    Back to home
                   </Button>
                 )}
               </div>
-            ))}
-            {!catalogue.isLoading && catalogueItems.length === 0 && (
-              <p className="text-body-sm text-on-surface-variant text-center py-6">No treatments match your search.</p>
-            )}
-          </div>
-
-          <div className="border-t border-outline-variant bg-surface-container-low p-4">
-            {status === 'Scheduled' && isDoctor && (
-              <p className="text-body-sm text-on-surface-variant mb-3">
-                Complete the visit first. Treatments are logged afterwards and added to the invoice.
-              </p>
-            )}
-            {status === 'Cancelled' && (
-              <p className="text-body-sm text-on-surface-variant mb-3">
-                This appointment was cancelled{appt.cancelRescheduleReason ? `: ${appt.cancelRescheduleReason}` : '.'}
-              </p>
-            )}
-            <div className="flex flex-col gap-2">
-              {canComplete && (
-                <Button
-                  variant="primary"
-                  icon="check_circle"
-                  className="w-full"
-                  onClick={handleComplete}
-                  disabled={isCompleting}
-                >
-                  {isCompleting ? 'Completing…' : 'Complete Visit'}
-                </Button>
-              )}
-              {status === 'Completed' && (
-                <Button variant="secondary" className="w-full" onClick={() => navigate(ROUTES.APPOINTMENTS)}>
-                  Done — Back to Appointments
-                </Button>
-              )}
-            </div>
+            </Card>
           </div>
         </div>
-      </div>
+      )}
 
-      <AmendTreatmentDrawer
-        record={toAmend}
-        catalogue={catalogue.data?.items ?? []}
-        onClose={() => setToAmend(null)}
-        onAmended={treatments.reload}
+      <ConfirmDialog
+        isOpen={isCompleteOpen}
+        title="Complete visit?"
+        message="An invoice will be created for billing. You can still add treatments afterwards."
+        confirmLabel="Complete visit"
+        cancelLabel="Cancel"
+        tone="default"
+        isPending={isCompleting}
+        onConfirm={handleComplete}
+        onCancel={() => {
+          if (isCompleting) return;
+          setIsCompleteOpen(false);
+        }}
       />
+
+      <AddTreatmentModal
+        isOpen={isAddOpen}
+        appointmentId={appt.appointmentId}
+        onClose={() => setIsAddOpen(false)}
+        onAdded={() => {
+          treatments.reload();
+          toast.success('Treatment logged');
+        }}
+      />
+
+      <AmendTreatmentModal
+        record={toAmend}
+        onClose={() => setToAmend(null)}
+        onAmended={() => {
+          treatments.reload();
+          toast.success('Treatment amended');
+        }}
+      />
+
+      <PatientDetailDrawer
+        patientId={patientDrawerOpen ? appt.patientId : null}
+        onClose={() => setPatientDrawerOpen(false)}
+      />
+    </div>
+  );
+}
+
+function KeyValue({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 border-b border-outline-variant/60 py-1.5 last:border-b-0">
+      <dt className="shrink-0 text-label-md text-on-surface-variant">{label}</dt>
+      <dd className="min-w-0 truncate text-right text-body-sm text-on-surface">{value}</dd>
     </div>
   );
 }

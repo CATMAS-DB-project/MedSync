@@ -1,5 +1,5 @@
 import { ROUTES } from './routes';
-import { ROUTE_ROLES } from './roleAccess';
+import { ROUTE_ROLES, ROLE_HOME } from './roleAccess';
 import type { Role } from '../types';
 
 export interface NavItem {
@@ -7,29 +7,70 @@ export interface NavItem {
   path: string;
   icon: string;
   comingSoon?: boolean;
+  group?: string | null;
 }
 
-export const SIDEBAR_NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', path: ROUTES.DASHBOARD, icon: 'dashboard' },
-  { label: 'Appointments', path: ROUTES.APPOINTMENTS, icon: 'calendar_today' },
-  { label: 'Patients', path: ROUTES.PATIENTS, icon: 'group' },
-  { label: 'Staff Directory', path: ROUTES.STAFF, icon: 'person' },
-  { label: 'Billing Queue', path: ROUTES.BILLING, icon: 'receipt_long' },
-  { label: 'Inventory', path: ROUTES.INVENTORY, icon: 'inventory_2', comingSoon: true },
-  { label: 'Reports', path: ROUTES.REPORTS, icon: 'analytics' },
+export interface NavGroup {
+  label: string | null;
+  items: NavItem[];
+}
+
+/**
+ * Flat list of everything that can appear in the app navigation.
+ * `group` drives the sidebar section headings.
+ */
+const SIDEBAR_NAV_ITEMS: NavItem[] = [
+  { label: 'Home', path: ROUTES.DASHBOARD, icon: 'home', group: null },
+  { label: 'Appointments', path: ROUTES.APPOINTMENTS, icon: 'calendar_today', group: 'Clinic' },
+  { label: 'Walk-in', path: ROUTES.WALK_IN, icon: 'directions_walk', group: 'Clinic' },
+  { label: 'Patients', path: ROUTES.PATIENTS, icon: 'group', group: 'Clinic' },
+  { label: 'Billing', path: ROUTES.BILLING, icon: 'receipt_long', group: 'Finance' },
+  { label: 'Reports', path: ROUTES.REPORTS, icon: 'analytics', group: 'Insights' },
+  { label: 'Staff', path: ROUTES.STAFF, icon: 'person', group: 'Administration' },
+  { label: 'Treatments', path: ROUTES.TREATMENTS, icon: 'medical_services', group: 'Administration' },
 ];
 
-export const BOTTOM_NAV_ITEMS: NavItem[] = [
-  { label: 'Home', path: ROUTES.DASHBOARD, icon: 'home' },
-  { label: 'Schedule', path: ROUTES.APPOINTMENTS, icon: 'event' },
-  { label: 'Patients', path: ROUTES.PATIENTS, icon: 'group' },
-  { label: 'More', path: ROUTES.STAFF, icon: 'menu' },
-];
+/**
+ * Filters by ROUTE_ROLES, always allows the Home item, and rewrites the
+ * Home label/path per role using ROLE_HOME.
+ */
+function filterNavItemsByRole(items: NavItem[], role: Role): NavItem[] {
+  return items
+    .filter((item) => {
+      if (item.comingSoon) return true;
+      if (item.label === 'Home') return true;
+      const allowedRoles = ROUTE_ROLES[item.path];
+      return !allowedRoles || allowedRoles.includes(role);
+    })
+    .map((item) => {
+      if (item.label === 'Home') {
+        const label = role === 'Admin' || role === 'Branch Manager' ? 'Dashboard' : 'Home';
+        return { ...item, label, path: ROLE_HOME[role] };
+      }
+      return item;
+    });
+}
 
-export function filterNavItemsByRole(items: NavItem[], role: Role): NavItem[] {
-  return items.filter((item) => {
-    if (item.comingSoon) return true;
-    const allowedRoles = ROUTE_ROLES[item.path];
-    return !allowedRoles || allowedRoles.includes(role);
-  });
+/**
+ * Returns the sidebar structure for a given role, grouped by section.
+ * Empty groups are removed so we never render a header with no items.
+ */
+export function getGroupedNavForRole(role: Role): NavGroup[] {
+  const filtered = filterNavItemsByRole(SIDEBAR_NAV_ITEMS, role);
+
+  const groups: NavGroup[] = [];
+  const lookup = new Map<string | null, NavGroup>();
+
+  for (const item of filtered) {
+    const key = item.group ?? null;
+    let group = lookup.get(key);
+    if (!group) {
+      group = { label: key, items: [] };
+      lookup.set(key, group);
+      groups.push(group);
+    }
+    group.items.push(item);
+  }
+
+  return groups.filter((g) => g.items.length > 0);
 }

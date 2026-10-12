@@ -28,7 +28,7 @@ CREATE TABLE appointment (
 
 CREATE UNIQUE INDEX uq_appointment_doctor_active_slot
     ON appointment (doctor_staff_id, appointment_date, appointment_time)
-    WHERE status != 'Cancelled';
+    WHERE status NOT IN ('Cancelled', 'Re-Scheduled');
 
 CREATE TABLE appointment_treatment (
     appointment_treatment_id    INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -78,13 +78,13 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF NEW.status != 'Cancelled' THEN
+    IF NEW.status NOT IN ('Cancelled', 'Re-Scheduled') THEN
         IF EXISTS (
             SELECT 1 FROM appointment
             WHERE doctor_staff_id = NEW.doctor_staff_id
               AND appointment_date = NEW.appointment_date
               AND appointment_time = NEW.appointment_time
-              AND status != 'Cancelled'
+              AND status NOT IN ('Cancelled', 'Re-Scheduled')
         ) THEN
             RAISE EXCEPTION
                 'Doctor % already has an appointment at % on %',
@@ -127,13 +127,13 @@ BEGIN
             USING ERRCODE = 'check_violation';
     END IF;
 
-    IF NEW.status != 'Cancelled' THEN
+    IF NEW.status NOT IN ('Cancelled', 'Re-Scheduled') THEN
         IF EXISTS (
             SELECT 1 FROM appointment
             WHERE doctor_staff_id = NEW.doctor_staff_id
               AND appointment_date = NEW.appointment_date
               AND appointment_time = NEW.appointment_time
-              AND status != 'Cancelled'
+              AND status NOT IN ('Cancelled', 'Re-Scheduled')
               AND appointment_id != NEW.appointment_id
         ) THEN
             RAISE EXCEPTION

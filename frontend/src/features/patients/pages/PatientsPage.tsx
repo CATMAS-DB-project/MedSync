@@ -1,186 +1,294 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { PageHeader } from '../../../components/ui/PageHeader';
 import { Button } from '../../../components/ui/Button';
-import { Input } from '../../../components/ui/Input';
-import { Select } from '../../../components/ui/Select';
+import { SearchInput } from '../../../components/ui/SearchInput';
+import { IconButton } from '../../../components/ui/IconButton';
+import { DropdownMenu } from '../../../components/ui/DropdownMenu';
+import { Avatar } from '../../../components/ui/Avatar';
 import { Badge } from '../../../components/ui/Badge';
+import { DataTable } from '../../../components/ui/DataTable';
+import type { DataTableColumn } from '../../../components/ui/DataTable';
 import { Pagination } from '../../../components/common/Pagination';
+import { EmptyState } from '../../../components/common/EmptyState';
+import { useToast } from '../../../components/common/ToastProvider';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
+import { useBranchNames } from '../../../hooks/useBranchNames';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
-import { fetchBranches } from '../../../services/api/branches';
 import { fetchPatients } from '../../../services/api/patients';
-import { calculateAge, formatFullName } from '../../../utils/formatters';
+import {
+  calculateAge,
+  formatDate,
+  formatFullName,
+} from '../../../utils/formatters';
 import { PatientDetailDrawer } from '../components/PatientDetailDrawer';
-import { PatientRegistrationDrawer } from '../components/PatientRegistrationDrawer';
+import { PatientFormModal } from '../components/PatientFormModal';
+import type { Patient } from '../../../types';
 
 const PAGE_SIZE = 10;
 
 export function PatientsPage() {
   const { currentUser } = useAuth();
-  const canRegister = currentUser?.role === 'Receptionist';
+  const isReceptionist = currentUser?.role === 'Receptionist';
+  const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { getBranchName } = useBranchNames();
 
   const [query, setQuery] = useState('');
-  const [branchId, setBranchId] = useState('all');
+  const debouncedQuery = useDebouncedValue(query, 300);
   const [page, setPage] = useState(1);
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
-  const [isRegistrationOpen, setRegistrationOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingPatientId, setEditingPatientId] = useState<number | null>(null);
 
-  const debouncedQuery = useDebouncedValue(query, 300);
-
-  const branches = useAsync(() => fetchBranches(1, 100), []);
   const patients = useAsync(
     () =>
       fetchPatients({
-        search: debouncedQuery,
-        branchId: branchId === 'all' ? undefined : Number(branchId),
+        search: debouncedQuery || undefined,
         page,
         pageSize: PAGE_SIZE,
       }),
-    [debouncedQuery, branchId, page],
+    [debouncedQuery, page],
   );
-
-  const branchOptions = [
-    { label: 'All Branches', value: 'all' },
-    ...(branches.data?.items ?? []).map((b) => ({
-      label: b.branchName,
-      value: String(b.branchId),
-    })),
-  ];
 
   const rows = patients.data?.items ?? [];
   const total = patients.data?.total ?? 0;
+  const isFirstLoad = patients.isLoading && patients.data === undefined;
 
-  const closeDetail = useCallback(() => setSelectedPatientId(null), []);
-  const closeRegistration = useCallback(() => setRegistrationOpen(false), []);
+  // ?new=1 → open registration modal for Receptionists, then strip the param.
+  const newParam = searchParams.get('new');
+  useEffect(() => {
+    if (newParam !== '1') return;
+    if (!isReceptionist) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('new');
+      setSearchParams(next, { replace: true });
+      return;
+    }
+    setEditingPatientId(null);
+    setFormOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('new');
+    setSearchParams(next, { replace: true });
+  }, [newParam, isReceptionist, searchParams, setSearchParams]);
+
+  const openCreate = useCallback(() => {
+    setEditingPatientId(null);
+    setFormOpen(true);
+  }, []);
+
+  const openEdit = useCallback((patientId: number) => {
+    setEditingPatientId(patientId);
+    setFormOpen(true);
+  }, []);
+
+  const handleSaved = useCallback(
+    (patientId: number, mode: 'create' | 'edit') => {
+      setFormOpen(false);
+      setEditingPatientId(null);
+      patients.reload();
+      if (mode === 'create') {
+        setSelectedPatientId(patientId);
+        toast.success('Patient registered');
+      } else {
+        toast.success('Patient updated');
+      }
+    },
+    [patients, toast],
+  );
+
+  const handleViewExisting = useCallback((patientId: number) => {
+    setFormOpen(false);
+    setEditingPatientId(null);
+    setSelectedPatientId(patientId);
+  }, []);
+
+  const columns: DataTableColumn<Patient>[] = [
+    {
+      key: 'patient',
+      header: 'Patient',
+      primary: true,
+      cell: (row) => (
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar name={formatFullName(row.firstName, row.lastName)} size="sm" />
+          <div className="min-w-0">
+            <div className="truncate text-body-md font-semibold text-on-surface">
+              {formatFullName(row.firstName, row.lastName)}
+            </div>
+            <div className="truncate text-label-md text-on-surface-variant">
+              {row.nicPassportNo}
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'ageGender',
+      header: 'Age · Gender',
+      secondary: true,
+      cell: (row) => {
+        const age = calculateAge(row.dateOfBirth);
+        return `${age ?? '—'} · ${row.gender}`;
+      },
+    },
+    {
+      key: 'phone',
+      header: 'Phone',
+      cell: (row) => row.phones?.[0]?.phoneNumber ?? '—',
+    },
+    {
+      key: 'registered',
+      header: 'Registered',
+      hideOnMobile: true,
+      cell: (row) => formatDate(row.createdAt),
+    },
+    {
+      key: 'branch',
+      header: 'Branch',
+      hideOnMobile: true,
+      cell: (row) => {
+        const branchName =
+          row.registeredBranchName ?? getBranchName(row.registeredBranchId);
+        return branchName ? (
+          <Badge tone="primary" pill>
+            {branchName}
+          </Badge>
+        ) : (
+          <span className="text-on-surface-variant">—</span>
+        );
+      },
+    },
+  ];
 
   return (
-    <div className="max-w-7xl mx-auto h-full flex flex-col gap-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-display-sm text-on-surface">Patients</h2>
-          <p className="text-body-sm text-on-surface-variant mt-1">
-            Search, filter, and manage patient records
-          </p>
-        </div>
-        {canRegister && (
-          <Button variant="primary" icon="person_add" onClick={() => setRegistrationOpen(true)}>
-            Register New Patient
-          </Button>
-        )}
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
+      <PageHeader
+        title="Patients"
+        actions={
+          isReceptionist ? (
+            <Button variant="primary" icon="person_add" onClick={openCreate}>
+              Register patient
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <SearchInput
+        value={query}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setPage(1);
+        }}
+        onClear={() => {
+          setQuery('');
+          setPage(1);
+        }}
+        placeholder="Search by name, NIC or phone"
+        aria-label="Search patients"
+      />
+
+      <div
+        className={
+          patients.isLoading && patients.data !== undefined
+            ? 'opacity-60 transition-opacity'
+            : 'transition-opacity'
+        }
+      >
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(row) => String(row.patientId)}
+          onRowClick={(row) => setSelectedPatientId(row.patientId)}
+          loading={isFirstLoad}
+          error={patients.error}
+          onRetry={patients.reload}
+          skeletonRows={PAGE_SIZE}
+          emptyState={
+            query ? (
+              <EmptyState
+                icon="group_off"
+                title="No patients found"
+                action={
+                  <Button variant="secondary" size="sm" onClick={() => setQuery('')}>
+                    Clear search
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState icon="group_off" title="No patients found" />
+            )
+          }
+          rowActions={
+            isReceptionist
+              ? (row) => (
+                  <DropdownMenu
+                    ariaLabel="Patient actions"
+                    trigger={
+                      <IconButton icon="more_horiz" size="sm" aria-label="Actions" />
+                    }
+                    items={[
+                      {
+                        id: 'view',
+                        label: 'View details',
+                        icon: 'visibility',
+                        onSelect: () => setSelectedPatientId(row.patientId),
+                      },
+                      {
+                        id: 'edit',
+                        label: 'Edit',
+                        icon: 'edit',
+                        onSelect: () => openEdit(row.patientId),
+                      },
+                    ]}
+                  />
+                )
+              : (row) => (
+                  <DropdownMenu
+                    ariaLabel="Patient actions"
+                    trigger={
+                      <IconButton icon="more_horiz" size="sm" aria-label="Actions" />
+                    }
+                    items={[
+                      {
+                        id: 'view',
+                        label: 'View details',
+                        icon: 'visibility',
+                        onSelect: () => setSelectedPatientId(row.patientId),
+                      },
+                    ]}
+                  />
+                )
+          }
+          pagination={
+            total > 0 ? (
+              <Pagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                totalItems={total}
+                onPageChange={setPage}
+              />
+            ) : undefined
+          }
+        />
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
-          <Input
-            icon="search"
-            placeholder="Search by name, NIC, or phone..."
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-        <div className="sm:w-56">
-          <Select
-            options={branchOptions}
-            value={branchId}
-            onChange={(event) => {
-              setBranchId(event.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
-      </div>
+      <PatientDetailDrawer
+        patientId={selectedPatientId}
+        onClose={() => setSelectedPatientId(null)}
+        onChanged={() => patients.reload()}
+      />
 
-      <div className="bg-surface-container-lowest border border-outline-variant rounded-lg flex flex-col flex-1 overflow-hidden">
-        <div className="px-4 py-3 border-b border-outline-variant bg-surface-bright flex justify-between items-center">
-          <h3 className="text-headline-sm text-on-surface">Patients</h3>
-          {patients.isLoading && (
-            <span className="text-body-sm text-on-surface-variant">Loading…</span>
-          )}
-        </div>
-
-        {patients.error && (
-          <div className="px-4 py-3 bg-error/10 text-error text-body-sm flex items-center justify-between">
-            <span>{patients.error}</span>
-            <button type="button" className="underline" onClick={patients.reload}>
-              Retry
-            </button>
-          </div>
-        )}
-
-        <div className="overflow-x-auto flex-1">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-surface-container-low sticky top-0 z-10 border-b border-outline-variant">
-              <tr>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold w-1/4">Name</th>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">NIC / Passport</th>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">Phone</th>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold">Branch</th>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold w-16 text-center">Age</th>
-                <th className="py-2 px-3 text-label-md text-on-surface-variant font-semibold w-24 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant text-table-data text-on-surface bg-surface-container-lowest">
-              {rows.map((patient) => (
-                <tr
-                  key={patient.patientId}
-                  onClick={() => setSelectedPatientId(patient.patientId)}
-                  className="hover:bg-surface-container-high cursor-pointer transition-colors h-8 group"
-                >
-                  <td className="py-1.5 px-3 font-medium">
-                    {formatFullName(patient.firstName, patient.lastName)}
-                  </td>
-                  <td className="py-1.5 px-3 font-mono text-xs">{patient.nicPassportNo}</td>
-                  <td className="py-1.5 px-3">{patient.phones?.[0]?.phoneNumber ?? '—'}</td>
-                  <td className="py-1.5 px-3">
-                    <Badge tone="primary">{patient.registeredBranchName ?? '—'}</Badge>
-                  </td>
-                  <td className="py-1.5 px-3 text-center text-on-surface-variant">
-                    {calculateAge(patient.dateOfBirth) ?? '—'}
-                  </td>
-                  <td className="py-1.5 px-3 text-right">
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setSelectedPatientId(patient.patientId);
-                      }}
-                      className="text-primary hover:text-primary-fixed-variant text-label-md px-2 py-1 border border-transparent hover:border-primary rounded transition-all opacity-0 group-hover:opacity-100"
-                    >
-                      Open
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {!patients.isLoading && !patients.error && rows.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-on-surface-variant">
-                    No patients match your search.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <Pagination page={page} pageSize={PAGE_SIZE} totalItems={total} onPageChange={setPage} />
-      </div>
-
-      <PatientDetailDrawer patientId={selectedPatientId} onClose={closeDetail} />
-      {canRegister && (
-        <PatientRegistrationDrawer
-          isOpen={isRegistrationOpen}
-          onClose={closeRegistration}
-          onRegistered={() => {
-            setPage(1);
-            patients.reload();
+      {isReceptionist && (
+        <PatientFormModal
+          isOpen={formOpen}
+          onClose={() => {
+            setFormOpen(false);
+            setEditingPatientId(null);
           }}
-          onViewExisting={(patientId) => {
-            setRegistrationOpen(false);
-            setSelectedPatientId(patientId);
-          }}
+          patientId={editingPatientId}
+          onSaved={handleSaved}
+          onViewExisting={handleViewExisting}
         />
       )}
     </div>

@@ -2,6 +2,7 @@ from typing import Annotated
 
 from asyncpg.pool import PoolConnectionProxy
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import ValidationError
 
 from app.core.db import get_conn, with_transaction
 from app.core.deps import require_role
@@ -38,19 +39,45 @@ async def list_appointment_treatments(
 )
 async def create_appointment_treatment(
     appointment_id: int,
-    body: TreatmentLogCreate,
+    body: list[object],
     user: Annotated[UserIdentity, Depends(require_role("Doctor"))],
 ) -> dict:
+    created: list[dict[str, object]] = []
+    failed: list[dict[str, object]] = []
+
     async with with_transaction(staff_id=user.staff_id) as conn:
-        data = await service.create_treatment(
-            conn, appointment_id, body, doctor_id=user.staff_id
-        )
-        if data is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Appointment or treatment catalogue item not found",
+        for index, item in enumerate(body):
+            try:
+                treatment = TreatmentLogCreate.model_validate(item)
+            except ValidationError as exc:
+                message = "; ".join(
+                    f"{'.'.join(str(part) for part in error['loc'])}: "
+                    f"{error['msg']}"
+                    for error in exc.errors()
+                )
+                failed.append({"index": index, "error": message})
+                continue
+
+            data = await service.create_treatment(
+                conn, appointment_id, treatment, doctor_id=user.staff_id
             )
-    return {"data": data, "error": None}
+            if data is None:
+                failed.append(
+                    {
+                        "index": index,
+                        "service_code": treatment.service_code,
+                        "error": (
+                            "Appointment or treatment catalogue item not found"
+                        ),
+                    }
+                )
+                continue
+            created.append(data)
+
+    return {
+        "data": {"created": created, "failed": failed},
+        "error": None,
+    }
 
 
 @router.post(

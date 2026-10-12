@@ -2,31 +2,128 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-background text-on-surface antialiased;
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-on-surface antialiased;
+    font-family: '"Plus Jakarta Sans"', Inter, ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  :focus-visible {
+    outline: 2px solid theme('colors.primary');
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
 }
 
+/* ---------- Material Symbols ---------- */
 .material-symbols-outlined {
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
   font-size: 20px;
+  line-height: 1;
   user-select: none;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .icon-fill {
-  font-variation-settings: 'FILL' 1;
+  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ---------- Scrollbars ---------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #C6CFDE transparent;
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #c1c7d2;
-  border-radius: 4px;
+  background: #C6CFDE;
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #727782;
+  background: #94A1BB;
+  background-clip: content-box;
+  border: 3px solid transparent;
+}
+
+/* ---------- Skeleton shimmer ---------- */
+@keyframes medsync-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #EDF1F7 0%,
+    #F6F8FC 40%,
+    #EDF1F7 80%
+  );
+  background-size: 800px 100%;
+  animation: medsync-shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* ---------- Drawer / Modal animations ---------- */
+@keyframes medsync-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes medsync-scale-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)  scale(1); }
+}
+@keyframes medsync-slide-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes medsync-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+.animate-fade-in    { animation: medsync-fade-in 180ms ease-out both; }
+.animate-scale-in   { animation: medsync-scale-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-slide-in-right { animation: medsync-slide-in-right 240ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-slide-up   { animation: medsync-slide-up 220ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* ---------- Print: only the modal content ---------- */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+  .print-area {
+    position: absolute !important;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+  }
+  .no-print {
+    display: none !important;
+  }
 }

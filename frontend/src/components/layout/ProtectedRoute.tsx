@@ -1,23 +1,28 @@
+import type { ReactNode } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { ROUTES } from '../../constants/routes';
-import { Icon } from '../ui/Icon';
+import { PageSkeleton } from '../common/PageSkeleton';
 
-export function ProtectedRoute() {
+export interface ProtectedRouteProps {
+  children?: ReactNode;
+}
+
+export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { isAuthenticated, isBootstrapping } = useAuth();
   const location = useLocation();
 
   if (isBootstrapping) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Icon name="progress_activity" className="animate-spin text-primary" size={32} />
+      <div className="mx-auto w-full max-w-[1400px] px-4 py-8 sm:px-6">
+        <PageSkeleton />
       </div>
     );
   }
 
   if (!isAuthenticated) {
-    return <Navigate to={ROUTES.LOGIN} state={{ from: location.pathname }} replace />;
+    return <Navigate to={ROUTES.LOGIN} replace state={{ from: location.pathname }} />;
   }
 
-  return <Outlet />;
+  return <>{children ?? <Outlet />}</>;
 }

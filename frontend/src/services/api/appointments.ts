@@ -1,5 +1,10 @@
 import { apiGet, apiPatch, apiPost } from './client';
-import type { Appointment, AppointmentStatus, AvailabilitySlot, PagedResult } from '../../types';
+import type {
+  Appointment,
+  AppointmentStatus,
+  AvailabilitySlot,
+  PagedResult,
+} from '../../types';
 
 export interface AppointmentListParams
   extends Record<string, string | number | boolean | undefined> {
@@ -26,6 +31,12 @@ export interface BookAppointmentInput {
   isWalkIn?: boolean;
 }
 
+export interface RescheduleAppointmentInput {
+  appointmentDate: string; // YYYY-MM-DD
+  appointmentTime: string; // HH:MM
+  reason?: string;
+}
+
 export async function fetchAppointments(params?: AppointmentListParams): Promise<PagedResult<Appointment>> {
   return apiGet<PagedResult<Appointment>>('/appointments', params);
 }
@@ -38,17 +49,9 @@ export async function bookAppointment(input: BookAppointmentInput): Promise<Appo
   return apiPost<Appointment>('/appointments', input);
 }
 
-/**
- * NOTE: the backend does not have this route yet (no PATCH /appointments/{id}),
- * so calling it will fail until the backend adds it.
- */
 export async function rescheduleAppointment(
   appointmentId: number,
-  input: {
-    appointmentDate: string;
-    appointmentTime: string;
-    reason?: string;
-  },
+  input: RescheduleAppointmentInput,
 ): Promise<Appointment> {
   return apiPatch<Appointment>(`/appointments/${appointmentId}`, input);
 }
@@ -68,5 +71,6 @@ export async function fetchAppointmentAvailability(
   doctorId: number,
   date: string,
 ): Promise<AvailabilitySlot[]> {
-  return apiGet<AvailabilitySlot[]>('/appointments/availability', { doctor_id: doctorId, date });
+  return apiGet<AvailabilitySlot[]>('/appointments/availability', { doctorId, date });
 }
+

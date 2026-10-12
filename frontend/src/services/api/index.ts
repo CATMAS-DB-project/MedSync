@@ -7,6 +7,7 @@ export * from './auth';
 export * from './branches';
 export * from './client';
 export * from './doctor';
+export * from './doctorOptions';
 export * from './guardians';
 export * from './insurance';
 export * from './insuranceClaims';
