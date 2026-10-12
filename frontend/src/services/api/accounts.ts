@@ -1,4 +1,4 @@
-import { apiPatch, apiPost } from './client';
+import { apiDelete, apiPatch, apiPost } from './client';
 import type { AccountStatus, Role, UserAccount } from '../../types';
 
 interface UserAccountRaw {
@@ -58,6 +58,10 @@ export async function updateUserAccount(
   return toUserAccount(raw);
 }
 
+export async function deleteUserAccount(staffId: number): Promise<void> {
+  await apiDelete<void>(`/staff/${staffId}/account`);
+}
+
 export async function resetStaffPassword(
   staffId: number,
   input: {
@@ -66,4 +70,3 @@ export async function resetStaffPassword(
 ): Promise<void> {
   await apiPost<void>(`/staff/${staffId}/account/reset-password`, input);
 }
-
