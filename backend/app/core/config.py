@@ -46,6 +46,16 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
+    @model_validator(mode="before")
+    @classmethod
+    def set_production_cookie_defaults(cls, values: object) -> object:
+        if not isinstance(values, dict):
+            return values
+        if str(values.get("environment", "")).lower() == "production":
+            values.setdefault("refresh_cookie_secure", True)
+            values.setdefault("refresh_cookie_samesite", "none")
+        return values
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
