@@ -19,10 +19,10 @@ import { addStaffPhone } from '../../../services/api/staffPhones';
 import type { Gender, PhoneType, Role, Staff } from '../../../types';
 import { todayIso } from '../../../utils/dates';
 import { formatDate, formatFullName, getInitials } from '../../../utils/formatters';
-import { PromoteDoctorDrawer } from '../components/PromoteDoctorDrawer';
+import { StaffDetailsDrawer } from '../components/StaffDetailsDrawer';
 import { EMPLOYMENT_STATUS_TONE } from '../statusStyles';
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 100;
 
 const ALL_JOB_TITLE_OPTION = { label: 'All Job Titles', value: 'all' };
 
@@ -37,6 +37,23 @@ const PHONE_TYPE_OPTIONS = [
   { label: 'Home', value: 'Home' },
   { label: 'Work', value: 'Work' },
 ];
+
+const JOB_TITLE_OPTIONS = [
+  'Doctor',
+  'Receptionist',
+  'Branch Manager',
+  'QA Tester',
+  'Admin',
+  'Nurse',
+  'Medical Assistant',
+  'Lab Technician',
+  'Pharmacist',
+  'Medical Billing Specialist',
+].map((title) => ({ label: title, value: title }));
+
+const BRANCH_MANAGER_JOB_TITLE_OPTIONS = JOB_TITLE_OPTIONS.filter(
+  ({ value }) => value !== 'Admin' && value !== 'Branch Manager',
+);
 
 const ROLE_OPTIONS: Array<{ label: string; value: Role }> = [
   { label: 'Receptionist', value: 'Receptionist' },
@@ -58,7 +75,7 @@ interface NewStaffFormState {
   hireDate: string;
   phoneNumber: string;
   phoneType: PhoneType;
-  promoteToDoctor: boolean;
+  isDoctor: boolean;
   licenseNo: string;
   yearsOfExperience: string;
   consultationFee: string;
@@ -102,7 +119,7 @@ function createEmptyStaffForm(defaultBranchId?: number): NewStaffFormState {
     hireDate: todayIso(),
     phoneNumber: '',
     phoneType: 'Mobile',
-    promoteToDoctor: false,
+    isDoctor: false,
     licenseNo: '',
     yearsOfExperience: '0',
     consultationFee: '0',
@@ -127,7 +144,7 @@ export function StaffPage() {
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [doctorsByStaffId, setDoctorsByStaffId] = useState<Record<number, DoctorOption>>({});
-  const [selectedDoctorTarget, setSelectedDoctorTarget] = useState<Staff | null>(null);
+  const [selectedStaffTarget, setSelectedStaffTarget] = useState<Staff | null>(null);
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -156,6 +173,9 @@ export function StaffPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const openAddDrawer = useCallback(() => {
+    setQuery('');
+    setJobTitle('all');
+    setPage(1);
     setForm(
       createEmptyStaffForm(isBranchManager ? currentUser?.branchId : undefined),
     );
@@ -201,7 +221,11 @@ export function StaffPage() {
 
     const exp = Number(form.yearsOfExperience);
     const fee = Number(form.consultationFee);
-    if (form.promoteToDoctor) {
+    const isDoctorRegistration = form.jobTitle === 'Doctor' && form.isDoctor;
+    if (form.isDoctor && form.jobTitle !== 'Doctor') {
+      errors.jobTitle = 'Select the Doctor job title to add doctor credentials';
+    }
+    if (isDoctorRegistration) {
       if (!form.licenseNo.trim()) {
         errors.licenseNo = 'License number is required';
       }
@@ -225,9 +249,9 @@ export function StaffPage() {
       if (form.password.length < 6) {
         errors.password = 'Password must be at least 6 characters';
       }
-      if (form.accountRole === 'Doctor' && !form.promoteToDoctor) {
+      if (form.accountRole === 'Doctor' && !isDoctorRegistration) {
         errors.accountRole =
-          'Enable "Promote to Doctor" above before assigning the Doctor role';
+          'Mark this staff member as a doctor before assigning the Doctor system role';
       }
     }
 
@@ -263,7 +287,7 @@ export function StaffPage() {
         }
       }
 
-      if (form.promoteToDoctor) {
+      if (isDoctorRegistration) {
         try {
           await promoteStaffToDoctor(created.staffId, {
             licenseNo: form.licenseNo.trim(),
@@ -273,8 +297,8 @@ export function StaffPage() {
           });
         } catch (docErr) {
           const msg =
-            docErr instanceof ApiError ? docErr.message : 'Could not promote to doctor';
-          toast.error(`Staff created, but doctor promotion failed: ${msg}`);
+            docErr instanceof ApiError ? docErr.message : 'Could not create doctor profile';
+          toast.error(`Staff created, but doctor profile creation failed: ${msg}`);
         }
       }
 
@@ -292,7 +316,10 @@ export function StaffPage() {
         }
       }
 
-      toast.success(form.promoteToDoctor ? 'Doctor registered' : 'Staff member added');
+      toast.success(isDoctorRegistration ? 'Doctor registered' : 'Staff member added');
+      setQuery('');
+      setJobTitle('all');
+      setPage(1);
       setDrawerOpen(false);
       setReloadCount((c) => c + 1);
     } catch (err) {
@@ -500,11 +527,11 @@ export function StaffPage() {
                       key={member.staffId}
                       tabIndex={0}
                       role="button"
-                      onClick={() => setSelectedDoctorTarget(member)}
+                      onClick={() => setSelectedStaffTarget(member)}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault();
-                          setSelectedDoctorTarget(member);
+                          setSelectedStaffTarget(member);
                         }
                       }}
                       className="group h-16 cursor-pointer odd:bg-surface-container-lowest even:bg-secondary-fixed/10 transition-colors hover:bg-primary-fixed/25 focus-visible:bg-primary-fixed/25 focus-visible:outline-none"
@@ -634,11 +661,27 @@ export function StaffPage() {
 
         <DrawerSection title="Employment Details" icon="work">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
+            <Select
               label="Job Title"
-              placeholder="e.g. Nurse, Physician, Receptionist"
+              placeholder="Select job title"
+              options={isBranchManager ? BRANCH_MANAGER_JOB_TITLE_OPTIONS : JOB_TITLE_OPTIONS}
               value={form.jobTitle}
-              onChange={(event) => setField('jobTitle', event.target.value)}
+              onChange={(event) => {
+                const jobTitle = event.target.value;
+                setForm((prev) => ({
+                  ...prev,
+                  jobTitle,
+                  isDoctor: jobTitle === 'Doctor' ? prev.isDoctor : false,
+                  accountRole:
+                    jobTitle !== 'Doctor' && prev.accountRole === 'Doctor'
+                      ? 'Receptionist'
+                      : prev.accountRole,
+                  licenseNo: jobTitle === 'Doctor' ? prev.licenseNo : '',
+                  yearsOfExperience: jobTitle === 'Doctor' ? prev.yearsOfExperience : '0',
+                  consultationFee: jobTitle === 'Doctor' ? prev.consultationFee : '0',
+                  qualifications: jobTitle === 'Doctor' ? prev.qualifications : '',
+                }));
+              }}
               error={fieldErrors.jobTitle}
             />
             <Select
@@ -678,71 +721,78 @@ export function StaffPage() {
           </div>
         </DrawerSection>
 
-        <DrawerSection title="Doctor Registration" icon="medical_services">
-          <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
-            <Toggle
-              checked={form.promoteToDoctor}
-              onChange={(checked) => {
-                setForm((prev) => ({
-                  ...prev,
-                  promoteToDoctor: checked,
-                  accountRole: checked ? 'Doctor' : prev.accountRole,
-                }));
-              }}
-              label="Promote to Doctor"
-              description="Enable if this staff member is a practicing doctor."
-            />
-            {form.promoteToDoctor && (
-              <div className="mt-4 grid grid-cols-1 gap-4 border-t border-outline-variant pt-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <Input
-                    label="Medical License Number"
-                    placeholder="e.g. SLMC-45821"
-                    maxLength={50}
-                    value={form.licenseNo}
-                    onChange={(event) => setField('licenseNo', event.target.value)}
-                    error={fieldErrors.licenseNo}
-                  />
-                </div>
-                <Input
-                  label="Years of Experience"
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={form.yearsOfExperience}
-                  onChange={(event) => setField('yearsOfExperience', event.target.value)}
-                  error={fieldErrors.yearsOfExperience}
-                />
-                <Input
-                  label="Consultation Fee (LKR)"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={form.consultationFee}
-                  onChange={(event) => setField('consultationFee', event.target.value)}
-                  error={fieldErrors.consultationFee}
-                />
-                <div className="sm:col-span-2">
-                  <Input
-                    label="Qualifications"
-                    placeholder="e.g. MBBS, MD (optional)"
-                    value={form.qualifications}
-                    onChange={(event) => setField('qualifications', event.target.value)}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </DrawerSection>
-
         {isAdmin && (
-          <DrawerSection title="System Account Access" icon="manage_accounts">
+          <DrawerSection
+            title={form.jobTitle === 'Doctor' ? 'Doctor & System Account Access' : 'System Account Access'}
+            icon="manage_accounts"
+          >
             <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+              {form.jobTitle === 'Doctor' && (
+                <>
+                  <Toggle
+                    checked={form.isDoctor}
+                    onChange={(checked) => {
+                      setForm((prev) => ({
+                        ...prev,
+                        isDoctor: checked,
+                        accountRole: checked
+                          ? 'Doctor'
+                          : prev.accountRole === 'Doctor'
+                            ? 'Receptionist'
+                            : prev.accountRole,
+                      }));
+                    }}
+                    label="Is a doctor?"
+                    description="Enable to add this staff member's medical credentials and doctor profile."
+                  />
+                  {form.isDoctor && (
+                    <div className="mt-4 grid grid-cols-1 gap-4 border-t border-outline-variant pt-4 sm:grid-cols-2">
+                      <div className="sm:col-span-2">
+                        <Input
+                          label="Medical License Number"
+                          placeholder="e.g. SLMC-45821"
+                          maxLength={50}
+                          value={form.licenseNo}
+                          onChange={(event) => setField('licenseNo', event.target.value)}
+                          error={fieldErrors.licenseNo}
+                        />
+                      </div>
+                      <Input
+                        label="Years of Experience"
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={form.yearsOfExperience}
+                        onChange={(event) => setField('yearsOfExperience', event.target.value)}
+                        error={fieldErrors.yearsOfExperience}
+                      />
+                      <Input
+                        label="Consultation Fee (LKR)"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={form.consultationFee}
+                        onChange={(event) => setField('consultationFee', event.target.value)}
+                        error={fieldErrors.consultationFee}
+                      />
+                      <div className="sm:col-span-2">
+                        <Input
+                          label="Qualifications"
+                          placeholder="e.g. MBBS, MD (optional)"
+                          value={form.qualifications}
+                          onChange={(event) => setField('qualifications', event.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="my-4 border-t border-outline-variant" />
+                </>
+              )}
               <Toggle
                 checked={form.createAccount}
                 onChange={(checked) => setField('createAccount', checked)}
                 label="Create System Account"
-                description="Grant login access under one of the 5 system roles (leave off for staff without app access, such as nurses)."
+                description="Optional for any staff job title. Create login access and choose the system role that controls app permissions."
               />
               {form.createAccount && (
                 <div className="mt-4 grid grid-cols-1 gap-4 border-t border-outline-variant pt-4 sm:grid-cols-2">
@@ -771,8 +821,8 @@ export function StaffPage() {
                       onChange={(event) => setField('accountRole', event.target.value as Role)}
                       error={fieldErrors.accountRole}
                       hint={
-                        form.accountRole === 'Doctor' && !form.promoteToDoctor
-                          ? 'Note: Enable "Promote to Doctor" above to assign the Doctor system role.'
+                        form.accountRole === 'Doctor' && !form.isDoctor
+                          ? 'Mark this staff member as a doctor above before assigning the Doctor system role.'
                           : undefined
                       }
                     />
@@ -784,13 +834,13 @@ export function StaffPage() {
         )}
       </Drawer>
 
-      <PromoteDoctorDrawer
-        staff={selectedDoctorTarget}
+      <StaffDetailsDrawer
+        staff={selectedStaffTarget}
         isAlreadyDoctor={
-          selectedDoctorTarget !== null &&
-          Boolean(doctorsByStaffId[selectedDoctorTarget.staffId])
+          selectedStaffTarget !== null &&
+          Boolean(doctorsByStaffId[selectedStaffTarget.staffId])
         }
-        onClose={() => setSelectedDoctorTarget(null)}
+        onClose={() => setSelectedStaffTarget(null)}
         onSaved={() => setReloadCount((c) => c + 1)}
       />
     </div>

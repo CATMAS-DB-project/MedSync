@@ -18,7 +18,6 @@ import {
 import {
   fetchDoctorByStaffId,
   linkDoctorSpecialty,
-  promoteStaffToDoctor,
   unlinkDoctorSpecialty,
 } from '../../../services/api/doctor';
 import { fetchSpecialties } from '../../../services/api/specialties';
@@ -33,7 +32,7 @@ import type {
 } from '../../../types';
 import { formatCurrency, formatFullName } from '../../../utils/formatters';
 
-export interface PromoteDoctorDrawerProps {
+export interface StaffDetailsDrawerProps {
   staff: Staff | null;
   isAlreadyDoctor: boolean;
   onClose: () => void;
@@ -55,20 +54,6 @@ const ACCOUNT_STATUS_OPTIONS: Array<{ label: string; value: AccountStatus }> = [
   { label: 'Disabled', value: 'Disabled' },
 ];
 
-interface PromoteFormState {
-  licenseNo: string;
-  yearsOfExperience: string;
-  consultationFee: string;
-  qualifications: string;
-  selectedSpecialtyIds: number[];
-}
-
-interface PromoteFieldErrors {
-  licenseNo?: string;
-  yearsOfExperience?: string;
-  consultationFee?: string;
-}
-
 interface AccountFormState {
   username: string;
   password: string;
@@ -81,12 +66,12 @@ interface AccountFieldErrors {
   role?: string;
 }
 
-export function PromoteDoctorDrawer({
+export function StaffDetailsDrawer({
   staff,
   isAlreadyDoctor,
   onClose,
   onSaved,
-}: PromoteDoctorDrawerProps) {
+}: StaffDetailsDrawerProps) {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'Admin';
   const toast = useToast();
@@ -102,15 +87,6 @@ export function PromoteDoctorDrawer({
   const [doctorProfile, setDoctorProfile] = useState<Doctor | null>(null);
   const [accountProfile, setAccountProfile] = useState<UserAccount | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
-
-  const [form, setForm] = useState<PromoteFormState>({
-    licenseNo: '',
-    yearsOfExperience: '0',
-    consultationFee: '0',
-    qualifications: '',
-    selectedSpecialtyIds: [],
-  });
-  const [fieldErrors, setFieldErrors] = useState<PromoteFieldErrors>({});
 
   const [accountForm, setAccountForm] = useState<AccountFormState>({
     username: '',
@@ -157,18 +133,10 @@ export function PromoteDoctorDrawer({
     setHasAccount(false);
     setDoctorProfile(null);
     setAccountProfile(null);
-    setFieldErrors({});
     setAccountErrors({});
     setNewPassword('');
     setNewPasswordError(undefined);
     setSubmitError(null);
-    setForm({
-      licenseNo: '',
-      yearsOfExperience: '0',
-      consultationFee: '0',
-      qualifications: '',
-      selectedSpecialtyIds: [],
-    });
     setAccountForm({
       username: '',
       password: '',
@@ -190,6 +158,7 @@ export function PromoteDoctorDrawer({
           ...prev,
           role: docFlag ? 'Doctor' : 'Receptionist',
         }));
+        if (isAdmin && !docFlag) setActiveTab('account');
 
         if (docFlag) {
           try {
@@ -229,18 +198,6 @@ export function PromoteDoctorDrawer({
       cancelled = true;
     };
   }, [staff, isAlreadyDoctor, isAdmin]);
-
-  const toggleFormSpecialty = (specialtyId: number) => {
-    setForm((prev) => {
-      const exists = prev.selectedSpecialtyIds.includes(specialtyId);
-      return {
-        ...prev,
-        selectedSpecialtyIds: exists
-          ? prev.selectedSpecialtyIds.filter((id) => id !== specialtyId)
-          : [...prev.selectedSpecialtyIds, specialtyId],
-      };
-    });
-  };
 
   const handleToggleExistingSpecialty = async (specialty: Specialty, linked: boolean) => {
     if (!staff || togglingSpecialtyId !== null) return;
@@ -283,80 +240,6 @@ export function PromoteDoctorDrawer({
     }
   };
 
-  const handlePromote = async () => {
-    if (!staff || isSubmitting) return;
-    setSubmitError(null);
-
-    const errors: PromoteFieldErrors = {};
-    const trimmedLicense = form.licenseNo.trim();
-    const exp = Number(form.yearsOfExperience);
-    const fee = Number(form.consultationFee);
-
-    if (!trimmedLicense) {
-      errors.licenseNo = 'License number is required';
-    }
-    if (
-      form.yearsOfExperience.trim() === '' ||
-      Number.isNaN(exp) ||
-      exp < 0 ||
-      !Number.isInteger(exp)
-    ) {
-      errors.yearsOfExperience = 'Enter a valid whole number (0 or more)';
-    }
-    if (form.consultationFee.trim() === '' || Number.isNaN(fee) || fee < 0) {
-      errors.consultationFee = 'Enter a valid consultation fee (0 or more)';
-    }
-
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
-    setIsSubmitting(true);
-    try {
-      const promoted = await promoteStaffToDoctor(staff.staffId, {
-        licenseNo: trimmedLicense,
-        yearsOfExperience: exp,
-        consultationFee: fee,
-        qualifications: form.qualifications.trim() || undefined,
-      });
-
-      const results = await Promise.allSettled(
-        form.selectedSpecialtyIds.map((specId) =>
-          linkDoctorSpecialty(staff.staffId, specId),
-        ),
-      );
-      const failedSpecialties = results.flatMap((result, idx) => {
-        if (result.status === 'fulfilled') return [];
-        const specId = form.selectedSpecialtyIds[idx];
-        const name =
-          specialties.find((s) => s.specialtyId === specId)?.specialtyName ??
-          `#${specId}`;
-        return [name];
-      });
-
-      if (failedSpecialties.length > 0) {
-        toast.error(
-          `Promoted to doctor, but could not link specialties: ${failedSpecialties.join(', ')}`,
-        );
-      } else {
-        toast.success(
-          `${formatFullName(staff.firstName, staff.lastName)} promoted to Doctor`,
-        );
-      }
-
-      const refreshedDoc = await fetchDoctorByStaffId(staff.staffId).catch(() => promoted);
-      setIsDoctor(true);
-      setDoctorProfile(refreshedDoc);
-      setAccountForm((prev) => ({ ...prev, role: 'Doctor' }));
-      onSaved();
-    } catch (err) {
-      setSubmitError(
-        err instanceof ApiError ? err.message : 'Failed to promote staff member to doctor.',
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const handleCreateAccount = async () => {
     if (!isAdmin || !staff || isSubmitting) return;
     setSubmitError(null);
@@ -371,7 +254,7 @@ export function PromoteDoctorDrawer({
     }
     if (accountForm.role === 'Doctor' && !isDoctor) {
       errors.role =
-        'Staff member must be promoted to a Doctor before assigning the Doctor role';
+        'Staff member must have a doctor profile before assigning the Doctor role';
     }
 
     setAccountErrors(errors);
@@ -405,7 +288,7 @@ export function PromoteDoctorDrawer({
 
     if (editRole === 'Doctor' && !isDoctor) {
       setSubmitError(
-        'Staff member must be promoted to a Doctor before assigning the Doctor role.',
+        'Staff member must have a doctor profile before assigning the Doctor role.',
       );
       return;
     }
@@ -456,7 +339,7 @@ export function PromoteDoctorDrawer({
   const linkedIds = new Set(
     (doctorProfile?.specialties ?? []).map((s) => s.specialtyId),
   );
-  const effectiveTab: DrawerTab = isAdmin ? activeTab : 'doctor';
+  const effectiveTab: DrawerTab = isAdmin && !isDoctor ? 'account' : activeTab;
 
   return (
     <Drawer
@@ -471,26 +354,10 @@ export function PromoteDoctorDrawer({
           : undefined
       }
       footer={
-        effectiveTab === 'doctor' ? (
-          isDoctor ? (
-            <Button variant="secondary" onClick={onClose}>
-              Done
-            </Button>
-          ) : (
-            <>
-              <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                icon="medical_services"
-                onClick={handlePromote}
-                isLoading={isSubmitting}
-              >
-                Promote to Doctor
-              </Button>
-            </>
-          )
+        effectiveTab === 'doctor' || !isAdmin ? (
+          <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+            Done
+          </Button>
         ) : hasAccount ? (
           <>
             <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
@@ -534,7 +401,7 @@ export function PromoteDoctorDrawer({
               {hasAccount ? 'Has System Account' : 'No App Access'}
             </Badge>
           </div>
-          {isAdmin && (
+          {isAdmin && isDoctor && (
             <Tabs<DrawerTab>
               ariaLabel="Staff actions"
               value={effectiveTab}
@@ -545,7 +412,7 @@ export function PromoteDoctorDrawer({
               items={[
                 {
                   value: 'doctor',
-                  label: isDoctor ? 'Doctor Profile' : 'Promote to Doctor',
+                  label: 'Doctor Profile',
                 },
                 {
                   value: 'account',
@@ -562,177 +429,93 @@ export function PromoteDoctorDrawer({
       {isLoadingDetails ? (
         <p className="text-body-sm text-on-surface-variant">Loading staff details…</p>
       ) : effectiveTab === 'doctor' ? (
-        isDoctor ? (
-          doctorProfile ? (
-            <>
-              <DrawerSection title="Credentials" icon="verified">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
-                    <span className="block text-label-sm uppercase text-on-surface-variant">
-                      License Number
-                    </span>
-                    <span className="mt-1 block font-mono text-body-md font-semibold text-on-surface">
-                      {doctorProfile.licenseNo}
-                    </span>
-                  </div>
-                  <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
-                    <span className="block text-label-sm uppercase text-on-surface-variant">
-                      Consultation Fee
-                    </span>
-                    <span className="mt-1 block text-body-md font-semibold text-on-surface">
-                      {formatCurrency(doctorProfile.consultationFee)}
-                    </span>
-                  </div>
-                  <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
-                    <span className="block text-label-sm uppercase text-on-surface-variant">
-                      Experience
-                    </span>
-                    <span className="mt-1 block text-body-md text-on-surface">
-                      {doctorProfile.yearsOfExperience}{' '}
-                      {doctorProfile.yearsOfExperience === 1 ? 'year' : 'years'}
-                    </span>
-                  </div>
-                  <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
-                    <span className="block text-label-sm uppercase text-on-surface-variant">
-                      Qualifications
-                    </span>
-                    <span className="mt-1 block text-body-md text-on-surface">
-                      {doctorProfile.qualifications || '—'}
-                    </span>
-                  </div>
-                </div>
-              </DrawerSection>
-
-              <DrawerSection title="Assigned Specialties" icon="stethoscope">
-                {specialtiesError && (
-                  <ErrorBanner
-                    message={specialtiesError}
-                    onRetry={() => setSpecialtiesReloadTick((t) => t + 1)}
-                  />
-                )}
-                <div className="flex flex-wrap gap-2">
-                  {doctorProfile.specialties.length === 0 ? (
-                    <span className="text-body-sm text-on-surface-variant">
-                      No specialties assigned yet. Select from the list below.
-                    </span>
-                  ) : (
-                    doctorProfile.specialties.map((spec) => (
-                      <Badge key={spec.specialtyId} tone="primary" pill>
-                        {spec.specialtyName}
-                      </Badge>
-                    ))
-                  )}
-                </div>
-
-                {specialties.length > 0 && (
-                  <div className="mt-2 grid grid-cols-1 gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5 sm:grid-cols-2">
-                    {specialties.map((spec) => {
-                      const isLinked = linkedIds.has(spec.specialtyId);
-                      return (
-                        <Checkbox
-                          key={spec.specialtyId}
-                          label={spec.specialtyName}
-                          checked={isLinked}
-                          disabled={togglingSpecialtyId !== null}
-                          onChange={() =>
-                            handleToggleExistingSpecialty(spec, isLinked)
-                          }
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-              </DrawerSection>
-            </>
-          ) : (
-            <p className="text-body-sm text-on-surface-variant">
-              Unable to load doctor credentials.
-            </p>
-          )
-        ) : (
+        isDoctor && doctorProfile ? (
           <>
-            <DrawerSection title="Doctor Credentials" icon="medical_services">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <Input
-                    label="Medical License Number"
-                    placeholder="e.g. SLMC-45821"
-                    maxLength={50}
-                    value={form.licenseNo}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, licenseNo: e.target.value }))
-                    }
-                    error={fieldErrors.licenseNo}
-                  />
+            <DrawerSection title="Credentials" icon="verified">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="block text-label-sm uppercase text-on-surface-variant">
+                    License Number
+                  </span>
+                  <span className="mt-1 block font-mono text-body-md font-semibold text-on-surface">
+                    {doctorProfile.licenseNo}
+                  </span>
                 </div>
-                <Input
-                  label="Years of Experience"
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={form.yearsOfExperience}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      yearsOfExperience: e.target.value,
-                    }))
-                  }
-                  error={fieldErrors.yearsOfExperience}
-                />
-                <Input
-                  label="Consultation Fee (LKR)"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={form.consultationFee}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      consultationFee: e.target.value,
-                    }))
-                  }
-                  error={fieldErrors.consultationFee}
-                />
-                <div className="sm:col-span-2">
-                  <Input
-                    label="Qualifications"
-                    placeholder="e.g. MBBS, MD (optional)"
-                    value={form.qualifications}
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        qualifications: e.target.value,
-                      }))
-                    }
-                  />
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="block text-label-sm uppercase text-on-surface-variant">
+                    Consultation Fee
+                  </span>
+                  <span className="mt-1 block text-body-md font-semibold text-on-surface">
+                    {formatCurrency(doctorProfile.consultationFee)}
+                  </span>
+                </div>
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="block text-label-sm uppercase text-on-surface-variant">
+                    Experience
+                  </span>
+                  <span className="mt-1 block text-body-md text-on-surface">
+                    {doctorProfile.yearsOfExperience}{' '}
+                    {doctorProfile.yearsOfExperience === 1 ? 'year' : 'years'}
+                  </span>
+                </div>
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="block text-label-sm uppercase text-on-surface-variant">
+                    Qualifications
+                  </span>
+                  <span className="mt-1 block text-body-md text-on-surface">
+                    {doctorProfile.qualifications || '—'}
+                  </span>
                 </div>
               </div>
             </DrawerSection>
 
-            <DrawerSection title="Specialties (Optional)" icon="stethoscope">
-              {specialtiesError ? (
+            <DrawerSection title="Assigned Specialties" icon="stethoscope">
+              {specialtiesError && (
                 <ErrorBanner
                   message={specialtiesError}
                   onRetry={() => setSpecialtiesReloadTick((t) => t + 1)}
                 />
-              ) : specialties.length === 0 ? (
-                <p className="text-body-sm text-on-surface-variant">
-                  No specialties available.
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 gap-2.5 rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5 sm:grid-cols-2">
-                  {specialties.map((spec) => (
-                    <Checkbox
-                      key={spec.specialtyId}
-                      label={spec.specialtyName}
-                      checked={form.selectedSpecialtyIds.includes(spec.specialtyId)}
-                      onChange={() => toggleFormSpecialty(spec.specialtyId)}
-                    />
-                  ))}
+              )}
+              <div className="flex flex-wrap gap-2">
+                {doctorProfile.specialties.length === 0 ? (
+                  <span className="text-body-sm text-on-surface-variant">
+                    No specialties assigned yet.
+                  </span>
+                ) : (
+                  doctorProfile.specialties.map((spec) => (
+                    <Badge key={spec.specialtyId} tone="primary" pill>
+                      {spec.specialtyName}
+                    </Badge>
+                  ))
+                )}
+              </div>
+
+              {specialties.length > 0 && (
+                <div className="mt-2 grid grid-cols-1 gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5 sm:grid-cols-2">
+                  {specialties.map((spec) => {
+                    const isLinked = linkedIds.has(spec.specialtyId);
+                    return (
+                      <Checkbox
+                        key={spec.specialtyId}
+                        label={spec.specialtyName}
+                        checked={isLinked}
+                        disabled={togglingSpecialtyId !== null}
+                        onChange={() =>
+                          handleToggleExistingSpecialty(spec, isLinked)
+                        }
+                      />
+                    );
+                  })}
                 </div>
               )}
             </DrawerSection>
           </>
+        ) : (
+          <p className="text-body-sm text-on-surface-variant">
+            {isDoctor
+              ? 'Unable to load doctor credentials.'
+              : 'This staff member does not have a doctor profile.'}
+          </p>
         )
       ) : hasAccount ? (
         accountProfile ? (
@@ -796,7 +579,7 @@ export function PromoteDoctorDrawer({
       ) : (
         <DrawerSection title="Create System Account" icon="manage_accounts">
           <p className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5 text-body-sm text-on-surface-variant">
-            Clinical or support staff (such as a Nurse) do not have application access by default. Create an account below to grant login access with one of the 5 system roles.
+            Any staff job title can have a system account. Create login access below and assign one of the 5 system roles to control app permissions.
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
