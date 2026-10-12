@@ -26,8 +26,9 @@ import { APPOINTMENT_STATUS_TONE } from '../statusStyles';
 import { AppointmentToolbar } from '../components/AppointmentToolbar';
 import type { AppointmentsView } from '../components/AppointmentToolbar';
 import { AppointmentCalendar } from '../components/AppointmentCalendar';
-import { AppointmentRowActions } from '../components/AppointmentRowActions';
+import { AppointmentDetailDrawer } from '../components/AppointmentDetailDrawer';
 import { CancelAppointmentDrawer } from '../components/CancelAppointmentDrawer';
+import { RescheduleAppointmentDrawer } from '../components/RescheduleAppointmentDrawer';
 import { PatientDetailDrawer } from '../../patients/components/PatientDetailDrawer';
 import {
   addDays,
@@ -50,7 +51,14 @@ interface FetchResult {
 }
 
 function parseStatusParam(value: string | null): StatusTab {
-  if (value === 'Scheduled' || value === 'Completed' || value === 'Cancelled') return value;
+  if (
+    value === 'Scheduled' ||
+    value === 'Completed' ||
+    value === 'Cancelled' ||
+    value === 'Re-Scheduled'
+  ) {
+    return value;
+  }
   return 'All';
 }
 
@@ -167,16 +175,19 @@ export function AppointmentsPage() {
   const counts = useMemo(() => {
     let scheduled = 0;
     let completed = 0;
+    let rescheduled = 0;
     let cancelled = 0;
     for (const item of rawItems) {
       if (item.status === 'Scheduled') scheduled += 1;
       else if (item.status === 'Completed') completed += 1;
+      else if (item.status === 'Re-Scheduled') rescheduled += 1;
       else if (item.status === 'Cancelled') cancelled += 1;
     }
     return {
       all: rawItems.length,
       scheduled,
       completed,
+      rescheduled,
       cancelled,
     };
   }, [rawItems]);
@@ -226,6 +237,8 @@ export function AppointmentsPage() {
   }, [showDoctorSelect, doctorParam, doctors.data, updateParams]);
 
   // ---- Derived UI state ----
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [toReschedule, setToReschedule] = useState<Appointment | null>(null);
   const [toCancel, setToCancel] = useState<Appointment | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const isFirstLoad = appointments.isLoading && appointments.data === undefined;
@@ -237,20 +250,16 @@ export function AppointmentsPage() {
     const mm = String(now.getMinutes()).padStart(2, '0');
     const nowTime = `${hh}:${mm}`;
     const today = rawItems
-      .filter((a) => a.appointmentDate === date && a.status === 'Scheduled')
+      .filter(
+        (a) =>
+          a.appointmentDate === date &&
+          (a.status === 'Scheduled' || a.status === 'Re-Scheduled'),
+      )
       .sort((a, b) => a.appointmentTime.localeCompare(b.appointmentTime));
     return today.find((a) => a.appointmentTime >= nowTime)?.appointmentId ?? null;
   }, [rawItems, date]);
 
   // ---- Handlers ----
-  const handlePrev = () => {
-    updateParams({ date: view === 'calendar' ? addDays(date, -7) : addDays(date, -1) });
-  };
-  const handleNext = () => {
-    updateParams({ date: view === 'calendar' ? addDays(date, 7) : addDays(date, 1) });
-  };
-  const handleToday = () => updateParams({ date: todayIso() });
-
   const openConsultation = (appointmentId: number) => {
     if (!canOpenConsultation) return;
     navigate(ROUTES.CONSULTATION.replace(':appointmentId', String(appointmentId)));
@@ -264,6 +273,7 @@ export function AppointmentsPage() {
     { value: 'All', label: `All (${counts.all})` },
     { value: 'Scheduled', label: `Scheduled (${counts.scheduled})` },
     { value: 'Completed', label: `Completed (${counts.completed})` },
+    { value: 'Re-Scheduled', label: `Re-Scheduled (${counts.rescheduled})` },
     { value: 'Cancelled', label: `Cancelled (${counts.cancelled})` },
   ];
 
@@ -300,9 +310,19 @@ export function AppointmentsPage() {
       key: 'status',
       header: 'Status',
       cell: (row) => (
-        <Badge tone={APPOINTMENT_STATUS_TONE[row.status]} dot pill>
-          {row.status}
-        </Badge>
+        <div className="flex flex-col items-start gap-1">
+          <Badge tone={APPOINTMENT_STATUS_TONE[row.status]} dot pill>
+            {row.status}
+          </Badge>
+          {row.cancelRescheduleReason && (
+            <span
+              className="max-w-[260px] truncate text-label-sm text-on-surface-variant"
+              title={row.cancelRescheduleReason}
+            >
+              {row.cancelRescheduleReason}
+            </span>
+          )}
+        </div>
       ),
     },
   ];
@@ -314,7 +334,9 @@ export function AppointmentsPage() {
 
   const listRowClassName = (row: Appointment): string | undefined => {
     const classes: string[] = [];
-    if (row.status === 'Cancelled') classes.push('opacity-60');
+    if (row.status === 'Cancelled') {
+      classes.push('opacity-60');
+    }
     if (date === todayIso() && row.appointmentId === nextUpcomingId) {
       classes.push('bg-primary-container/30');
     }
@@ -352,9 +374,6 @@ export function AppointmentsPage() {
         onViewChange={(next) => updateParams({ view: next })}
         date={date}
         onDateChange={(iso) => updateParams({ date: iso })}
-        onPrev={handlePrev}
-        onNext={handleNext}
-        onToday={handleToday}
         dateLabel={dateLabel}
         showBranchSelect={showBranchSelect}
         branchId={branchParam}
@@ -392,7 +411,7 @@ export function AppointmentsPage() {
             columns={columns}
             rows={filteredItems}
             rowKey={(row) => String(row.appointmentId)}
-            onRowClick={(row) => setSelectedPatientId(row.patientId)}
+            onRowClick={setSelectedAppointment}
             rowClassName={listRowClassName}
             loading={isFirstLoad}
             error={appointments.data === undefined ? appointments.error : null}
@@ -416,15 +435,6 @@ export function AppointmentsPage() {
                 }
               />
             }
-            rowActions={(row) => (
-              <AppointmentRowActions
-                appointment={row}
-                role={role}
-                onViewPatient={setSelectedPatientId}
-                onCancel={setToCancel}
-                onOpenConsultation={openConsultation}
-              />
-            )}
           />
         ) : (
           <AppointmentCalendar
@@ -436,13 +446,31 @@ export function AppointmentsPage() {
             dayErrors={dayErrors}
             onDayErrorRetry={appointments.reload}
             onSelectDay={handleSelectDay}
-            role={role}
-            onViewPatient={setSelectedPatientId}
-            onCancel={setToCancel}
-            onOpenConsultation={openConsultation}
+            onSelectAppointment={setSelectedAppointment}
           />
         )}
       </div>
+
+      <AppointmentDetailDrawer
+        appointment={selectedAppointment}
+        role={role}
+        onClose={() => setSelectedAppointment(null)}
+        onViewPatient={setSelectedPatientId}
+        onReschedule={setToReschedule}
+        onCancel={setToCancel}
+        onOpenConsultation={openConsultation}
+      />
+
+      <RescheduleAppointmentDrawer
+        appointment={toReschedule}
+        onClose={() => setToReschedule(null)}
+        onRescheduled={(newAppointment) => {
+          toast.success(
+            `Appointment rescheduled to ${newAppointment.appointmentDate} at ${formatTime(newAppointment.appointmentTime)}`,
+          );
+          appointments.reload();
+        }}
+      />
 
       <CancelAppointmentDrawer
         appointment={toCancel}
@@ -460,3 +488,5 @@ export function AppointmentsPage() {
     </div>
   );
 }
+
+

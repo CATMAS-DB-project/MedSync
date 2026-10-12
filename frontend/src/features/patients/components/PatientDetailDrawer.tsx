@@ -23,7 +23,11 @@ import {
   formatTime,
 } from '../../../utils/formatters';
 import { APPOINTMENT_STATUS_TONE } from '../../appointments/statusStyles';
+import { CancelAppointmentDrawer } from '../../appointments/components/CancelAppointmentDrawer';
+import { RescheduleAppointmentDrawer } from '../../appointments/components/RescheduleAppointmentDrawer';
 import { INVOICE_STATUS_TONE } from '../../billing/statusStyles';
+import { useToast } from '../../../components/common/ToastProvider';
+import type { Appointment } from '../../../types';
 import { PatientFormModal } from './PatientFormModal';
 
 export interface PatientDetailDrawerProps {
@@ -47,12 +51,15 @@ function PatientDetailDrawerInner({
 }: PatientDetailDrawerProps) {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const toast = useToast();
   const isReceptionist = currentUser?.role === 'Receptionist';
   const canSeeInvoices = currentUser?.role !== 'Doctor';
   const isOpen = patientId !== null;
 
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [formOpen, setFormOpen] = useState(false);
+  const [toReschedule, setToReschedule] = useState<Appointment | null>(null);
+  const [toCancel, setToCancel] = useState<Appointment | null>(null);
 
   const patient = useAsync(
     () => (patientId === null ? Promise.resolve(null) : fetchPatientById(patientId)),
@@ -168,6 +175,13 @@ function PatientDetailDrawerInner({
                 loading={appointments.isLoading}
                 error={appointments.error}
                 onRetry={appointments.reload}
+                isReceptionist={isReceptionist}
+                onReschedule={(appt) =>
+                  setToReschedule({ ...appt, patientName: appt.patientName ?? fullName })
+                }
+                onCancel={(appt) =>
+                  setToCancel({ ...appt, patientName: appt.patientName ?? fullName })
+                }
               />
             )}
             {canSeeInvoices && activeTab === 'invoices' && (
@@ -198,6 +212,26 @@ function PatientDetailDrawerInner({
           }}
         />
       )}
+
+      <RescheduleAppointmentDrawer
+        appointment={toReschedule}
+        onClose={() => setToReschedule(null)}
+        onRescheduled={(newAppointment) => {
+          toast.success(
+            `Appointment rescheduled to ${newAppointment.appointmentDate} at ${formatTime(newAppointment.appointmentTime)}`,
+          );
+          appointments.reload();
+        }}
+      />
+
+      <CancelAppointmentDrawer
+        appointment={toCancel}
+        onClose={() => setToCancel(null)}
+        onCancelled={() => {
+          toast.success('Appointment cancelled');
+          appointments.reload();
+        }}
+      />
     </>
   );
 }
@@ -292,13 +326,24 @@ function InsuranceTab({ patient }: { patient: import('../../../types').Patient }
 }
 
 interface AppointmentsTabProps {
-  data: import('../../../types').Appointment[];
+  data: Appointment[];
   loading: boolean;
   error: string | null;
   onRetry: () => void;
+  isReceptionist: boolean;
+  onReschedule: (appointment: Appointment) => void;
+  onCancel: (appointment: Appointment) => void;
 }
 
-function AppointmentsTab({ data, loading, error, onRetry }: AppointmentsTabProps) {
+function AppointmentsTab({
+  data,
+  loading,
+  error,
+  onRetry,
+  isReceptionist,
+  onReschedule,
+  onCancel,
+}: AppointmentsTabProps) {
   if (error) return <ErrorBanner message={error} onRetry={onRetry} />;
   if (loading && data.length === 0) {
     return (
@@ -317,19 +362,47 @@ function AppointmentsTab({ data, loading, error, onRetry }: AppointmentsTabProps
       {data.map((item) => (
         <li
           key={item.appointmentId}
-          className="flex items-center justify-between gap-3 rounded-xl bg-surface-container-low p-3"
+          className="flex flex-col gap-2 rounded-xl bg-surface-container-low p-3"
         >
-          <div className="min-w-0">
-            <div className="text-body-sm font-medium text-on-surface">
-              {formatDate(item.appointmentDate)} · {formatTime(item.appointmentTime)}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-body-sm font-medium text-on-surface">
+                {formatDate(item.appointmentDate)} · {formatTime(item.appointmentTime)}
+              </div>
+              <div className="truncate text-label-md text-on-surface-variant">
+                {item.doctorName ?? '—'}
+              </div>
+              {item.cancelRescheduleReason && (
+                <div className="mt-1 text-label-sm text-on-surface-variant">
+                  {item.cancelRescheduleReason}
+                </div>
+              )}
             </div>
-            <div className="truncate text-label-md text-on-surface-variant">
-              {item.doctorName ?? '—'}
-            </div>
+            <Badge tone={APPOINTMENT_STATUS_TONE[item.status]} dot pill>
+              {item.status}
+            </Badge>
           </div>
-          <Badge tone={APPOINTMENT_STATUS_TONE[item.status]} dot pill>
-            {item.status}
-          </Badge>
+
+          {isReceptionist && (item.status === 'Scheduled' || item.status === 'Re-Scheduled') && (
+            <div className="flex flex-wrap items-center justify-end gap-1.5 border-t border-outline-variant/60 pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="event_repeat"
+                onClick={() => onReschedule(item)}
+              >
+                Reschedule
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                icon="event_busy"
+                onClick={() => onCancel(item)}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
         </li>
       ))}
     </ul>

@@ -146,7 +146,7 @@ export function ConsultationTreatmentsCard({
       )}
 
       {/* Small muted hint only while we're completing the visit in the background. */}
-      {canAdd && !isCancelled && status === 'Scheduled' && (
+      {canAdd && !isCancelled && (status === 'Scheduled' || status === 'Re-Scheduled') && (
         <footer className="flex items-center gap-2 border-t border-outline-variant px-4 py-2.5 text-label-md text-on-surface-variant sm:px-5">
           <Icon name="info" size={14} />
           Adding a treatment will complete this visit

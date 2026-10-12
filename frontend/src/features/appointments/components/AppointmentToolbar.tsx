@@ -1,6 +1,4 @@
 import { SegmentedControl } from '../../../components/ui/Tabs';
-import { Button } from '../../../components/ui/Button';
-import { IconButton } from '../../../components/ui/IconButton';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import type { SelectOption } from '../../../components/ui/Select';
@@ -12,9 +10,6 @@ export interface AppointmentToolbarProps {
   onViewChange: (view: AppointmentsView) => void;
   date: string;
   onDateChange: (iso: string) => void;
-  onPrev: () => void;
-  onNext: () => void;
-  onToday: () => void;
   dateLabel: string;
 
   showBranchSelect: boolean;
@@ -33,9 +28,6 @@ export function AppointmentToolbar({
   onViewChange,
   date,
   onDateChange,
-  onPrev,
-  onNext,
-  onToday,
   dateLabel,
   showBranchSelect,
   branchId,
@@ -60,24 +52,6 @@ export function AppointmentToolbar({
         />
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 rounded-xl bg-surface-container-low p-1">
-            <IconButton
-              icon="chevron_left"
-              size="sm"
-              aria-label={view === 'calendar' ? 'Previous week' : 'Previous day'}
-              onClick={onPrev}
-            />
-            <Button variant="ghost" size="sm" onClick={onToday}>
-              Today
-            </Button>
-            <IconButton
-              icon="chevron_right"
-              size="sm"
-              aria-label={view === 'calendar' ? 'Next week' : 'Next day'}
-              onClick={onNext}
-            />
-          </div>
-
           <div className="min-w-[10.5rem]">
             <Input
               type="date"

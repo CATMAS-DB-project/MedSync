@@ -15,6 +15,7 @@ export const ROUTE_ROLES: Record<string, Role[]> = {
   [ROUTES.CONSULTATION]: ['Admin', 'Doctor'],
   [ROUTES.WALK_IN]: ['Receptionist'],
   [ROUTES.REPORTS]: ['Admin', 'Branch Manager'],
+  [ROUTES.TREATMENTS]: ['Admin', 'Branch Manager'],
 };
 
 export const ROLE_HOME: Record<Role, string> = {
