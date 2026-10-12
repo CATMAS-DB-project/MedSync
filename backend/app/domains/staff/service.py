@@ -358,6 +358,16 @@ async def update_account(
     return await get_account(conn, staff_id)
 
 
+async def delete_account(
+    conn: PoolConnectionProxy, staff_id: int
+) -> bool:
+    result = await conn.execute(
+        "DELETE FROM user_account WHERE staff_id = $1",
+        staff_id,
+    )
+    return result.endswith("1")
+
+
 async def reset_password(
     conn: PoolConnectionProxy, staff_id: int, new_password: str
 ) -> bool:
