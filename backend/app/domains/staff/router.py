@@ -304,6 +304,19 @@ async def update_account(
     return {"data": data, "error": None}
 
 
+@router.delete(
+    "/staff/{staff_id}/account",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_account(
+    staff_id: int,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[UserIdentity, Depends(require_role("Admin"))],
+) -> None:
+    if not await service.delete_account(conn, staff_id):
+        raise HTTPException(status_code=404, detail="Account not found")
+
+
 @router.post(
     "/staff/{staff_id}/account/reset-password",
     status_code=status.HTTP_204_NO_CONTENT,
