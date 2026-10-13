@@ -30,7 +30,7 @@ def format_currency(value: Decimal | float | None) -> str:
         return "LKR 0.00"
     try:
         val = float(value)
-        return f"${val:,.2f}"
+        return f"LKR {val:,.2f}"
     except ValueError, TypeError:
         return "LKR 0.00"
 
