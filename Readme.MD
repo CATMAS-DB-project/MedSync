@@ -513,7 +513,7 @@ The repository contains separate backend and frontend GitHub Actions workflows. 
 |---|---|
 | 240188V | GAYAN N.M.D.T |
 | 240224F | HERATH H.M.T.G.L.J |
-| 240047N | SIVAKUMAR A |
+| 240047N | ARUN S |
 | 240673E | UMAYANGA P.H.A |
 | 240288D | JAYATHIKE P.I.K |
 
@@ -525,7 +525,7 @@ The following ownership records the main API domains implemented for the project
 |---|---|
 | **GAYAN N.M.D.T** | Authentication, appointments, appointment treatments, reports, PDF reports, and treatment catalogue. Also contributed to database activities related to these domains. |
 | **HERATH H.M.T.G.L.J** | Authentication, staff, and reference-data domains. Also contributed to database activities, initial project setup, and CI/CD configuration. |
-| **SIVAKUMAR A** | Audit, branches, billing, patients, and guardians. Also contributed to the related database activities. |
+| **ARUN S** | Audit, branches, billing, patients, and guardians. Also contributed to the related database activities. |
 | **JAYATHILAKE P.I.K** | Worked on database development and SQL queries, developed appointment management features, integrated related functionality, and fixed bugs. |
 | **UMAYANGA P.H.A** | Worked on database design and SQL queries, developed patient and staff management interfaces, integrated backend APIs, and improved frontend functionality. |
 
