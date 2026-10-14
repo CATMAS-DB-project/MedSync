@@ -22,7 +22,7 @@ class CredentialValidator(Protocol):
 
     async def get_user_profile(self, staff_id: int) -> UserProfile | None: ...
 
-
+# In memory Refresh token validator - For Testing Purposes. 
 class InMemoryCredentialValidator:
     def __init__(self, username: str, password_hash: str, user: UserIdentity) -> None:
         self._username = username
@@ -156,7 +156,7 @@ class DatabaseCredentialValidator:
                 staff=staff_info,
             )
 
-# Need to be implemented alongside with a Database for easy Logout
+# See database_store.py
 class RefreshTokenStore(Protocol):
     async def save(self, record: RefreshRecord) -> None: ...
 
@@ -168,7 +168,7 @@ class RefreshTokenStore(Protocol):
 
     async def rotate(self, token_hash: str, replacement: RefreshRecord) -> RefreshRecord | None: ...
 
-# Must Be Replaced after integrating the database.
+# Immeory Stor Refresh stor - For testing Purposes.
 class InMemoryRefreshTokenStore:
     def __init__(self) -> None:
         self._records: dict[str, RefreshRecord] = {}
