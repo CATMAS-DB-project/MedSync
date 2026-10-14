@@ -188,6 +188,14 @@ async def promote_to_doctor(
     user: Annotated[UserIdentity, Depends(require_role(*MANAGERS))],
 ) -> dict:
     await _require_staff_branch(conn, user, staff_id)
+    if await conn.fetchval(
+        "SELECT 1 FROM user_account WHERE staff_id = $1",
+        staff_id,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Staff with an existing user account cannot be promoted to Doctor",
+        )
     data = await service.promote_to_doctor(conn, staff_id, body.model_dump())
     return {"data": data, "error": None}
 
@@ -267,6 +275,18 @@ async def create_account(
     return {"data": data, "error": None}
 
 
+@router.get("/staff/{staff_id}/account")
+async def get_account(
+    staff_id: int,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[UserIdentity, Depends(require_role("Admin"))],
+) -> dict:
+    data = await service.get_account(conn, staff_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return {"data": data, "error": None}
+
+
 @router.patch("/staff/{staff_id}/account")
 async def update_account(
     staff_id: int,
@@ -282,6 +302,19 @@ async def update_account(
     if data is None:
         raise HTTPException(status_code=404, detail="Account not found")
     return {"data": data, "error": None}
+
+
+@router.delete(
+    "/staff/{staff_id}/account",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_account(
+    staff_id: int,
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[UserIdentity, Depends(require_role("Admin"))],
+) -> None:
+    if not await service.delete_account(conn, staff_id):
+        raise HTTPException(status_code=404, detail="Account not found")
 
 
 @router.post(

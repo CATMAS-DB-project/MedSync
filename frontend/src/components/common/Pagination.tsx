@@ -4,13 +4,8 @@ import { IconButton } from '../ui/IconButton';
 export interface PaginationProps {
   page: number;
   pageSize: number;
-  /** Alias kept for older callers; prefer `totalItems`. */
-  total?: number;
-  /** Preferred name — matches the existing page usages. */
   totalItems?: number;
   onPageChange: (page: number) => void;
-  onPageSizeChange?: (size: number) => void;
-  pageSizeOptions?: number[];
   className?: string;
 }
 
@@ -31,14 +26,11 @@ function buildPageList(current: number, totalPages: number): (number | '…')[] 
 export function Pagination({
   page,
   pageSize,
-  total,
   totalItems,
   onPageChange,
-  onPageSizeChange,
-  pageSizeOptions = [10, 25, 50, 100],
   className,
 }: PaginationProps) {
-  const totalCount = totalItems ?? total ?? 0;
+  const totalCount = totalItems ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const start = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(totalCount, page * pageSize);
@@ -97,23 +89,6 @@ export function Pagination({
           onClick={() => onPageChange(page + 1)}
         />
       </div>
-
-      {onPageSizeChange && (
-        <label className="hidden items-center gap-1.5 text-label-md text-on-surface-variant sm:inline-flex">
-          Rows
-          <select
-            value={pageSize}
-            onChange={(event) => onPageSizeChange(Number(event.target.value))}
-            className="h-8 cursor-pointer rounded-lg border border-outline-variant bg-surface-container-lowest px-2 text-label-md text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20"
-          >
-            {pageSizeOptions.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
     </div>
   );
 }

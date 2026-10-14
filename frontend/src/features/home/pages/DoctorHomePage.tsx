@@ -1,320 +1,383 @@
-import { useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { generatePath, useNavigate } from 'react-router-dom';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
+import { Card } from '../../../components/ui/Card';
+import { Icon } from '../../../components/ui/Icon';
+import { Skeleton } from '../../../components/ui/Skeleton';
+import { StatCard } from '../../../components/ui/StatCard';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ErrorBanner } from '../../../components/common/ErrorBanner';
-import { TableSkeleton } from '../../../components/common/TableSkeleton';
+import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { useToast } from '../../../components/common/ToastProvider';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
+import { useBranchNames } from '../../../hooks/useBranchNames';
 import { fetchAppointments } from '../../../services/api/appointments';
-import { fetchAppointmentTreatments } from '../../../services/api/appointmentTreatments';
-import { fetchBranches } from '../../../services/api/branches';
 import { ROUTES } from '../../../constants/routes';
-import { APPOINTMENT_STATUS_TONE } from '../../appointments/statusStyles';
 import { formatDate, formatTime } from '../../../utils/formatters';
-import { todayIso } from '../../../utils/dates';
-import type { Appointment } from '../../../types';
+import { nowHHMM, toIsoDate, todayIso } from '../../../utils/dates';
+import { DoctorNextPatientCard } from '../components/DoctorNextPatientCard';
+import { DoctorTodayScheduleCard } from '../components/DoctorTodayScheduleCard';
+import { PatientDetailDrawer } from '../../patients/components/PatientDetailDrawer';
+import type { Appointment, PagedResult } from '../../../types';
 
-function timeToMinutes(value: string): number {
-  const [hours = '0', minutes = '0'] = value.split(':');
-  return Number(hours) * 60 + Number(minutes);
+const AUTO_REFRESH_MS = 60_000;
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
 }
 
-function sortByTime(a: Appointment, b: Appointment) {
-  return timeToMinutes(a.appointmentTime) - timeToMinutes(b.appointmentTime);
+function getTomorrowIso(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return toIsoDate(d);
 }
 
 export function DoctorHomePage() {
   const navigate = useNavigate();
   const toast = useToast();
   const { currentUser } = useAuth();
-  const today = todayIso();
 
+  const isDoctor = currentUser?.role === 'Doctor';
   const doctorId = currentUser?.staffId;
   const branchId = currentUser?.branchId;
+  const today = todayIso();
+  const tomorrow = useMemo(() => getTomorrowIso(), []);
 
-  const branches = useAsync(() => fetchBranches(1, 100), []);
-  const branchName =
-    branches.data?.items.find((branch) => branch.branchId === branchId)?.branchName ?? 'Current branch';
-
-  const appointmentsToday = useAsync(
-    () =>
-      doctorId
-        ? fetchAppointments({ doctorId, date: today, page: 1, pageSize: 100 })
-        : Promise.resolve({ total: 0, items: [] as Appointment[] }),
-    [doctorId, today],
-  );
-
-  const followUp = useAsync(async () => {
-    if (!doctorId) return [] as Appointment[];
-
-    const completed = await fetchAppointments({
-      doctorId,
-      date: today,
-      status: 'Completed',
-      page: 1,
-      pageSize: 10,
-    });
-
-    const needsFollowUp: Appointment[] = [];
-    for (const appointment of completed.items.slice(0, 10)) {
-      const treatments = await fetchAppointmentTreatments(appointment.appointmentId);
-      if (treatments.length === 0) {
-        needsFollowUp.push(appointment);
-      }
-    }
-
-    return needsFollowUp;
-  }, [doctorId, today]);
-
-  const schedule = useMemo(
-    () => [...(appointmentsToday.data?.items ?? [])].sort(sortByTime),
-    [appointmentsToday.data],
-  );
-
-  const counters = useMemo(() => {
-    const items = appointmentsToday.data?.items ?? [];
-    return {
-      total: items.length,
-      scheduled: items.filter((item) => item.status === 'Scheduled').length,
-      completed: items.filter((item) => item.status === 'Completed').length,
-      cancelled: items.filter((item) => item.status === 'Cancelled').length,
-    };
-  }, [appointmentsToday.data]);
-
-  const nowMinutes = timeToMinutes(new Date().toTimeString().slice(0, 5));
-  const nextPatient = useMemo(() => {
-    const scheduled = schedule.filter((item) => item.status === 'Scheduled');
-    if (scheduled.length === 0) return null;
-
-    const upcoming = scheduled.find((item) => timeToMinutes(item.appointmentTime) >= nowMinutes);
-    if (upcoming) return upcoming;
-
-    return [...scheduled].sort(sortByTime)[0];
-  }, [schedule, nowMinutes]);
-
-  const openConsultation = (appointmentId: number) => {
-    toast.info('Opening consultation');
-    navigate(ROUTES.CONSULTATION.replace(':appointmentId', String(appointmentId)));
-  };
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [pendingConsultationId, setPendingConsultationId] = useState<number | null>(null);
+  const isMountedRef = useRef(true);
+  const seenIdsRef = useRef<Set<number> | null>(null);
 
   useEffect(() => {
-    const refresh = () => {
-      appointmentsToday.reload();
-      followUp.reload();
-    };
-
-    window.addEventListener('focus', refresh);
-    const interval = window.setInterval(refresh, 2 * 60 * 1000);
-
+    isMountedRef.current = true;
     return () => {
-      window.removeEventListener('focus', refresh);
-      window.clearInterval(interval);
+      isMountedRef.current = false;
     };
-  }, [appointmentsToday.reload, followUp.reload]);
+  }, []);
 
-  if (!currentUser || currentUser.role !== 'Doctor') {
+  // Branches (for header chip)
+  const { getBranchName } = useBranchNames(Boolean(branchId && !currentUser?.branchName));
+  const branchName =
+    currentUser?.branchName ?? getBranchName(branchId) ?? 'Current branch';
+
+  // Today's appointments for this doctor
+  const appointmentsToday = useAsync<PagedResult<Appointment>>(
+    () =>
+      isDoctor && doctorId
+        ? fetchAppointments({ doctorId, date: today, pageSize: 100 })
+        : Promise.resolve({ items: [], total: 0, page: 1, pageSize: 100 }),
+    [isDoctor, doctorId, today],
+  );
+
+  // Tomorrow's scheduled count
+  const tomorrowCount = useAsync<PagedResult<Appointment>>(
+    () =>
+      isDoctor && doctorId && branchId
+        ? fetchAppointments({
+            branchId,
+            doctorId,
+            date: tomorrow,
+            status: 'Scheduled',
+            pageSize: 1,
+          })
+        : Promise.resolve({ items: [], total: 0, page: 1, pageSize: 1 }),
+    [isDoctor, doctorId, branchId, tomorrow],
+  );
+
+  const items = appointmentsToday.data?.items ?? [];
+
+  // Next patient
+  const nextPatient = useMemo(() => {
+    const scheduled = items.filter(
+      (a) => a.status === 'Scheduled' || a.status === 'Re-Scheduled',
+    );
+    if (scheduled.length === 0) return null;
+    const sorted = [...scheduled].sort((a, b) =>
+      a.appointmentTime.localeCompare(b.appointmentTime),
+    );
+    const now = nowHHMM();
+    const upcoming = sorted.find((a) => a.appointmentTime >= now);
+    return upcoming ?? sorted[0] ?? null;
+  }, [items]);
+
+  // Stats
+  const stats = useMemo(() => {
+    const completed = items.filter((a) => a.status === 'Completed').length;
+    const scheduled = items.filter(
+      (a) => a.status === 'Scheduled' || a.status === 'Re-Scheduled',
+    ).length;
+    return { total: items.length, completed, remaining: scheduled };
+  }, [items]);
+
+  // Last-updated label
+  useEffect(() => {
+    if (appointmentsToday.data) setLastUpdated(new Date());
+  }, [appointmentsToday.data]);
+
+  const updatedLabel = useMemo(() => {
+    if (!lastUpdated) return 'Loading…';
+    const hh = String(lastUpdated.getHours()).padStart(2, '0');
+    const mm = String(lastUpdated.getMinutes()).padStart(2, '0');
+    return `Updated ${formatTime(`${hh}:${mm}`)}`;
+  }, [lastUpdated]);
+
+  // New arrivals toast (skip first load)
+  useEffect(() => {
+    if (!appointmentsToday.data) return;
+    const list = appointmentsToday.data.items;
+    if (seenIdsRef.current === null) {
+      seenIdsRef.current = new Set(list.map((a) => a.appointmentId));
+      return;
+    }
+    const seen = seenIdsRef.current;
+    for (const appointment of list) {
+      if (seen.has(appointment.appointmentId)) continue;
+      seen.add(appointment.appointmentId);
+      const name = appointment.patientName ?? 'Patient';
+      if (appointment.isWalkIn) {
+        toast.info(`New walk-in: ${name}`);
+      } else {
+        toast.info(`New appointment: ${name} at ${formatTime(appointment.appointmentTime)}`);
+      }
+    }
+  }, [appointmentsToday.data, toast]);
+
+  // Refresh
+  const refreshAll = useCallback(() => {
+    appointmentsToday.reload();
+    tomorrowCount.reload();
+  }, [appointmentsToday.reload, tomorrowCount.reload]);
+
+  // Auto-refresh (paused when tab hidden) + immediate refresh on visibility
+  useEffect(() => {
+    if (!isDoctor) return;
+    const tick = () => {
+      if (document.visibilityState === 'visible') refreshAll();
+    };
+    const interval = window.setInterval(tick, AUTO_REFRESH_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refreshAll();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [isDoctor, refreshAll]);
+
+  const handleOpenPatientDetails = useCallback((appointment: Appointment) => {
+    setSelectedAppointment(appointment);
+    setSelectedPatientId(appointment.patientId);
+  }, []);
+
+  const handleRequestConsultation = useCallback((appointmentId: number) => {
+    setSelectedPatientId(null);
+    setSelectedAppointment(null);
+    setPendingConsultationId(appointmentId);
+  }, []);
+
+  const handleAmendConsultation = useCallback(
+    (appointmentId: number) => {
+      setSelectedPatientId(null);
+      setSelectedAppointment(null);
+      navigate(
+        generatePath(ROUTES.CONSULTATION, {
+          appointmentId: String(appointmentId),
+        }),
+      );
+    },
+    [navigate],
+  );
+
+  const handleConfirmConsultation = useCallback(() => {
+    if (pendingConsultationId === null) return;
+    navigate(
+      generatePath(ROUTES.CONSULTATION, {
+        appointmentId: String(pendingConsultationId),
+      }),
+    );
+    setPendingConsultationId(null);
+  }, [navigate, pendingConsultationId]);
+
+  const handleViewTomorrow = useCallback(() => {
+    if (!branchId || !doctorId) return;
+    navigate(
+      `${ROUTES.APPOINTMENTS}?date=${tomorrow}&branchId=${branchId}&doctorId=${doctorId}`,
+    );
+  }, [navigate, tomorrow, branchId, doctorId]);
+
+  if (!isDoctor || !currentUser) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-display-sm text-on-surface">Doctor Home</h1>
-          <p className="mt-2 text-body-md text-on-surface-variant">Access restricted to doctors.</p>
-        </div>
+      <div className="mx-auto flex min-h-[50vh] w-full max-w-[1400px] items-center justify-center">
+        <EmptyState icon="lock" title="Access restricted" />
       </div>
     );
   }
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const isFirstLoad = appointmentsToday.isLoading && appointmentsToday.data === undefined;
+  const isRefreshing = appointmentsToday.isLoading && appointmentsToday.data !== undefined;
+  const showTopError = appointmentsToday.error !== null && appointmentsToday.data === undefined;
+
+  const statValue = (n: number): string => {
+    if (appointmentsToday.error && appointmentsToday.data === undefined) return '—';
+    return String(n);
+  };
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
-      <header className="relative isolate flex flex-col gap-5 overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-secondary p-5 shadow-elevated md:flex-row md:items-center md:justify-between md:p-7">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-24 z-0 h-64 w-64 rounded-full border-[36px] border-white/5" />
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-elevated">
-            <span className="material-symbols-outlined text-[26px]" aria-hidden="true">stethoscope</span>
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6">
+      {/* Header */}
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-display-sm text-on-surface">
+            {getGreeting()}, Dr. {currentUser.lastName || currentUser.firstName}
+          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="neutral" pill>
+              <Icon name="today" size={12} />
+              {formatDate(today)}
+            </Badge>
+            <Badge tone="neutral" pill>
+              <Icon name="location_on" size={12} />
+              {branchName}
+            </Badge>
           </div>
-          <div>
-            <p className="text-label-md font-semibold uppercase tracking-[0.16em] text-white/75">Doctor dashboard</p>
-            <h1 className="text-display-sm text-white">
-              {greeting}, Dr. {currentUser.username || currentUser.staffId}
-            </h1>
-          </div>
-        </div>
-        <div className="relative z-10 flex flex-col items-start gap-1 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-left text-body-sm text-white/85">
-          <span className="inline-flex items-center gap-2"><span className="material-symbols-outlined text-[16px]" aria-hidden="true">today</span>{formatDate(today)}</span>
-          <span className="inline-flex items-center gap-2"><span className="material-symbols-outlined text-[16px]" aria-hidden="true">location_on</span>{branchName}</span>
         </div>
       </header>
 
-      <section className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated md:p-5">
-        <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-secondary" />
-        {appointmentsToday.error && (
-          <ErrorBanner message={appointmentsToday.error} onRetry={appointmentsToday.reload} className="mb-3" />
-        )}
+      {showTopError && (
+        <ErrorBanner message={appointmentsToday.error ?? ''} onRetry={refreshAll} />
+      )}
 
-        {nextPatient ? (
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-fixed text-primary">
-                  <span className="material-symbols-outlined text-[18px]" aria-hidden="true">person</span>
+      {/* Next patient */}
+      <DoctorNextPatientCard
+        appointment={nextPatient}
+        onStartConsultation={handleRequestConsultation}
+      />
+
+      {/* Stats */}
+      <section className="grid gap-3 md:grid-cols-3">
+        {isFirstLoad ? (
+          <>
+            <Skeleton height={92} rounded="xl" />
+            <Skeleton height={92} rounded="xl" />
+            <Skeleton height={92} rounded="xl" />
+          </>
+        ) : (
+          <>
+            <StatCard
+              label="Today"
+              value={statValue(stats.total)}
+              icon="event_note"
+            />
+            <StatCard
+              label="Completed"
+              value={statValue(stats.completed)}
+              icon="task_alt"
+            />
+            <StatCard
+              label="Remaining"
+              value={statValue(stats.remaining)}
+              icon="schedule"
+            />
+          </>
+        )}
+      </section>
+
+      {/* Schedule + Tomorrow */}
+      <section className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <DoctorTodayScheduleCard
+            appointments={items}
+            nextPatientId={nextPatient?.appointmentId ?? null}
+            isFirstLoad={isFirstLoad}
+            isRefreshing={isRefreshing}
+            error={appointmentsToday.error && appointmentsToday.data !== undefined ? null : appointmentsToday.error}
+            onRetry={refreshAll}
+            onRefresh={refreshAll}
+            lastUpdatedLabel={updatedLabel}
+            onOpenPatientDetails={handleOpenPatientDetails}
+          />
+        </div>
+
+        <div className="lg:col-span-1">
+          <Card padding="lg">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-headline-sm text-on-surface">Tomorrow</h2>
+                <span className="text-label-md text-on-surface-variant">
+                  {formatDate(tomorrow)}
                 </span>
-                <span className="text-label-md font-semibold uppercase tracking-wide text-primary">Next patient</span>
-                {timeToMinutes(nextPatient.appointmentTime) < nowMinutes && (
-                  <Badge tone="warning">Overdue</Badge>
-                )}
               </div>
-              <div className="text-2xl font-semibold text-on-surface md:text-3xl">
-                {nextPatient.patientName}
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-body-md text-on-surface-variant">
-                <span>{formatTime(nextPatient.appointmentTime)}</span>
-                {nextPatient.isWalkIn && <Badge tone="secondary">Walk-in</Badge>}
-                <Badge tone={APPOINTMENT_STATUS_TONE[nextPatient.status]}>{nextPatient.status}</Badge>
-              </div>
+
+              {tomorrowCount.isLoading && tomorrowCount.data === undefined ? (
+                <Skeleton height={48} rounded="xl" />
+              ) : tomorrowCount.error && tomorrowCount.data === undefined ? (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-display-sm text-on-surface-variant">—</span>
+                  <Button variant="ghost" size="sm" icon="refresh" onClick={tomorrowCount.reload}>
+                    Retry
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-baseline gap-2">
+                  <span className="text-display-md font-bold text-on-surface">
+                    {tomorrowCount.data?.total ?? 0}
+                  </span>
+                  <span className="text-body-sm text-on-surface-variant">
+                    scheduled
+                  </span>
+                </div>
+              )}
+
+              <Button variant="secondary" onClick={handleViewTomorrow}>
+                View
+              </Button>
             </div>
-
-            <Button variant="primary" icon="medical_services" onClick={() => openConsultation(nextPatient.appointmentId)} className="w-full sm:w-auto">
-              Open consultation
-            </Button>
-          </div>
-        ) : (
-          <EmptyState
-            title="No more patients today"
-            description="There are no scheduled visits left for your doctor queue."
-            icon="event_busy"
-          />
-        )}
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
-          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-secondary" />
-          <div className="flex items-center justify-between text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">Total<span className="rounded-lg bg-primary-fixed p-2 text-primary"><span className="material-symbols-outlined" aria-hidden="true">event_note</span></span></div>
-          <div className="mt-2 text-3xl font-semibold text-on-surface tabular-nums">{counters.total}</div>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
-          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary-fixed" />
-          <div className="flex items-center justify-between text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">Scheduled<span className="rounded-lg bg-primary-fixed p-2 text-primary"><span className="material-symbols-outlined" aria-hidden="true">schedule</span></span></div>
-          <div className="mt-2 text-3xl font-semibold text-on-surface tabular-nums">{counters.scheduled}</div>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
-          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-secondary to-secondary-fixed" />
-          <div className="flex items-center justify-between text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">Completed<span className="rounded-lg bg-secondary-fixed/60 p-2 text-secondary"><span className="material-symbols-outlined" aria-hidden="true">task_alt</span></span></div>
-          <div className="mt-2 text-3xl font-semibold text-on-surface tabular-nums">{counters.completed}</div>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest p-4 shadow-elevated">
-          <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-error to-error-container" />
-          <div className="flex items-center justify-between text-label-md font-semibold uppercase tracking-wide text-on-surface-variant">Cancelled<span className="rounded-lg bg-error-container p-2 text-error"><span className="material-symbols-outlined" aria-hidden="true">event_busy</span></span></div>
-          <div className="mt-2 text-3xl font-semibold text-on-surface tabular-nums">{counters.cancelled}</div>
+          </Card>
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
-        <div className="border-b border-outline-variant bg-gradient-to-r from-primary-fixed/30 to-secondary-fixed/20 px-4 py-4 sm:px-5">
-          <h2 className="text-headline-sm text-on-surface">Today&apos;s schedule</h2>
-          <p className="mt-0.5 text-body-sm text-on-surface-variant">Your appointments, ordered by time.</p>
-        </div>
+      <PatientDetailDrawer
+        patientId={selectedPatientId}
+        onClose={() => {
+          setSelectedPatientId(null);
+          setSelectedAppointment(null);
+        }}
+        onStartConsultation={
+          selectedAppointment &&
+          (selectedAppointment.status === 'Scheduled' ||
+            selectedAppointment.status === 'Re-Scheduled')
+            ? () => handleRequestConsultation(selectedAppointment.appointmentId)
+            : undefined
+        }
+        consultationActionLabel={
+          selectedAppointment?.status === 'Completed'
+            ? 'Amend'
+            : 'Start consultation'
+        }
+        onAmendConsultation={
+          selectedAppointment?.status === 'Completed'
+            ? () => handleAmendConsultation(selectedAppointment.appointmentId)
+            : undefined
+        }
+      />
 
-        {appointmentsToday.isLoading && schedule.length === 0 ? (
-          <div className="p-4"><TableSkeleton rows={4} columns={4} className="py-2" /></div>
-        ) : schedule.length === 0 ? (
-          <EmptyState
-            title="No appointments for today"
-            description="You do not have any appointments in your schedule yet."
-            icon="calendar_today"
-          />
-        ) : (
-          <div className="space-y-2 p-4">
-            {schedule.map((appointment) => {
-              const isNext = nextPatient && nextPatient.appointmentId === appointment.appointmentId;
-
-              return (
-                <div
-                  key={appointment.appointmentId}
-                  className={[
-                    'flex flex-col gap-3 rounded-lg border p-3 md:flex-row md:items-center md:justify-between',
-                    isNext
-                      ? 'border-primary/30 bg-gradient-to-r from-primary-fixed/40 to-secondary-fixed/20 shadow-sm'
-                      : 'border-outline-variant bg-surface-container-lowest hover:bg-surface-container-low',
-                  ].join(' ')}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-20 text-body-md font-medium text-on-surface">
-                      {formatTime(appointment.appointmentTime)}
-                    </div>
-                    <div>
-                      <div className="text-body-md font-medium text-on-surface">{appointment.patientName}</div>
-                      {appointment.isWalkIn && (
-                        <div className="mt-1 text-label-md text-on-surface-variant">Walk-in visit</div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                    <Badge tone={APPOINTMENT_STATUS_TONE[appointment.status]}>{appointment.status}</Badge>
-                    {appointment.isWalkIn && <Badge tone="secondary">Walk-in</Badge>}
-                    {(appointment.status === 'Scheduled' || appointment.status === 'Completed') && (
-                      <Button
-                        variant={isNext ? 'primary' : 'secondary'}
-                        size="sm"
-                        onClick={() => openConsultation(appointment.appointmentId)}
-                      >
-                        Open
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      <section className="overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest shadow-elevated">
-        <div className="border-b border-outline-variant bg-gradient-to-r from-secondary-fixed/30 to-primary-fixed/20 px-4 py-4 sm:px-5">
-          <h2 className="text-headline-sm text-on-surface">Needs follow-up</h2>
-          <p className="mt-0.5 text-body-sm text-on-surface-variant">Completed visits that still need treatment notes.</p>
-        </div>
-
-        {followUp.error && (
-          <div className="p-4"><ErrorBanner message={followUp.error} onRetry={followUp.reload} /></div>
-        )}
-
-        {followUp.isLoading && followUp.data === undefined ? (
-          <div className="p-4"><TableSkeleton rows={3} columns={3} className="py-2" /></div>
-        ) : (followUp.data ?? []).length === 0 ? (
-          <EmptyState
-            title="No follow-up needed"
-            description="All completed visits today have treatment notes logged."
-            icon="check_circle"
-          />
-        ) : (
-          <div className="space-y-2 p-4">
-            {(followUp.data ?? []).map((appointment) => (
-              <div
-                key={appointment.appointmentId}
-                className="flex flex-col gap-3 rounded-xl border border-outline-variant bg-surface-container-low p-4 md:flex-row md:items-center md:justify-between"
-              >
-                <div>
-                  <div className="text-body-md font-medium text-on-surface">{appointment.patientName}</div>
-                  <div className="text-body-sm text-on-surface-variant">
-                    {formatTime(appointment.appointmentTime)} · completed today
-                  </div>
-                </div>
-
-                <Button variant="secondary" size="sm" onClick={() => openConsultation(appointment.appointmentId)}>
-                  Open
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      <ConfirmDialog
+        isOpen={pendingConsultationId !== null}
+        title="Start consultation?"
+        confirmLabel="Start consultation"
+        cancelLabel="Cancel"
+        tone="default"
+        onConfirm={handleConfirmConsultation}
+        onCancel={() => setPendingConsultationId(null)}
+      />
     </div>
   );
 }

@@ -10,7 +10,6 @@ export interface DrawerProps {
   onClose: () => void;
   title: string;
   subtitle?: string;
-  headerVariant?: 'default' | 'accent';
   children: ReactNode;
   footer?: ReactNode;
 }
@@ -20,12 +19,13 @@ export function Drawer({
   onClose,
   title,
   subtitle,
-  headerVariant = 'default',
   children,
   footer,
 }: DrawerProps) {
   const panelRef = useRef<HTMLElement | null>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const titleId = useId();
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export function Drawer({
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -80,7 +80,7 @@ export function Drawer({
       window.clearTimeout(focusTimer);
       previouslyFocused.current?.focus?.();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -102,12 +102,7 @@ export function Drawer({
           'sm:w-drawer-width sm:rounded-l-3xl',
         )}
       >
-        <header
-          className={cn(
-            'flex shrink-0 items-start justify-between gap-3 border-b border-outline-variant px-5 py-4',
-            headerVariant === 'accent' && 'bg-primary-container/40',
-          )}
-        >
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-outline-variant px-5 py-4">
           <div className="min-w-0">
             <h2 id={titleId} className="truncate text-headline-sm text-on-surface">
               {title}

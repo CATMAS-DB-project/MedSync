@@ -79,6 +79,31 @@ async def test_reschedule_service_not_found():
 
 
 @pytest.mark.asyncio
+async def test_cancel_service_scopes_to_creator_or_branch():
+    from app.domains.appointment.service import cancel_appointment
+
+    mock_conn = AsyncMock()
+    mock_conn.fetchrow.side_effect = [
+        {"appointment_id": 10},
+        {"appointment_id": 10, "status": "Cancelled"},
+    ]
+
+    result = await cancel_appointment(
+        mock_conn,
+        appointment_id=10,
+        reason="Receptionist unavailable",
+        staff_id=7,
+        branch_id=2,
+    )
+
+    assert result == {"appointment_id": 10, "status": "Cancelled"}
+    sql, *args = mock_conn.fetchrow.call_args_list[0].args
+    assert "booked_by_staff_id = $3" in sql
+    assert "branch_id = $4" in sql
+    assert args == [10, "Receptionist unavailable", 7, 2]
+
+
+@pytest.mark.asyncio
 async def test_reschedule_service_rejects_completed_or_cancelled():
     from app.domains.appointment.service import reschedule_appointment
     mock_conn = AsyncMock()
@@ -188,4 +213,3 @@ async def test_reschedule_service_success_transition_chain():
     # Verify that UPDATE was called to set status to 'Re-Scheduled'
     update_calls = [c for c in mock_conn.execute.call_args_list if "Re-Scheduled" in str(c)]
     assert len(update_calls) == 1
-

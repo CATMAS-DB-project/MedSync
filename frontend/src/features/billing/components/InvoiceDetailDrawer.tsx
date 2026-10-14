@@ -1,412 +1,262 @@
-import { useEffect, useState } from 'react';
-import { Drawer, DrawerSection } from '../../../components/layout/Drawer';
-import { Badge } from '../../../components/ui/Badge';
+import { useEffect, useMemo, useState } from 'react';
+import { Modal } from '../../../components/common/Modal';
 import { Button } from '../../../components/ui/Button';
-import { Input } from '../../../components/ui/Input';
-import { Select } from '../../../components/ui/Select';
+import { Badge } from '../../../components/ui/Badge';
+import { Avatar } from '../../../components/ui/Avatar';
+import { Icon } from '../../../components/ui/Icon';
+import { Skeleton } from '../../../components/ui/Skeleton';
 import { ErrorBanner } from '../../../components/common/ErrorBanner';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
-import { ApiError } from '../../../services/api/ApiError';
-import { fetchPatientInsurance } from '../../../services/api/insurance';
-import { createInsuranceClaim, fetchInsuranceClaims, verifyInsuranceClaim } from '../../../services/api/insuranceClaims';
-import { fetchInvoiceById, fetchInvoicePayments, finalizeInvoice } from '../../../services/api/invoices';
-import { recordPayment } from '../../../services/api/payments';
+import { useBranchNames } from '../../../hooks/useBranchNames';
 import { fetchPatientById } from '../../../services/api/patients';
-import { formatCurrency, formatDate, formatFullName } from '../../../utils/formatters';
+import { fetchInsuranceClaims } from '../../../services/api/insuranceClaims';
+import {
+  fetchInvoiceById,
+  fetchInvoicePayments,
+} from '../../../services/api/invoices';
+import { formatDate, formatFullName } from '../../../utils/formatters';
 import { INVOICE_STATUS_TONE } from '../statusStyles';
-import { useToast } from '../../../components/common/ToastProvider';
-import type { ClaimVerificationStatus, PaymentMethod } from '../../../types';
+import { InvoiceItemsTable } from './InvoiceItemsTable';
+import { InvoiceTotals } from './InvoiceTotals';
+import { InvoicePaymentsList } from './InvoicePaymentsList';
+import { InvoiceClaimsSection } from './InvoiceClaimsSection';
+import { InvoiceFinalizeForm } from './InvoiceFinalizeForm';
+import { InvoicePaymentForm } from './InvoicePaymentForm';
+import { ReceiptModal } from './ReceiptModal';
+import type { InsuranceClaim, Payment } from '../../../types';
 
 export interface InvoiceDetailDrawerProps {
   invoiceId: number | null;
   onClose: () => void;
-  /** Called after any change so the list behind the drawer refreshes. */
   onChanged: () => void;
+  initialFocus?: 'finalize' | 'payment' | null;
 }
 
-const CLAIM_TONE: Record<ClaimVerificationStatus, 'warning' | 'success' | 'error'> = {
-  Pending: 'warning',
-  Approved: 'success',
-  Rejected: 'error',
-};
-
-const METHOD_OPTIONS: { label: string; value: PaymentMethod }[] = [
-  { label: 'Cash', value: 'Cash' },
-  { label: 'Credit Card', value: 'Credit Card' },
-  { label: 'Insurance', value: 'Insurance' },
-];
-
-function messageOf(err: unknown, fallback: string): string {
-  return err instanceof ApiError ? err.message : fallback;
-}
-
-const round2 = (n: number) => Math.round(n * 100) / 100;
-
-export function InvoiceDetailDrawer({ invoiceId, onClose, onChanged }: InvoiceDetailDrawerProps) {
+export function InvoiceDetailDrawer({
+  invoiceId,
+  onClose,
+  onChanged,
+  initialFocus = null,
+}: InvoiceDetailDrawerProps) {
   const { currentUser } = useAuth();
   const role = currentUser?.role;
-  const toast = useToast();
-  // Backend: only Receptionists act on invoices; payment history is visible to Receptionist/Admin.
   const isReceptionist = role === 'Receptionist';
   const canSeePayments = role === 'Receptionist' || role === 'Admin';
+  const { getBranchName } = useBranchNames(invoiceId !== null);
 
   const invoiceQuery = useAsync(
     () => (invoiceId === null ? Promise.resolve(null) : fetchInvoiceById(invoiceId)),
     [invoiceId],
   );
-  const invoice = invoiceId !== null && invoiceQuery.data?.invoiceId === invoiceId ? invoiceQuery.data : null;
+  const invoice =
+    invoiceId !== null && invoiceQuery.data?.invoiceId === invoiceId
+      ? invoiceQuery.data
+      : null;
 
   const patient = useAsync(
-    () => (invoice?.patientId ? fetchPatientById(invoice.patientId) : Promise.resolve(null)),
+    () =>
+      invoice?.patientId ? fetchPatientById(invoice.patientId) : Promise.resolve(null),
     [invoice?.patientId],
   );
-  const policies = useAsync(
-    () =>
-      isReceptionist && invoice?.patientId
-        ? fetchPatientInsurance(invoice.patientId)
-        : Promise.resolve([]),
-    [invoice?.patientId, isReceptionist],
-  );
+
   const payments = useAsync(
-    () => (canSeePayments && invoiceId !== null ? fetchInvoicePayments(invoiceId) : Promise.resolve([])),
+    () =>
+      canSeePayments && invoiceId !== null
+        ? fetchInvoicePayments(invoiceId)
+        : Promise.resolve([] as Payment[]),
     [invoiceId, canSeePayments],
   );
-  // The backend has no "claim for invoice X" endpoint yet, so look it up in the claims list.
+
+  // The backend has no invoice filter on this endpoint; scope by branchId for Receptionist.
   const claims = useAsync(
-    () => (invoiceId !== null ? fetchInsuranceClaims({ pageSize: 100 }) : Promise.resolve(null)),
-    [invoiceId],
+    () =>
+      !isReceptionist || !invoice
+        ? Promise.resolve(null)
+        : fetchInsuranceClaims({ branchId: invoice.branchId, pageSize: 100 }),
+    [isReceptionist, invoice?.invoiceId, invoice?.branchId],
   );
-  const claim = claims.data?.items.find((c) => c.invoiceId === invoiceId) ?? null;
-  const activePolicies = (policies.data ?? []).filter((p) => p.status === 'Active');
+  const claim: InsuranceClaim | null =
+    claims.data?.items.find((c) => c.invoiceId === invoiceId) ?? null;
 
-  // Form state
-  const [policyId, setPolicyId] = useState('');
-  const [claimAmount, setClaimAmount] = useState('');
-  const [insuranceDeduction, setInsuranceDeduction] = useState('0');
-  const [manualDiscount, setManualDiscount] = useState('0');
-  const [payAmount, setPayAmount] = useState('');
-  const [payMethod, setPayMethod] = useState<PaymentMethod>('Cash');
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const activePolicies = useMemo(
+    () => (patient.data?.insurance ?? []).filter((p) => p.status === 'Active'),
+    [patient.data?.insurance],
+  );
 
-  const approvedAmount = claim?.verificationStatus === 'Approved' ? Number(claim.approvedAmount ?? 0) : 0;
+  const approvedInsuranceAmount =
+    claim?.verificationStatus === 'Approved'
+      ? Number(claim.approvedAmount ?? 0)
+      : 0;
 
-  // Reset the forms whenever a different invoice (or a new state of it) is shown.
+  const [receiptPayment, setReceiptPayment] = useState<Payment | null>(null);
+
+  // Reset the receipt when the invoice changes.
   useEffect(() => {
-    setError(null);
-    setPolicyId(activePolicies[0]?.policyId ?? '');
-    setClaimAmount(invoice ? String(invoice.subtotalAmount) : '');
-    setInsuranceDeduction(approvedAmount > 0 ? String(approvedAmount) : '0');
-    setManualDiscount('0');
-    setPayAmount(invoice?.outstandingAmount ? String(invoice.outstandingAmount) : '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoice?.invoiceId, invoice?.status, invoice?.outstandingAmount, claim?.verificationStatus, policies.data]);
+    setReceiptPayment(null);
+  }, [invoiceId]);
 
-  function refreshAll() {
+  const handleChanged = () => {
     invoiceQuery.reload();
     payments.reload();
     claims.reload();
     onChanged();
-  }
+  };
 
-  async function run(label: string, action: () => Promise<unknown>, fallback: string) {
-    setBusy(label);
-    setError(null);
-    try {
-      await action();
-      const successMessage =
-        label === 'payment'
-          ? 'Payment recorded successfully.'
-          : label === 'finalize'
-            ? 'Invoice finalized successfully.'
-            : label === 'verify'
-              ? 'Insurance claim verified successfully.'
-              : label === 'claim'
-                ? 'Insurance claim submitted successfully.'
-                : 'Action completed successfully.';
-      toast.success(successMessage);
-      refreshAll();
-    } catch (err) {
-      setError(messageOf(err, fallback));
-    } finally {
-      setBusy(null);
-    }
-  }
+  const patientName =
+    invoice?.patientName ??
+    (patient.data
+      ? formatFullName(patient.data.firstName, patient.data.lastName)
+      : null) ??
+    (invoice?.patientId !== undefined ? `Patient #${invoice.patientId}` : 'Patient');
 
-  function submitClaim() {
-    if (!invoice) return;
-    const amount = Number(claimAmount);
-    if (!policyId) return setError('Choose an active insurance policy.');
-    if (!(amount > 0) || amount > invoice.subtotalAmount)
-      return setError(`Claimed amount must be between 0.01 and ${formatCurrency(invoice.subtotalAmount)}.`);
-    void run('claim', () => createInsuranceClaim(invoice.invoiceId, { policyId, claimedAmount: amount }), 'Could not create the claim.');
-  }
-
-  function submitFinalize() {
-    if (!invoice) return;
-    const ins = Number(insuranceDeduction) || 0;
-    const disc = Number(manualDiscount) || 0;
-    if (ins < 0 || disc < 0) return setError('Amounts cannot be negative.');
-    if (ins > approvedAmount) return setError('Insurance deduction cannot exceed the approved claim amount.');
-    if (ins + disc > invoice.subtotalAmount) return setError('Deductions and discount cannot exceed the subtotal.');
-    if (!window.confirm('Finalize this invoice? Amounts cannot be changed afterwards.')) return;
-    void run('finalize', () => finalizeInvoice(invoice.invoiceId, { insuranceDeduction: ins, manualDiscount: disc }), 'Could not finalize the invoice.');
-  }
-
-  function submitPayment() {
-    if (!invoice) return;
-    const amount = Number(payAmount);
-    const outstanding = invoice.outstandingAmount ?? 0;
-    if (!(amount > 0)) return setError('Enter a payment amount greater than zero.');
-    if (round2(amount) > round2(outstanding)) return setError(`Payment cannot exceed the outstanding balance (${formatCurrency(outstanding)}).`);
-    void run('payment', () => recordPayment(invoice.invoiceId, { amountPaid: round2(amount), paymentMethod: payMethod }), 'Could not record the payment.');
-  }
-
-  const patientName = patient.data ? formatFullName(patient.data.firstName, patient.data.lastName) : undefined;
-  const previewPayable = invoice
-    ? round2(invoice.subtotalAmount - (Number(insuranceDeduction) || 0) - (Number(manualDiscount) || 0))
-    : 0;
+  const resolvedBranchName = invoice
+    ? invoice.branchName ?? getBranchName(invoice.branchId)
+    : undefined;
 
   return (
-    <Drawer
-      isOpen={invoiceId !== null}
-      onClose={onClose}
-      title={invoiceId !== null ? `Invoice #${invoiceId}` : ''}
-      subtitle={patientName}
-      footer={
-        <Button variant="secondary" onClick={onClose}>
-          Close
-        </Button>
-      }
-    >
-      {invoiceQuery.isLoading && !invoice && (
-        <div className="rounded-xl border border-outline-variant bg-surface-container-low p-5 text-center text-body-sm text-on-surface-variant" role="status">
-          Loading invoice…
-        </div>
-      )}
-      {invoiceQuery.error && (
-        <ErrorBanner message={invoiceQuery.error} onRetry={invoiceQuery.reload} />
-      )}
-      {error && (
-        <div className="rounded-xl border border-error/40 bg-error-container/30 p-4 text-body-sm text-error" role="alert">
-          {error}
-        </div>
-      )}
+    <>
+      <Modal
+        isOpen={invoiceId !== null}
+        onClose={onClose}
+        title={invoiceId !== null ? `Invoice #${invoiceId}` : 'Invoice'}
+        size="xl"
+        footer={
+          <Button variant="secondary" onClick={onClose}>
+            Close
+          </Button>
+        }
+      >
+        {invoiceQuery.isLoading && !invoice && (
+          <div className="flex flex-col gap-4">
+            <Skeleton height={64} rounded="xl" />
+            <Skeleton height={200} rounded="xl" />
+            <Skeleton height={120} rounded="xl" />
+          </div>
+        )}
 
-      {invoice && (
-        <>
-          <DrawerSection title="Summary" icon="receipt_long">
-            <div className="grid grid-cols-1 gap-3 text-body-sm sm:grid-cols-2">
-              <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3">
-                <div className="text-label-md text-on-surface-variant">Visit date</div>
-                <div className="mt-1 font-medium text-on-surface">{formatDate(invoice.appointmentDate)}</div>
+        {invoiceQuery.error && (
+          <ErrorBanner message={invoiceQuery.error} onRetry={invoiceQuery.reload} />
+        )}
+
+        {invoice && (
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={INVOICE_STATUS_TONE[invoice.status]} dot pill>
+                  {invoice.status}
+                </Badge>
+                <span className="text-label-md text-on-surface-variant">
+                  Created {formatDate(invoice.createdAt)}
+                </span>
               </div>
-              <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3">
-                <div className="text-on-surface-variant text-label-md">Status</div>
-                <div className="mt-1"><Badge tone={INVOICE_STATUS_TONE[invoice.status]}>{invoice.status}</Badge></div>
-              </div>
-              <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3">
-                <div className="text-on-surface-variant text-label-md">Subtotal</div>
-                <div className="mt-1 font-medium text-on-surface">{formatCurrency(invoice.subtotalAmount)}</div>
-              </div>
-              <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3">
-                <div className="text-on-surface-variant text-label-md">Insurance deduction</div>
-                <div className="mt-1 font-medium text-on-surface">{formatCurrency(invoice.insuranceDeduction)}</div>
-              </div>
-              <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3">
-                <div className="text-on-surface-variant text-label-md">Manual discount</div>
-                <div className="mt-1 font-medium text-on-surface">{formatCurrency(invoice.manualDiscount)}</div>
-              </div>
-              <div className="rounded-xl border border-primary/20 bg-primary-container/30 p-3">
-                <div className="text-on-surface-variant text-label-md">Payable</div>
-                <div className="mt-1 font-semibold text-on-surface">
-                  {formatCurrency(invoice.payableAmount ?? invoice.subtotalAmount)}
-                </div>
-              </div>
-              {invoice.status !== 'Draft' && (
-                <>
-                  <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3">
-                    <div className="text-on-surface-variant text-label-md">Paid</div>
-                    <div className="mt-1 font-medium text-on-surface">{formatCurrency(invoice.amountPaid ?? 0)}</div>
-                  </div>
-                  <div className="rounded-xl border border-tertiary/20 bg-tertiary-container/30 p-3">
-                    <div className="text-on-surface-variant text-label-md">Outstanding</div>
-                    <div className="mt-1 font-semibold text-on-surface">{formatCurrency(invoice.outstandingAmount ?? 0)}</div>
-                  </div>
-                </>
-              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="print"
+                onClick={() => window.print()}
+                className="no-print"
+              >
+                Print
+              </Button>
             </div>
-          </DrawerSection>
 
-          <DrawerSection title="Visit Charges" icon="list_alt">
-            {invoice.lineItems.length === 0 ? (
-              <p className="rounded-xl border border-outline-variant bg-surface-container-low p-4 text-body-sm text-on-surface-variant">
-                No treatments logged. The subtotal is the consultation fee.
-              </p>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-outline-variant">
-              <table className="w-full min-w-[360px] border-collapse text-left text-body-sm">
-                <tbody>
-                  {invoice.lineItems.map((item) => (
-                    <tr key={item.appointmentTreatmentId} className="border-b border-outline-variant last:border-0">
-                      <td className="px-3 py-3">
-                        {item.treatmentName}
-                        <span className="block text-label-md text-on-surface-variant">
-                          {item.serviceCode}
-                          {item.isAmended ? ' · amendment' : ''}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-right font-medium tabular-nums">{formatCurrency(item.priceAtTime)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </div>
-            )}
-          </DrawerSection>
-
-          <DrawerSection title="Insurance Claim" icon="health_and_safety">
-            {claim ? (
-              <div className="flex flex-col gap-3 rounded-xl border border-outline-variant bg-surface-container-low p-4 text-body-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-on-surface">
-                    Policy <span className="font-mono text-xs">{claim.policyId}</span>
-                  </span>
-                  <Badge tone={CLAIM_TONE[claim.verificationStatus]}>{claim.verificationStatus}</Badge>
-                </div>
-                <div className="text-on-surface-variant">
-                  Claimed {formatCurrency(claim.claimedAmount)}
-                  {claim.approvedAmount != null && ` · Approved ${formatCurrency(Number(claim.approvedAmount))}`}
-                </div>
-                {isReceptionist && claim.verificationStatus === 'Pending' && (
-                  <div>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() =>
-                        void run(
-                          'verify',
-                          () => verifyInsuranceClaim(claim.claimId),
-                          'Could not verify the insurance claim.',
-                        )
-                      }
-                      disabled={busy !== null}
-                    >
-                      {busy === 'verify' ? 'Verifying…' : 'Verify Claim'}
-                    </Button>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_18rem]">
+              <div className="flex flex-col gap-5">
+                <div className="flex items-center gap-3 rounded-2xl bg-surface-container-low p-3">
+                  <Avatar name={patientName} size="md" />
+                  <div className="min-w-0">
+                    <div className="truncate text-body-md font-semibold text-on-surface">
+                      {patientName}
+                    </div>
+                    {patient.data && (
+                      <div className="truncate text-label-md text-on-surface-variant">
+                        {patient.data.nicPassportNo}
+                      </div>
+                    )}
+                    {resolvedBranchName && (
+                      <div className="mt-0.5 inline-flex items-center gap-1 text-label-md text-on-surface-variant">
+                        <Icon name="location_on" size={12} />
+                        {resolvedBranchName}
+                      </div>
+                    )}
                   </div>
+                </div>
+
+                <InvoiceItemsTable lineItems={invoice.lineItems} />
+
+                <InvoiceTotals invoice={invoice} />
+
+                {canSeePayments && (
+                  <InvoicePaymentsList
+                    payments={payments.data ?? []}
+                    loading={payments.isLoading}
+                    error={payments.error}
+                    onRetry={payments.reload}
+                    onOpenReceipt={setReceiptPayment}
+                  />
+                )}
+
+                {isReceptionist && (
+                  <InvoiceClaimsSection
+                    invoice={invoice}
+                    claim={claim}
+                    activePolicies={activePolicies}
+                    isReceptionist={isReceptionist}
+                    onChanged={handleChanged}
+                  />
                 )}
               </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                <Select
-                  label="Policy"
-                  placeholder="Choose an active insurance policy"
-                  options={activePolicies.map((policy) => ({
-                    label: `${policy.providerName} (${policy.policyId})`,
-                    value: policy.policyId,
-                  }))}
-                  value={policyId}
-                  onChange={(event) => setPolicyId(event.target.value)}
-                />
-                <Input
-                  label="Claim Amount"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={claimAmount}
-                  onChange={(event) => setClaimAmount(event.target.value)}
-                />
-                <Button
-                  variant="primary"
-                  onClick={submitClaim}
-                  disabled={!isReceptionist || busy !== null}
-                >
-                  {busy === 'claim' ? 'Submitting…' : 'Create Claim'}
-                </Button>
-              </div>
-            )}
-          </DrawerSection>
 
-          <DrawerSection title="Finalize Invoice" icon="done_all">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input
-                label="Insurance deduction"
-                type="number"
-                min="0"
-                step="0.01"
-                value={insuranceDeduction}
-                onChange={(event) => setInsuranceDeduction(event.target.value)}
-              />
-              <Input
-                label="Manual discount"
-                type="number"
-                min="0"
-                step="0.01"
-                value={manualDiscount}
-                onChange={(event) => setManualDiscount(event.target.value)}
-              />
-            </div>
-            <div className="mt-2 rounded-xl border border-primary/20 bg-primary-container/30 p-3 text-body-sm text-on-surface-variant">
-              Preview payable <span className="ml-1 font-semibold text-on-surface">{formatCurrency(previewPayable)}</span>
-            </div>
-            <Button
-              variant="primary"
-              onClick={submitFinalize}
-              disabled={!isReceptionist || busy !== null || invoice.status === 'Paid'}
-              className="mt-3"
-            >
-              {busy === 'finalize' ? 'Finalizing…' : 'Finalize Invoice'}
-            </Button>
-          </DrawerSection>
-
-          <DrawerSection title="Record Payment" icon="payments">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Input
-                label="Amount"
-                type="number"
-                min="0"
-                step="0.01"
-                value={payAmount}
-                onChange={(event) => setPayAmount(event.target.value)}
-              />
-              <Select
-                label="Method"
-                options={METHOD_OPTIONS}
-                value={payMethod}
-                onChange={(event) => setPayMethod(event.target.value as PaymentMethod)}
-              />
-            </div>
-            <Button
-              variant="primary"
-              onClick={submitPayment}
-              disabled={!isReceptionist || busy !== null}
-              className="mt-3"
-            >
-              {busy === 'payment' ? 'Recording…' : 'Record Payment'}
-            </Button>
-          </DrawerSection>
-
-          {payments.data && payments.data.length > 0 && (
-            <DrawerSection title="Payment History" icon="history">
-              <div className="space-y-2">
-                {payments.data.map((payment) => (
-                  <div key={payment.paymentId} className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3 text-body-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-on-surface">{formatCurrency(payment.amountPaid)}</span>
-                      <Badge tone="primary">{payment.paymentMethod}</Badge>
-                    </div>
-                    <div className="mt-1 text-on-surface-variant">
-                      {formatDate(payment.paymentDate)} · {payment.processedByStaffId ? `Staff #${payment.processedByStaffId}` : 'Manual'}
-                    </div>
+              <aside className="no-print flex flex-col gap-4">
+                {!isReceptionist && (
+                  <div className="rounded-2xl bg-surface-container-low p-3 text-label-md text-on-surface-variant">
+                    Read-only
                   </div>
-                ))}
-              </div>
-            </DrawerSection>
-          )}
-        </>
-      )}
-    </Drawer>
+                )}
+
+                {isReceptionist && invoice.status === 'Draft' && (
+                  <InvoiceFinalizeForm
+                    invoice={invoice}
+                    approvedInsuranceAmount={approvedInsuranceAmount}
+                    onSuccess={handleChanged}
+                    autoFocus={initialFocus === 'finalize'}
+                  />
+                )}
+
+                {isReceptionist &&
+                  (invoice.status === 'Finalized' ||
+                    invoice.status === 'Partially Paid') && (
+                    <InvoicePaymentForm
+                      invoice={invoice}
+                      onSuccess={(payment) => {
+                        handleChanged();
+                        setReceiptPayment(payment);
+                      }}
+                      autoFocus={initialFocus === 'payment'}
+                    />
+                  )}
+
+                {isReceptionist && invoice.status === 'Paid' && (
+                  <div className="flex flex-col items-start gap-2 rounded-2xl bg-success-container/50 p-4 text-body-sm text-on-success-container">
+                    <Badge tone="success" dot pill>
+                      Paid
+                    </Badge>
+                    <span>Fully settled</span>
+                  </div>
+                )}
+              </aside>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <ReceiptModal
+        payment={receiptPayment}
+        invoiceId={invoice?.invoiceId ?? null}
+        patientName={patientName}
+        onClose={() => setReceiptPayment(null)}
+      />
+    </>
   );
 }

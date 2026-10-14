@@ -1,24 +1,31 @@
 import { apiGet, apiPatch, apiPost } from './client';
-import type { Appointment, AppointmentTreatment } from '../../types';
+import type {
+  Appointment,
+  AppointmentTreatment,
+  BatchTreatmentCreateResult,
+} from '../../types';
 
 export async function fetchAppointmentTreatments(appointmentId: number): Promise<AppointmentTreatment[]> {
   return apiGet<AppointmentTreatment[]>(`/appointments/${appointmentId}/treatments`);
 }
 
-export async function logAppointmentTreatment(
+export async function logAppointmentTreatments(
   appointmentId: number,
-  input: {
-    service_code: string;
-  },
-): Promise<AppointmentTreatment> {
-  return apiPost<AppointmentTreatment>(`/appointments/${appointmentId}/treatments`, input);
+  inputs: Array<{
+    serviceCode: string;
+  }>,
+): Promise<BatchTreatmentCreateResult> {
+  return apiPost<BatchTreatmentCreateResult>(
+    `/appointments/${appointmentId}/treatments`,
+    inputs,
+  );
 }
 
 export async function amendAppointmentTreatment(
   appointmentTreatmentId: number,
   input: {
-    service_code: string;
-    amendment_reason: string;
+    serviceCode: string;
+    amendmentReason: string;
   },
 ): Promise<AppointmentTreatment> {
   return apiPost<AppointmentTreatment>(`/appointment-treatments/${appointmentTreatmentId}/amend`, input);

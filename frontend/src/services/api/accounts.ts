@@ -1,8 +1,29 @@
-import { apiGet, apiPatch, apiPost } from './client';
-import type { Role, UserAccount } from '../../types';
+import { apiDelete, apiPatch, apiPost } from './client';
+import type { AccountStatus, Role, UserAccount } from '../../types';
 
-export async function fetchUserAccount(staffId: number): Promise<UserAccount> {
-  return apiGet<UserAccount>(`/staff/${staffId}/account`);
+interface UserAccountRaw {
+  staffId: number;
+  username: string;
+  role?: Role;
+  roleId?: number;
+  roleName?: Role;
+  accountStatus: AccountStatus;
+  lastLogin?: string | null;
+  createdAt?: string;
+}
+
+function toUserAccount(raw: UserAccountRaw): UserAccount {
+  const role = (raw.roleName ?? raw.role) as Role;
+  return {
+    staffId: raw.staffId,
+    username: raw.username,
+    role,
+    roleId: raw.roleId,
+    roleName: raw.roleName ?? role,
+    accountStatus: raw.accountStatus,
+    lastLogin: raw.lastLogin ?? undefined,
+    createdAt: raw.createdAt,
+  };
 }
 
 export async function createUserAccount(
@@ -15,10 +36,11 @@ export async function createUserAccount(
 ): Promise<UserAccount> {
   const payload = {
     username: input.username,
-    password: input.tempPassword, 
+    password: input.tempPassword,
     roleName: input.role,
   };
-  return apiPost<UserAccount>(`/staff/${staffId}/account`, payload);
+  const raw = await apiPost<UserAccountRaw>(`/staff/${staffId}/account`, payload);
+  return toUserAccount(raw);
 }
 
 export async function updateUserAccount(
@@ -32,14 +54,19 @@ export async function updateUserAccount(
   if ('accountStatus' in updates && updates.accountStatus !== undefined) {
     payload.accountStatus = updates.accountStatus;
   }
-  return apiPatch<UserAccount>(`/staff/${staffId}/account`, payload);
+  const raw = await apiPatch<UserAccountRaw>(`/staff/${staffId}/account`, payload);
+  return toUserAccount(raw);
+}
+
+export async function deleteUserAccount(staffId: number): Promise<void> {
+  await apiDelete<void>(`/staff/${staffId}/account`);
 }
 
 export async function resetStaffPassword(
   staffId: number,
-  input?: {
-    newPassword?: string;
+  input: {
+    newPassword: string;
   },
 ): Promise<void> {
-  await apiPost<void>(`/staff/${staffId}/account/reset-password`, input ?? {});
+  await apiPost<void>(`/staff/${staffId}/account/reset-password`, input);
 }

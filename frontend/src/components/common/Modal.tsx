@@ -10,7 +10,7 @@ export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
-  children: ReactNode;
+  children?: ReactNode;
   footer?: ReactNode;
   size?: ModalSize;
   className?: string;
@@ -34,6 +34,8 @@ export function Modal({
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const titleId = useId();
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export function Modal({
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
       } else if (event.key === 'Tab') {
         const panel = panelRef.current;
         if (!panel) return;
@@ -87,7 +89,7 @@ export function Modal({
       window.clearTimeout(focusTimer);
       previouslyFocused.current?.focus?.();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -126,7 +128,9 @@ export function Modal({
           </header>
         )}
 
-        <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
+        {children != null && (
+          <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
+        )}
 
         {footer && (
           <footer className="no-print flex shrink-0 items-center justify-end gap-2 border-t border-outline-variant px-5 py-4">

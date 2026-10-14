@@ -27,9 +27,6 @@ export interface DataTableProps<T> {
   error?: string | null;
   onRetry?: () => void;
   emptyState?: ReactNode;
-  onSortChange?: (key: string, direction: 'asc' | 'desc') => void;
-  sortKey?: string;
-  sortDirection?: 'asc' | 'desc';
   rowActions?: (row: T) => ReactNode;
   pagination?: ReactNode;
   skeletonRows?: number;
@@ -51,35 +48,11 @@ export function DataTable<T>({
   error = null,
   onRetry,
   emptyState,
-  onSortChange,
-  sortKey,
-  sortDirection,
   rowActions,
   pagination,
   skeletonRows = 6,
 }: DataTableProps<T>) {
   const showInitialSkeleton = loading && rows.length === 0;
-
-  const handleSort = (column: DataTableColumn<T>) => {
-    if (!column.sortable || !onSortChange) return;
-    const nextDirection =
-      sortKey === column.key && sortDirection === 'asc' ? 'desc' : 'asc';
-    onSortChange(column.key, nextDirection);
-  };
-
-  const sortIconFor = (column: DataTableColumn<T>) => {
-    if (!column.sortable) return null;
-    if (sortKey !== column.key) {
-      return <Icon name="unfold_more" size={14} className="text-on-surface-variant/60" />;
-    }
-    return (
-      <Icon
-        name={sortDirection === 'asc' ? 'expand_less' : 'expand_more'}
-        size={14}
-        className="text-primary"
-      />
-    );
-  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -140,37 +113,19 @@ export function DataTable<T>({
           <table className="w-full">
             <thead>
               <tr className="border-b border-outline-variant">
-                {columns.map((col) => {
-                  const clickable = col.sortable && !!onSortChange;
-                  return (
-                    <th
-                      key={col.key}
-                      scope="col"
-                      className={cn(
-                        'px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant',
-                        ALIGN[col.align ?? 'left'],
-                        col.headerClassName,
-                      )}
-                    >
-                      {clickable ? (
-                        <button
-                          type="button"
-                          onClick={() => handleSort(col)}
-                          className={cn(
-                            'inline-flex items-center gap-1 rounded-md transition-colors hover:text-on-surface',
-                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-                            col.align === 'right' && 'flex-row-reverse',
-                          )}
-                        >
-                          <span>{col.header}</span>
-                          {sortIconFor(col)}
-                        </button>
-                      ) : (
-                        col.header
-                      )}
-                    </th>
-                  );
-                })}
+                {columns.map((col) => (
+                  <th
+                    key={col.key}
+                    scope="col"
+                    className={cn(
+                      'px-4 py-3 text-label-sm uppercase tracking-wider text-on-surface-variant',
+                      ALIGN[col.align ?? 'left'],
+                      col.headerClassName,
+                    )}
+                  >
+                    {col.header}
+                  </th>
+                ))}
                 {rowActions && <th className="w-12 px-4 py-3" />}
               </tr>
             </thead>
@@ -202,7 +157,7 @@ export function DataTable<T>({
                     {rowActions && (
                       <td className="px-4 py-3 align-middle text-right">
                         <div
-                          className="flex justify-end opacity-100 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 transition-opacity"
+                          className="flex justify-end"
                           onClick={(event) => event.stopPropagation()}
                         >
                           {rowActions(row)}

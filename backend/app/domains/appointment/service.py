@@ -113,15 +113,24 @@ async def create_appointment(
 
 
 async def cancel_appointment(
-    conn: PoolConnectionProxy, appointment_id: int, reason: str
+    conn: PoolConnectionProxy,
+    appointment_id: int,
+    reason: str,
+    *,
+    staff_id: int,
+    branch_id: int | None,
 ) -> dict | None:
     row = await conn.fetchrow(
         "UPDATE appointment "
         "SET status = 'Cancelled', cancel_reschedule_reason = $2 "
         "WHERE appointment_id = $1 AND status = 'Scheduled' "
+        "AND (booked_by_staff_id = $3 "
+        "OR ($4::int IS NOT NULL AND branch_id = $4)) "
         "RETURNING appointment_id",
         appointment_id,
         reason,
+        staff_id,
+        branch_id,
     )
     if not row:
         return None
@@ -273,18 +282,18 @@ async def reschedule_appointment(
     return new_appointment
 
 
-async def get_reschedule_history(
-    conn: PoolConnectionProxy, appointment_id: int
-) -> list[dict]:
-    rows = await conn.fetch(
-        "SELECT a.appointment_id, a.appointment_date, a.appointment_time, "
-        "a.status, a.cancel_reschedule_reason, a.created_at, "
-        "s.first_name || ' ' || s.last_name AS booked_by_name "
-        "FROM appointment a "
-        "JOIN staff s ON s.staff_id = a.booked_by_staff_id "
-        "WHERE a.cancel_reschedule_reason ILIKE '%' || $1::text || '%' "
-        "   OR a.appointment_id = $1 "
-        "ORDER BY a.created_at ASC",
-        appointment_id,
-    )
-    return [dict(r) for r in rows]
+# async def get_reschedule_history(
+#     conn: PoolConnectionProxy, appointment_id: int
+# ) -> list[dict]:
+#     rows = await conn.fetch(
+#         "SELECT a.appointment_id, a.appointment_date, a.appointment_time, "
+#         "a.status, a.cancel_reschedule_reason, a.created_at, "
+#         "s.first_name || ' ' || s.last_name AS booked_by_name "
+#         "FROM appointment a "
+#         "JOIN staff s ON s.staff_id = a.booked_by_staff_id "
+#         "WHERE a.cancel_reschedule_reason ILIKE '%' || $1::text || '%' "
+#         "   OR a.appointment_id = $1 "
+#         "ORDER BY a.created_at ASC",
+#         appointment_id,
+#     )
+#     return [dict(r) for r in rows]

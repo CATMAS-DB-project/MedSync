@@ -12,4 +12,5 @@ export const ROUTES = {
   CONSULTATION: '/consultation/:appointmentId',
   WALK_IN: '/walk-in',
   REPORTS: '/reports',
+  TREATMENTS: '/treatments',
 } as const;

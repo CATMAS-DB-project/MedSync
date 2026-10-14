@@ -7,3 +7,4 @@ export const APPOINTMENT_STATUS_TONE: Record<AppointmentStatus, BadgeTone> = {
   Cancelled: 'error',
   'Re-Scheduled': 'secondary',
 };
+

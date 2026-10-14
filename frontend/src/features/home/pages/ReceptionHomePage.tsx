@@ -9,7 +9,9 @@ import { Badge } from '../../../components/ui/Badge';
 import { Skeleton } from '../../../components/ui/Skeleton';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { PatientDetailDrawer } from '../../patients/components/PatientDetailDrawer';
+import { AppointmentDetailDrawer } from '../../appointments/components/AppointmentDetailDrawer';
 import { CancelAppointmentDrawer } from '../../appointments/components/CancelAppointmentDrawer';
+import { RescheduleAppointmentDrawer } from '../../appointments/components/RescheduleAppointmentDrawer';
 import { InvoiceDetailDrawer } from '../../billing/components/InvoiceDetailDrawer';
 import { ReceptionPatientSearch } from '../components/ReceptionPatientSearch';
 import { ReceptionQueueCard } from '../components/ReceptionQueueCard';
@@ -17,13 +19,13 @@ import { ReceptionBillingCard } from '../components/ReceptionBillingCard';
 import type { BillingTab } from '../components/ReceptionBillingCard';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
+import { useBranchNames } from '../../../hooks/useBranchNames';
+import { useToast } from '../../../components/common/ToastProvider';
 import { fetchAppointments } from '../../../services/api/appointments';
-import { fetchBranches } from '../../../services/api/branches';
 import { fetchInvoices } from '../../../services/api/invoices';
-import { fetchOutstandingBalances } from '../../../services/api/reports';
 import type { OutstandingBalanceReportItem } from '../../../services/api/reports';
 import { ROUTES } from '../../../constants/routes';
-import { formatDate } from '../../../utils/formatters';
+import { formatDate, formatTime } from '../../../utils/formatters';
 import { todayIso } from '../../../utils/dates';
 import type { Appointment, Invoice } from '../../../types';
 
@@ -96,19 +98,20 @@ function StatView({
 export function ReceptionHomePage() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const toast = useToast();
   const today = todayIso();
 
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [selectedReschedule, setSelectedReschedule] = useState<Appointment | null>(null);
   const [selectedCancel, setSelectedCancel] = useState<Appointment | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const branchId = currentUser?.branchId;
-
-  const branches = useAsync(() => fetchBranches(1, 100), []);
+  const { getBranchName } = useBranchNames(Boolean(branchId && !currentUser?.branchName));
   const branchName =
-    branches.data?.items.find((branch) => branch.branchId === branchId)?.branchName ??
-    'Current branch';
+    currentUser?.branchName ?? getBranchName(branchId) ?? 'Current branch';
 
   const appointmentsToday = useAsync(
     () =>
@@ -127,10 +130,24 @@ export function ReceptionHomePage() {
   );
 
   const outstandingBalances = useAsync(
-    () =>
-      branchId
-        ? fetchOutstandingBalances({ branchId })
-        : Promise.resolve([] as OutstandingBalanceReportItem[]),
+    async (): Promise<OutstandingBalanceReportItem[]> => {
+      if (!branchId) return [];
+      const res = await fetchInvoices({ branchId, page: 1, pageSize: 100 });
+      return res.items
+        .filter((inv) => inv.status !== 'Draft' && (inv.outstandingAmount ?? 0) > 0)
+        .map((inv) => ({
+          invoiceId: inv.invoiceId,
+          appointmentId: inv.appointmentId,
+          patientId: inv.patientId ?? 0,
+          patientName: inv.patientName ?? `Patient #${inv.patientId ?? '—'}`,
+          branchId: inv.branchId ?? branchId,
+          branchName:
+            inv.branchName ?? currentUser?.branchName ?? 'Current branch',
+          payableAmount: inv.payableAmount ?? 0,
+          amountPaid: inv.amountPaid ?? 0,
+          outstandingAmount: inv.outstandingAmount ?? 0,
+        }));
+    },
     [branchId],
   );
 
@@ -168,8 +185,9 @@ export function ReceptionHomePage() {
   const queueCounts = useMemo(() => {
     const scheduled = todayQueue.filter((a) => a.status === 'Scheduled').length;
     const completed = todayQueue.filter((a) => a.status === 'Completed').length;
+    const rescheduled = todayQueue.filter((a) => a.status === 'Re-Scheduled').length;
     const cancelled = todayQueue.filter((a) => a.status === 'Cancelled').length;
-    return { scheduled, completed, cancelled };
+    return { scheduled, completed, rescheduled, cancelled };
   }, [todayQueue]);
 
   const oldestDrafts = useMemo(() => {
@@ -289,7 +307,7 @@ export function ReceptionHomePage() {
           description={
             <>
               {queueCounts.scheduled} scheduled · {queueCounts.completed} completed ·{' '}
-              {queueCounts.cancelled} cancelled
+              {queueCounts.rescheduled} re-scheduled · {queueCounts.cancelled} cancelled
             </>
           }
           isLoading={appointmentsToday.isLoading}
@@ -332,8 +350,7 @@ export function ReceptionHomePage() {
             onRetry={reloadAppointments}
             onRefresh={refreshAll}
             lastUpdated={lastUpdated}
-            onViewPatient={setSelectedPatientId}
-            onCancel={setSelectedCancel}
+            onSelectAppointment={setSelectedAppointment}
           />
         </div>
         <div className="lg:col-span-1">
@@ -353,14 +370,33 @@ export function ReceptionHomePage() {
       </section>
 
       {/* Drawers */}
+      <AppointmentDetailDrawer
+        appointment={selectedAppointment}
+        role={currentUser.role}
+        onClose={() => setSelectedAppointment(null)}
+        onViewPatient={setSelectedPatientId}
+        onReschedule={setSelectedReschedule}
+        onCancel={setSelectedCancel}
+      />
       <PatientDetailDrawer
         patientId={selectedPatientId}
         onClose={() => setSelectedPatientId(null)}
+      />
+      <RescheduleAppointmentDrawer
+        appointment={selectedReschedule}
+        onClose={() => setSelectedReschedule(null)}
+        onRescheduled={(newAppointment) => {
+          toast.success(
+            `Appointment rescheduled to ${newAppointment.appointmentDate} at ${formatTime(newAppointment.appointmentTime)}`,
+          );
+          reloadAppointments();
+        }}
       />
       <CancelAppointmentDrawer
         appointment={selectedCancel}
         onClose={() => setSelectedCancel(null)}
         onCancelled={() => {
+          toast.success('Appointment cancelled');
           reloadAppointments();
           reloadBalances();
         }}
@@ -376,3 +412,5 @@ export function ReceptionHomePage() {
     </div>
   );
 }
+
+

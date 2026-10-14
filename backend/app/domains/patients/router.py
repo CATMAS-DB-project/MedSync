@@ -91,6 +91,14 @@ async def list_patients(
     return _success_list(items, total, paging["page"], paging["page_size"])
 
 
+@router.get("/insurance/options")
+async def list_insurance_options(
+    conn: Annotated[PoolConnectionProxy, Depends(get_conn)],
+    _user: Annotated[UserIdentity, Depends(require_role("Receptionist"))],
+) -> dict:
+    return _success(await service.list_insurance_options(conn))
+
+
 @router.post("/patients", status_code=status.HTTP_201_CREATED)
 async def create_patient(
     body: PatientCreate,

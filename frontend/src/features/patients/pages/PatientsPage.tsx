@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../../../components/ui/PageHeader';
 import { Button } from '../../../components/ui/Button';
 import { SearchInput } from '../../../components/ui/SearchInput';
+import { Select } from '../../../components/ui/Select';
+import type { SelectOption } from '../../../components/ui/Select';
 import { IconButton } from '../../../components/ui/IconButton';
 import { DropdownMenu } from '../../../components/ui/DropdownMenu';
 import { Avatar } from '../../../components/ui/Avatar';
@@ -14,6 +16,7 @@ import { EmptyState } from '../../../components/common/EmptyState';
 import { useToast } from '../../../components/common/ToastProvider';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
+import { useBranchNames } from '../../../hooks/useBranchNames';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { fetchPatients } from '../../../services/api/patients';
 import {
@@ -30,24 +33,55 @@ const PAGE_SIZE = 10;
 export function PatientsPage() {
   const { currentUser } = useAuth();
   const isReceptionist = currentUser?.role === 'Receptionist';
+  const isAdmin = currentUser?.role === 'Admin';
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { branches: branchItems, error: branchError, getBranchName } = useBranchNames();
 
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, 300);
   const [page, setPage] = useState(1);
+  const [selectedBranchId, setSelectedBranchId] = useState<number | 'all' | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingPatientId, setEditingPatientId] = useState<number | null>(null);
+
+  const effectiveBranchId =
+    selectedBranchId === null
+      ? isAdmin
+        ? undefined
+        : currentUser?.branchId
+      : selectedBranchId === 'all'
+        ? undefined
+        : selectedBranchId;
+  const branchSelectValue =
+    selectedBranchId === null
+      ? isAdmin
+        ? 'all'
+        : currentUser
+          ? String(currentUser.branchId)
+          : ''
+      : String(selectedBranchId);
+  const branchOptions: SelectOption[] = useMemo(
+    () => [
+      { label: 'All branches', value: 'all' },
+      ...branchItems.map((branch) => ({
+        label: branch.branchName,
+        value: String(branch.branchId),
+      })),
+    ],
+    [branchItems],
+  );
 
   const patients = useAsync(
     () =>
       fetchPatients({
         search: debouncedQuery || undefined,
+        branchId: effectiveBranchId,
         page,
         pageSize: PAGE_SIZE,
       }),
-    [debouncedQuery, page],
+    [debouncedQuery, effectiveBranchId, page],
   );
 
   const rows = patients.data?.items ?? [];
@@ -145,14 +179,17 @@ export function PatientsPage() {
       key: 'branch',
       header: 'Branch',
       hideOnMobile: true,
-      cell: (row) =>
-        row.registeredBranchName ? (
+      cell: (row) => {
+        const branchName =
+          row.registeredBranchName ?? getBranchName(row.registeredBranchId);
+        return branchName ? (
           <Badge tone="primary" pill>
-            {row.registeredBranchName}
+            {branchName}
           </Badge>
         ) : (
           <span className="text-on-surface-variant">—</span>
-        ),
+        );
+      },
     },
   ];
 
@@ -169,19 +206,36 @@ export function PatientsPage() {
         }
       />
 
-      <SearchInput
-        value={query}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          setPage(1);
-        }}
-        onClear={() => {
-          setQuery('');
-          setPage(1);
-        }}
-        placeholder="Search by name, NIC or phone"
-        aria-label="Search patients"
-      />
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="min-w-0 flex-1">
+          <SearchInput
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(1);
+            }}
+            onClear={() => {
+              setQuery('');
+              setPage(1);
+            }}
+            placeholder="Search by name, NIC or phone"
+            aria-label="Search patients"
+          />
+        </div>
+        <div className="w-full sm:w-56">
+          <Select
+            aria-label="Filter patients by branch"
+            value={branchSelectValue}
+            onChange={(event) => {
+              const value = event.target.value;
+              setSelectedBranchId(value === 'all' ? 'all' : Number(value));
+              setPage(1);
+            }}
+            options={branchOptions}
+            error={branchError ?? undefined}
+          />
+        </div>
+      </div>
 
       <div
         className={

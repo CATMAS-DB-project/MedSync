@@ -84,11 +84,6 @@ async def outstanding_balances(
     branch_id: Annotated[int | None, Query(gt=0)] = None,
     patient_id: Annotated[int | None, Query(gt=0)] = None,
 ) -> dict:
-    if user.role == "Receptionist" and patient_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Receptionists must provide patient_id",
-        )
     effective_branch_id = _effective_branch_id(user, branch_id)
     data = await service.outstanding_balances(
         conn, branch_id=effective_branch_id, patient_id=patient_id

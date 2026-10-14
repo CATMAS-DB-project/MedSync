@@ -19,19 +19,9 @@ export interface Appointment {
   previousAppointmentId?: number;
 }
 
-export interface AppointmentRescheduleLog {
-  rescheduleId: number;
-  appointmentId: number;
-  previousDate: string;
-  previousTime: string;
-  newDate: string;
-  newTime: string;
-  reason?: string;
-  rescheduledByStaffId?: number;
-  rescheduledAt: string;
-}
-
 export interface AvailabilitySlot {
   time: string;
   available: boolean;
 }
+
+

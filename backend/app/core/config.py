@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     jwt_issuer: str = "catms"
     jwt_audience: str = "catms-api"
     access_token_expire_minutes: int = Field(default=15, ge=1, le=60)
-    refresh_token_expire_days: int = Field(default=14, ge=1, le=90)
+    refresh_token_expire_days: float = Field(default=14, ge=0.01, le=90)
 
     refresh_cookie_name: str = "catms_refresh_token"
     refresh_cookie_secure: bool = False

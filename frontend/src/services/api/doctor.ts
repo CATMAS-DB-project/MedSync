@@ -1,29 +1,34 @@
 import { apiDelete, apiGet, apiPost } from './client';
+import { fetchDoctorOptions } from './doctorOptions';
+import type { DoctorOption } from './doctorOptions';
+import { asArray } from './mappers';
 import type { Doctor, Specialty } from '../../types';
 
 export interface DoctorListParams {
   branchId?: number;
   specialtyId?: number;
-  page?: number;
-  pageSize?: number;
 }
 
-export async function fetchDoctors(params?: DoctorListParams): Promise<Doctor[]> {
-  const queryParams: Record<string, unknown> = {};
+interface DoctorRaw extends Omit<Doctor, 'specialties' | 'consultationFee'> {
+  consultationFee: number | string;
+  specialties?: unknown;
+}
 
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined) {
-        queryParams[key] = value;
-      }
-    });
-  }
+function toDoctor(raw: DoctorRaw): Doctor {
+  return {
+    ...raw,
+    consultationFee: Number(raw.consultationFee),
+    specialties: asArray<Specialty>(raw.specialties),
+  };
+}
 
-  return apiGet<Doctor[]>('/doctors', queryParams);
+export async function fetchDoctors(params?: DoctorListParams): Promise<DoctorOption[]> {
+  return fetchDoctorOptions(params);
 }
 
 export async function fetchDoctorByStaffId(staffId: number): Promise<Doctor> {
-  return apiGet<Doctor>(`/staff/${staffId}/doctor`);
+  const raw = await apiGet<DoctorRaw>(`/staff/${staffId}/doctor`);
+  return toDoctor(raw);
 }
 
 export async function promoteStaffToDoctor(
@@ -35,13 +40,20 @@ export async function promoteStaffToDoctor(
     qualifications?: string;
   },
 ): Promise<Doctor> {
-  return apiPost<Doctor>(`/staff/${staffId}/doctor`, input);
+  const raw = await apiPost<DoctorRaw>(`/staff/${staffId}/doctor`, input);
+  return toDoctor(raw);
 }
 
-export async function linkDoctorSpecialty(staffId: number, specialtyId: number): Promise<Specialty> {
-  return apiPost<Specialty>(`/staff/${staffId}/doctor/specialties`, { specialtyId });
+export async function linkDoctorSpecialty(
+  staffId: number,
+  specialtyId: number,
+): Promise<{ staffId: number; specialtyId: number }> {
+  return apiPost<{ staffId: number; specialtyId: number }>(`/staff/${staffId}/doctor/specialties`, {
+    specialtyId,
+  });
 }
 
 export async function unlinkDoctorSpecialty(staffId: number, specialtyId: number): Promise<void> {
   await apiDelete<void>(`/staff/${staffId}/doctor/specialties/${specialtyId}`);
 }
+

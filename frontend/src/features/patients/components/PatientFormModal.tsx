@@ -10,18 +10,22 @@ import { Select } from '../../../components/ui/Select';
 import { Skeleton } from '../../../components/ui/Skeleton';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
+import { useBranchNames } from '../../../hooks/useBranchNames';
 import { ApiError } from '../../../services/api/ApiError';
-import { fetchBranches } from '../../../services/api/branches';
 import { registerPatientWithDetails } from '../../../services/api/patientRegistration';
 import { fetchPatientById, updatePatient } from '../../../services/api/patients';
 import type { UpdatePatientInput } from '../../../services/api/patients';
-import { addPatientPhone, deletePatientPhone, fetchPatientPhones } from '../../../services/api/patientPhones';
+import { addPatientPhone, deletePatientPhone } from '../../../services/api/patientPhones';
 import {
   linkGuardianToPatient,
   unlinkGuardianFromPatient,
-  fetchPatientGuardians,
 } from '../../../services/api/patientGuardians';
 import { addGuardianPhone } from '../../../services/api/guardians';
+import {
+  addPatientInsurance,
+  fetchInsuranceOptions,
+} from '../../../services/api/insurance';
+import type { InsuranceOption } from '../../../services/api/insurance';
 import type { Gender, Patient, PatientGuardianLink, Phone, PhoneType } from '../../../types';
 
 export interface PatientFormModalProps {
@@ -80,6 +84,10 @@ type FieldErrors = Partial<Record<
 
 function makeLocalId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function makeGeneratedPolicyId(): string {
+  return `AUTO-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function emptyPhone(): PhoneEntry {
@@ -189,16 +197,16 @@ export function PatientFormModal({
   const isEdit = patientId !== null;
   const formId = useId();
 
-  const branches = useAsync(() => fetchBranches(1, 100), []);
+  const { branches } = useBranchNames(isOpen && isReceptionist);
   const preload = useAsync(
     () =>
-      !isEdit || !isReceptionist
+      !isOpen || !isEdit || !isReceptionist
         ? Promise.resolve(null)
-        : Promise.all([
-            fetchPatientById(patientId as number),
-            fetchPatientPhones(patientId as number),
-            fetchPatientGuardians(patientId as number),
-          ]).then(([patient, phones, guardians]) => ({ patient, phones, guardians })),
+        : fetchPatientById(patientId as number).then((patient) => ({
+            patient,
+            phones: patient.phones ?? [],
+            guardians: patient.guardians ?? [],
+          })),
     [patientId, isEdit, isReceptionist, isOpen],
   );
 
@@ -212,6 +220,18 @@ export function PatientFormModal({
   const [failures, setFailures] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [insurancePatientId, setInsurancePatientId] = useState<number | null>(null);
+  const [insuranceOptionKey, setInsuranceOptionKey] = useState('');
+  const [insuranceError, setInsuranceError] = useState<string | null>(null);
+  const [isSavingInsurance, setIsSavingInsurance] = useState(false);
+
+  const insuranceOptions = useAsync(
+    () =>
+      insurancePatientId === null
+        ? Promise.resolve([] as InsuranceOption[])
+        : fetchInsuranceOptions(),
+    [insurancePatientId],
+  );
 
   const formRef = useRef<HTMLFormElement | null>(null);
 
@@ -222,6 +242,9 @@ export function PatientFormModal({
     setSubmitError(null);
     setExistingPatientId(null);
     setFailures([]);
+    setInsurancePatientId(null);
+    setInsuranceOptionKey('');
+    setInsuranceError(null);
 
     if (isEdit && preload.data) {
       const next = formFromServer(
@@ -249,11 +272,11 @@ export function PatientFormModal({
 
   const branchOptions = useMemo(
     () =>
-      (branches.data?.items ?? []).map((b) => ({
+      branches.map((b) => ({
         label: b.branchName,
         value: String(b.branchId),
       })),
-    [branches.data],
+    [branches],
   );
 
   // ------ field helpers ------
@@ -504,7 +527,11 @@ export function PatientFormModal({
     setIsSubmitting(true);
     try {
       const savedId = isEdit ? await handleEdit() : await handleCreate();
-      onSaved(savedId, isEdit ? 'edit' : 'create');
+      if (isEdit) {
+        onSaved(savedId, 'edit');
+      } else {
+        setInsurancePatientId(savedId);
+      }
     } catch (error) {
       if (
         error instanceof ApiError &&
@@ -531,7 +558,7 @@ export function PatientFormModal({
   return (
     <>
       <Modal
-        isOpen={isOpen}
+        isOpen={isOpen && insurancePatientId === null}
         onClose={attemptClose}
         title={title}
         size="xl"
@@ -781,6 +808,94 @@ export function PatientFormModal({
             </section>
           </form>
         )}
+      </Modal>
+
+      <Modal
+        isOpen={insurancePatientId !== null}
+        onClose={() => {
+          if (!isSavingInsurance && insurancePatientId !== null) {
+            onSaved(insurancePatientId, 'create');
+          }
+        }}
+        title="Allowed insurance"
+        size="md"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (insurancePatientId !== null) onSaved(insurancePatientId, 'create');
+              }}
+              disabled={isSavingInsurance}
+            >
+              Skip
+            </Button>
+            <Button
+              type="submit"
+              form={`${formId}-insurance`}
+              variant="primary"
+              isLoading={isSavingInsurance}
+            >
+              Save insurance
+            </Button>
+          </>
+        }
+      >
+        <form
+          id={`${formId}-insurance`}
+          onSubmit={async (event) => {
+            event.preventDefault();
+            if (insurancePatientId === null || isSavingInsurance) return;
+
+            const selectedOption = insuranceOptions.data?.find(
+              (option) =>
+                `${option.providerName}::${option.coverageLevel}` === insuranceOptionKey,
+            );
+            if (!selectedOption) {
+              setInsuranceError('Select an allowed insurance option.');
+              return;
+            }
+
+            setIsSavingInsurance(true);
+            setInsuranceError(null);
+            try {
+              await addPatientInsurance(insurancePatientId, {
+                policyId: makeGeneratedPolicyId(),
+                providerName: selectedOption.providerName,
+                coverageLevel: selectedOption.coverageLevel,
+              });
+              onSaved(insurancePatientId, 'create');
+            } catch (error) {
+              setInsuranceError(messageOf(error));
+            } finally {
+              setIsSavingInsurance(false);
+            }
+          }}
+          className="flex flex-col gap-4"
+          noValidate
+        >
+          {insuranceError && <ErrorBanner message={insuranceError} />}
+          {insuranceOptions.error && (
+            <ErrorBanner message={insuranceOptions.error} onRetry={insuranceOptions.reload} />
+          )}
+          <Select
+            label="Allowed insurance"
+            placeholder={
+              insuranceOptions.isLoading
+                ? 'Loading insurance options...'
+                : insuranceOptions.data?.length
+                  ? 'Select insurance'
+                  : 'No insurance options available'
+            }
+            options={(insuranceOptions.data ?? []).map((option) => ({
+              label: `${option.providerName} — ${option.coverageLevel}`,
+              value: `${option.providerName}::${option.coverageLevel}`,
+            }))}
+            value={insuranceOptionKey}
+            onChange={(event) => setInsuranceOptionKey(event.target.value)}
+            disabled={insuranceOptions.isLoading || !insuranceOptions.data?.length}
+          />
+        </form>
       </Modal>
 
       <ConfirmDialog

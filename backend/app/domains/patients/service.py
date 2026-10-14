@@ -116,6 +116,18 @@ async def get_patient(conn: PoolConnectionProxy, patient_id: int) -> dict | None
     return patient
 
 
+async def list_insurance_options(conn: PoolConnectionProxy) -> list[dict]:
+    rows = await conn.fetch(
+        """
+        SELECT DISTINCT provider_name, coverage_level
+        FROM insurance
+        WHERE status = 'Active'
+        ORDER BY provider_name, coverage_level
+        """
+    )
+    return [dict(row) for row in rows]
+
+
 async def create_patient(fields: dict, staff_id: int) -> dict:
     try:
         async with with_transaction(staff_id=staff_id) as conn:
