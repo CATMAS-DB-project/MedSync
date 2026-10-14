@@ -10,17 +10,20 @@ import { ErrorBanner } from '../../../components/common/ErrorBanner';
 import { Icon } from '../../../components/ui/Icon';
 import { useAsync } from '../../../hooks/useAsync';
 import { ApiError } from '../../../services/api/ApiError';
-import { logAppointmentTreatment } from '../../../services/api/appointmentTreatments';
+import { logAppointmentTreatments } from '../../../services/api/appointmentTreatments';
 import { formatCurrency } from '../../../utils/formatters';
 import { cn } from '../../../utils/cn';
-import type { TreatmentCatalogueItem } from '../../../types';
+import type {
+  BatchTreatmentCreateResult,
+  TreatmentCatalogueItem,
+} from '../../../types';
 import { fetchAllTreatments } from '../fetchAllTreatments';
 
 export interface AddTreatmentModalProps {
   isOpen: boolean;
   appointmentId: number;
   onClose: () => void;
-  onAdded: () => void;
+  onAdded: (result: BatchTreatmentCreateResult) => void;
 }
 
 export function AddTreatmentModal({
@@ -31,7 +34,7 @@ export function AddTreatmentModal({
 }: AddTreatmentModalProps) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
-  const [selectedCode, setSelectedCode] = useState<string | null>(null);
+  const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +47,7 @@ export function AddTreatmentModal({
     if (isOpen) {
       setQuery('');
       setCategory('All');
-      setSelectedCode(null);
+      setSelectedCodes([]);
       setError(null);
     }
   }, [isOpen]);
@@ -75,13 +78,38 @@ export function AddTreatmentModal({
   }, [items, query, category]);
 
   const handleSubmit = async () => {
-    if (!selectedCode || isSubmitting) return;
+    if (selectedCodes.length === 0 || isSubmitting) return;
     setIsSubmitting(true);
     setError(null);
     try {
-      await logAppointmentTreatment(appointmentId, { serviceCode: selectedCode });
-      onAdded();
-      onClose();
+      const result = await logAppointmentTreatments(
+        appointmentId,
+        selectedCodes.map((serviceCode) => ({ serviceCode })),
+      );
+      if (result.created.length > 0) {
+        onAdded(result);
+      }
+
+      if (result.failed.length === 0) {
+        onClose();
+        return;
+      }
+
+      const failedCodes = new Set(
+        result.failed
+          .map((failure) => failure.serviceCode)
+          .filter((code): code is string => Boolean(code)),
+      );
+      setSelectedCodes((codes) => codes.filter((code) => failedCodes.has(code)));
+      setError(
+        result.failed
+          .map((failure) =>
+            failure.serviceCode
+              ? `${failure.serviceCode}: ${failure.error}`
+              : failure.error,
+          )
+          .join(' '),
+      );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not log the treatment.');
     } finally {
@@ -103,10 +131,11 @@ export function AddTreatmentModal({
           <Button
             variant="primary"
             onClick={handleSubmit}
-            disabled={!selectedCode || isSubmitting}
+            disabled={selectedCodes.length === 0 || isSubmitting}
             isLoading={isSubmitting}
           >
-            Add treatment
+            Add {selectedCodes.length > 0 ? `${selectedCodes.length} ` : ''}treatment
+            {selectedCodes.length === 1 ? '' : 's'}
           </Button>
         </>
       }
@@ -148,12 +177,18 @@ export function AddTreatmentModal({
           ) : (
             <ul className="flex flex-col gap-1">
               {filtered.map((t) => {
-                const isSelected = selectedCode === t.serviceCode;
+                const isSelected = selectedCodes.includes(t.serviceCode);
                 return (
                   <li key={t.serviceCode}>
                     <button
                       type="button"
-                      onClick={() => setSelectedCode(t.serviceCode)}
+                      onClick={() =>
+                        setSelectedCodes((codes) =>
+                          isSelected
+                            ? codes.filter((code) => code !== t.serviceCode)
+                            : [...codes, t.serviceCode],
+                        )
+                      }
                       aria-pressed={isSelected}
                       className={cn(
                         'flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors',
