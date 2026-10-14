@@ -217,8 +217,6 @@ The current repository stores seed data in migration files, including:
 - `20260919150206_Seed_Reference_Data.sql`
 - `20261010153450_demo_seed.sql`
 
-`supabase/config.toml` still contains a `supabase/seed.sql` seed-file configuration entry, but that file is not present in the repository. Do not expect a separate `seed.sql` file to provide the current demo data.
-
 For normal migration development:
 
 ```bash
@@ -302,7 +300,7 @@ The requested QA account is:
 |---|---|---|
 | QA Tester | `dev-qa` | `admin123` |
 
-Verify the account exists in the database after reset before relying on it. Earlier development/test migrations also contain accounts such as `admin`, `bm`, `reception`, `doctor`, `qa`, `dev-admin`, `dev-manager`, and `dev-doctor`; these are separate from the demo/UAT account set.
+Earlier development/test migrations also contain accounts such as `admin`, `bm`, `reception`, `doctor`, `qa`, `dev-admin`, `dev-manager`, and `dev-doctor`; these are separate from the demo/UAT account set.
 
 ### Login through the API
 
@@ -513,7 +511,7 @@ The repository contains separate backend and frontend GitHub Actions workflows. 
 |---|---|
 | 240188V | GAYAN N.M.D.T |
 | 240224F | HERATH H.M.T.G.L.J |
-| 240047N | SIVAKUMAR A |
+| 240047N | ARUN S |
 | 240673E | UMAYANGA P.H.A |
 | 240288D | JAYATHIKE P.I.K |
 
@@ -524,10 +522,10 @@ The following ownership records the main API domains implemented for the project
 | Contributor | API domains and project responsibilities |
 |---|---|
 | **GAYAN N.M.D.T** | Authentication, appointments, appointment treatments, reports, PDF reports, and treatment catalogue. Also contributed to database activities related to these domains. |
-| **HERATH H.M.T.G.L.J** | Authentication, staff, and reference-data domains. Also contributed to database activities, initial project setup, and CI/CD configuration. |
-| **SIVAKUMAR A** | Audit, branches, billing, patients, and guardians. Also contributed to the related database activities. |
-| **JAYATHILAKE P.I.K** | Contributed to appointment management by developing and improving appointment-related interfaces, fixing bugs, and integrating appointment features into the system. |
-| **UMAYANGA P.H.A** | Contributed to frontend development by improving patient and staff management interfaces, implementing branch filtering and staff account deletion, and enhancing the overall user interface. |
+| **HERATH H.M.T.G.L.J** | Authentication, staff (doctor subtype, user account subtype), and reference-data(roles, specialties) domains. Also contributed to database activities, initial project setup, and CI/CD configuration and deployment. |
+| **ARUN S** | Audit, branches, billing, patients, and guardians. Also contributed to the related database activities. |
+| **JAYATHILAKE P.I.K** | Worked on database development and SQL queries, developed appointment management features, integrated related functionality, and fixed bugs. |
+| **UMAYANGA P.H.A** | Worked on database design and SQL queries, developed patient and staff management interfaces, integrated backend APIs, and improved frontend functionality. |
 
 Authentication is represented in more than one responsibility area: Gayan contributed to the authentication API and token behavior, while Lahiru contributed to staff accounts, role/access-control structures, and the initial setup supporting authentication.
 
@@ -553,7 +551,3 @@ The migration filenames provide the database contribution trail. The API domain 
 ### Frontend Contributions
 
 > **Placeholder:** Jayathika (Kavinda) and Umayanga (Asith) will complete this section with the frontend features, components, routing, API integration, testing, and user-interface contributions delivered for the project.
-
-## License
-
-No project license has been specified in the repository yet.
