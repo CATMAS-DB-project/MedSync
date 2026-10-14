@@ -513,7 +513,7 @@ The repository contains separate backend and frontend GitHub Actions workflows. 
 | 240224F | HERATH H.M.T.G.L.J |
 | 240047N | ARUN S |
 | 240673E | UMAYANGA P.H.A |
-| 240288D | JAYATHIKE P.I.K |
+| 240288D | JAYATHILAKE P.I.K |
 
 ### API Domain Contributions
 
@@ -550,4 +550,9 @@ The migration filenames provide the database contribution trail. The API domain 
 
 ### Frontend Contributions
 
-> **Placeholder:** Jayathika (Kavinda) and Umayanga (Asith) will complete this section with the frontend features, components, routing, API integration, testing, and user-interface contributions delivered for the project.
+The frontend was developed using React 19, TypeScript, Tailwind CSS, and Vite. Responsibilities and features delivered were divided as follows:
+
+| Contributor | Frontend responsibilities and key features delivered |
+|---|---|
+| **JAYATHILAKE P.I.K.** | • Frontend architecture, routing, role-based navigation guards, and API client layer (JWT session management, refresh token rotation, snake_case/camelCase payload transformers).<br>• Appointment booking, live time-slot availability engine, and walk-in interactive schedule matrix with slot confirmation.<br>• Doctor consultation workflow, treatment entry, multiple treatment submissions, and amendment flows.<br>• Reports dashboard with analytics trend visualizations, financial charts, and PDF export integration.<br>• State management, toasts, error handling, and bug fixes across core modules. |
+| **UMAYANGA P.H.A.** | • UI/UX design system, layout shell (`AppLayout`, `Sidebar`, `Topbar`), and responsive drawer navigation (`StaffDetailsDrawer`, `PatientDrawer`).<br>• Patient registration and patient management interfaces, including search, cross-branch filtering, and insurance policy integration.<br>• Staff management interfaces, staff creation forms, doctor promotion views, and account management/deletion controls.<br>• Role home landing pages (`ReceptionHomePage`, `DoctorHomePage`, `QAHomePage`) and report filter UI components.<br>• Reusable UI component styling, design consistency, and accessibility improvements. |
