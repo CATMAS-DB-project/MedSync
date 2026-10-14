@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
-import { Badge } from '../../../components/ui/Badge';
 import { Toggle } from '../../../components/ui/Toggle';
 import { Pagination } from '../../../components/common/Pagination';
 import { ErrorBanner } from '../../../components/common/ErrorBanner';
@@ -20,7 +19,6 @@ import type { Gender, PhoneType, Role, Staff } from '../../../types';
 import { todayIso } from '../../../utils/dates';
 import { formatDate, formatFullName, getInitials } from '../../../utils/formatters';
 import { StaffDetailsDrawer } from '../components/StaffDetailsDrawer';
-import { EMPLOYMENT_STATUS_TONE } from '../statusStyles';
 
 const PAGE_SIZE = 100;
 
@@ -497,15 +495,12 @@ export function StaffPage() {
                 <th scope="col" className="px-4 py-3 text-label-md font-semibold text-on-surface-variant">
                   Hired
                 </th>
-                <th scope="col" className="px-5 py-3 text-label-md font-semibold text-on-surface-variant">
-                  Status
-                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant text-table-data text-on-surface">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-on-surface-variant">
+                  <td colSpan={4} className="px-5 py-10 text-center text-on-surface-variant">
                     <span className="inline-flex items-center gap-2">
                       <span className="material-symbols-outlined animate-spin text-primary" aria-hidden="true">progress_activity</span>
                       Loading staff details…
@@ -514,7 +509,7 @@ export function StaffPage() {
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-error" role="alert">
+                  <td colSpan={4} className="px-5 py-10 text-center text-error" role="alert">
                     {error}
                   </td>
                 </tr>
@@ -552,17 +547,12 @@ export function StaffPage() {
                       <td className="px-4 py-3 text-on-surface-variant">
                         {formatDate(member.hireDate)}
                       </td>
-                      <td className="px-5 py-3">
-                        <Badge tone={EMPLOYMENT_STATUS_TONE[member.employmentStatus]}>
-                          {member.employmentStatus}
-                        </Badge>
-                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-on-surface-variant">
+                  <td colSpan={4} className="px-5 py-10 text-center text-on-surface-variant">
                     No staff match your search.
                   </td>
                 </tr>
