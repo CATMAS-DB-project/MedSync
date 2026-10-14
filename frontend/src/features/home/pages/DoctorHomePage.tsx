@@ -8,6 +8,7 @@ import { Skeleton } from '../../../components/ui/Skeleton';
 import { StatCard } from '../../../components/ui/StatCard';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ErrorBanner } from '../../../components/common/ErrorBanner';
+import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
 import { useToast } from '../../../components/common/ToastProvider';
 import { useAuth } from '../../../context/AuthContext';
 import { useAsync } from '../../../hooks/useAsync';
@@ -18,6 +19,7 @@ import { formatDate, formatTime } from '../../../utils/formatters';
 import { nowHHMM, toIsoDate, todayIso } from '../../../utils/dates';
 import { DoctorNextPatientCard } from '../components/DoctorNextPatientCard';
 import { DoctorTodayScheduleCard } from '../components/DoctorTodayScheduleCard';
+import { PatientDetailDrawer } from '../../patients/components/PatientDetailDrawer';
 import type { Appointment, PagedResult } from '../../../types';
 
 const AUTO_REFRESH_MS = 60_000;
@@ -47,6 +49,9 @@ export function DoctorHomePage() {
   const tomorrow = useMemo(() => getTomorrowIso(), []);
 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [pendingConsultationId, setPendingConsultationId] = useState<number | null>(null);
   const isMountedRef = useRef(true);
   const seenIdsRef = useRef<Set<number> | null>(null);
 
@@ -167,14 +172,39 @@ export function DoctorHomePage() {
     };
   }, [isDoctor, refreshAll]);
 
-  const handleOpenConsultation = useCallback(
+  const handleOpenPatientDetails = useCallback((appointment: Appointment) => {
+    setSelectedAppointment(appointment);
+    setSelectedPatientId(appointment.patientId);
+  }, []);
+
+  const handleRequestConsultation = useCallback((appointmentId: number) => {
+    setSelectedPatientId(null);
+    setSelectedAppointment(null);
+    setPendingConsultationId(appointmentId);
+  }, []);
+
+  const handleAmendConsultation = useCallback(
     (appointmentId: number) => {
+      setSelectedPatientId(null);
+      setSelectedAppointment(null);
       navigate(
-        generatePath(ROUTES.CONSULTATION, { appointmentId: String(appointmentId) }),
+        generatePath(ROUTES.CONSULTATION, {
+          appointmentId: String(appointmentId),
+        }),
       );
     },
     [navigate],
   );
+
+  const handleConfirmConsultation = useCallback(() => {
+    if (pendingConsultationId === null) return;
+    navigate(
+      generatePath(ROUTES.CONSULTATION, {
+        appointmentId: String(pendingConsultationId),
+      }),
+    );
+    setPendingConsultationId(null);
+  }, [navigate, pendingConsultationId]);
 
   const handleViewTomorrow = useCallback(() => {
     if (!branchId || !doctorId) return;
@@ -228,7 +258,7 @@ export function DoctorHomePage() {
       {/* Next patient */}
       <DoctorNextPatientCard
         appointment={nextPatient}
-        onStartConsultation={handleOpenConsultation}
+        onStartConsultation={handleRequestConsultation}
       />
 
       {/* Stats */}
@@ -272,7 +302,7 @@ export function DoctorHomePage() {
             onRetry={refreshAll}
             onRefresh={refreshAll}
             lastUpdatedLabel={updatedLabel}
-            onOpenConsultation={handleOpenConsultation}
+            onOpenPatientDetails={handleOpenPatientDetails}
           />
         </div>
 
@@ -313,6 +343,41 @@ export function DoctorHomePage() {
           </Card>
         </div>
       </section>
+
+      <PatientDetailDrawer
+        patientId={selectedPatientId}
+        onClose={() => {
+          setSelectedPatientId(null);
+          setSelectedAppointment(null);
+        }}
+        onStartConsultation={
+          selectedAppointment &&
+          (selectedAppointment.status === 'Scheduled' ||
+            selectedAppointment.status === 'Re-Scheduled')
+            ? () => handleRequestConsultation(selectedAppointment.appointmentId)
+            : undefined
+        }
+        consultationActionLabel={
+          selectedAppointment?.status === 'Completed'
+            ? 'Amend'
+            : 'Start consultation'
+        }
+        onAmendConsultation={
+          selectedAppointment?.status === 'Completed'
+            ? () => handleAmendConsultation(selectedAppointment.appointmentId)
+            : undefined
+        }
+      />
+
+      <ConfirmDialog
+        isOpen={pendingConsultationId !== null}
+        title="Start consultation?"
+        confirmLabel="Start consultation"
+        cancelLabel="Cancel"
+        tone="default"
+        onConfirm={handleConfirmConsultation}
+        onCancel={() => setPendingConsultationId(null)}
+      />
     </div>
   );
 }

@@ -20,7 +20,7 @@ export interface DoctorTodayScheduleCardProps {
   onRetry: () => void;
   onRefresh: () => void;
   lastUpdatedLabel: string;
-  onOpenConsultation: (appointmentId: number) => void;
+  onOpenPatientDetails: (appointment: Appointment) => void;
 }
 
 const DOT_COLOR: Record<AppointmentStatus, string> = {
@@ -39,7 +39,7 @@ export function DoctorTodayScheduleCard({
   onRetry,
   onRefresh,
   lastUpdatedLabel,
-  onOpenConsultation,
+  onOpenPatientDetails,
 }: DoctorTodayScheduleCardProps) {
   const sorted = useMemo(
     () =>
@@ -51,10 +51,9 @@ export function DoctorTodayScheduleCard({
 
   const handleRowClick = useCallback(
     (appointment: Appointment) => {
-      if (appointment.status === 'Cancelled') return;
-      onOpenConsultation(appointment.appointmentId);
+      onOpenPatientDetails(appointment);
     },
-    [onOpenConsultation],
+    [onOpenPatientDetails],
   );
 
   return (
@@ -99,10 +98,18 @@ export function DoctorTodayScheduleCard({
             return (
               <li
                 key={appointment.appointmentId}
-                onClick={isClickable ? () => handleRowClick(appointment) : undefined}
+                onClick={() => handleRowClick(appointment)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handleRowClick(appointment);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
                 className={cn(
                   'mx-2 grid grid-cols-[3.25rem_1rem_1fr] items-stretch gap-3 rounded-xl px-3 py-2.5 transition-colors',
-                  isClickable && 'cursor-pointer hover:bg-surface-container-low',
+                  'cursor-pointer hover:bg-surface-container-low focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                   !isClickable && 'opacity-60',
                   isNext && 'bg-primary-container/25',
                 )}
