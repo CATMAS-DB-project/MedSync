@@ -16,3 +16,14 @@ export interface AppointmentTreatment {
   originalRecordId?: number;
   recordedAt: string;
 }
+
+export interface TreatmentCreateFailure {
+  index: number;
+  serviceCode?: string;
+  error: string;
+}
+
+export interface BatchTreatmentCreateResult {
+  created: AppointmentTreatment[];
+  failed: TreatmentCreateFailure[];
+}

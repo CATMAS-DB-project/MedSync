@@ -4,7 +4,7 @@ import { Button } from '../ui/Button';
 export interface ConfirmDialogProps {
   isOpen: boolean;
   title: string;
-  message: string;
+  message?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   onConfirm: () => void;
@@ -45,7 +45,7 @@ export function ConfirmDialog({
         </>
       }
     >
-      <p className="text-body-sm text-on-surface-variant">{message}</p>
+      {message && <p className="text-body-sm text-on-surface-variant">{message}</p>}
     </Modal>
   );
 }

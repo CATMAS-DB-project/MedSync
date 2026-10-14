@@ -10,7 +10,7 @@ export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
-  children: ReactNode;
+  children?: ReactNode;
   footer?: ReactNode;
   size?: ModalSize;
   className?: string;
@@ -128,7 +128,9 @@ export function Modal({
           </header>
         )}
 
-        <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
+        {children != null && (
+          <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
+        )}
 
         {footer && (
           <footer className="no-print flex shrink-0 items-center justify-end gap-2 border-t border-outline-variant px-5 py-4">

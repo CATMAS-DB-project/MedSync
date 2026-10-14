@@ -25,7 +25,10 @@ import { ConsultationNotesCard } from '../components/ConsultationNotesCard';
 import { ConsultationTreatmentsCard } from '../components/ConsultationTreatmentsCard';
 import { AddTreatmentModal } from '../components/AddTreatmentModal';
 import { AmendTreatmentModal } from '../components/AmendTreatmentModal';
-import type { AppointmentTreatment } from '../../../types';
+import type {
+  AppointmentTreatment,
+  BatchTreatmentCreateResult,
+} from '../../../types';
 
 export function ConsultationPage() {
   const { appointmentId: idParam } = useParams();
@@ -406,9 +409,15 @@ export function ConsultationPage() {
         isOpen={isAddOpen}
         appointmentId={appt.appointmentId}
         onClose={() => setIsAddOpen(false)}
-        onAdded={() => {
+        onAdded={(result: BatchTreatmentCreateResult) => {
           treatments.reload();
-          toast.success('Treatment logged');
+          const createdCount = result.created.length;
+          const failedCount = result.failed.length;
+          toast.success(
+            failedCount === 0
+              ? `${createdCount} treatment${createdCount === 1 ? '' : 's'} logged`
+              : `${createdCount} treatment${createdCount === 1 ? '' : 's'} logged, ${failedCount} failed`,
+          );
         }}
       />
 

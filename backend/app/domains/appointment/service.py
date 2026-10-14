@@ -282,18 +282,18 @@ async def reschedule_appointment(
     return new_appointment
 
 
-async def get_reschedule_history(
-    conn: PoolConnectionProxy, appointment_id: int
-) -> list[dict]:
-    rows = await conn.fetch(
-        "SELECT a.appointment_id, a.appointment_date, a.appointment_time, "
-        "a.status, a.cancel_reschedule_reason, a.created_at, "
-        "s.first_name || ' ' || s.last_name AS booked_by_name "
-        "FROM appointment a "
-        "JOIN staff s ON s.staff_id = a.booked_by_staff_id "
-        "WHERE a.cancel_reschedule_reason ILIKE '%' || $1::text || '%' "
-        "   OR a.appointment_id = $1 "
-        "ORDER BY a.created_at ASC",
-        appointment_id,
-    )
-    return [dict(r) for r in rows]
+# async def get_reschedule_history(
+#     conn: PoolConnectionProxy, appointment_id: int
+# ) -> list[dict]:
+#     rows = await conn.fetch(
+#         "SELECT a.appointment_id, a.appointment_date, a.appointment_time, "
+#         "a.status, a.cancel_reschedule_reason, a.created_at, "
+#         "s.first_name || ' ' || s.last_name AS booked_by_name "
+#         "FROM appointment a "
+#         "JOIN staff s ON s.staff_id = a.booked_by_staff_id "
+#         "WHERE a.cancel_reschedule_reason ILIKE '%' || $1::text || '%' "
+#         "   OR a.appointment_id = $1 "
+#         "ORDER BY a.created_at ASC",
+#         appointment_id,
+#     )
+#     return [dict(r) for r in rows]
