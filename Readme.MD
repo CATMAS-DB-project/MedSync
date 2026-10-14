@@ -526,8 +526,8 @@ The following ownership records the main API domains implemented for the project
 | **GAYAN N.M.D.T** | Authentication, appointments, appointment treatments, reports, PDF reports, and treatment catalogue. Also contributed to database activities related to these domains. |
 | **HERATH H.M.T.G.L.J** | Authentication, staff, and reference-data domains. Also contributed to database activities, initial project setup, and CI/CD configuration. |
 | **SIVAKUMAR A** | Audit, branches, billing, patients, and guardians. Also contributed to the related database activities. |
-| **JAYATHILAKE P.I.K** | Frontend contribution placeholder and database activities. The frontend details will be completed separately. |
-| **UMAYANGA P.H.A** | Frontend development and database activities. |
+| **JAYATHILAKE P.I.K** | Contributed to appointment management by developing and improving appointment-related interfaces, fixing bugs, and integrating appointment features into the system. |
+| **UMAYANGA P.H.A** | Contributed to frontend development by improving patient and staff management interfaces, implementing branch filtering and staff account deletion, and enhancing the overall user interface. |
 
 Authentication is represented in more than one responsibility area: Gayan contributed to the authentication API and token behavior, while Lahiru contributed to staff accounts, role/access-control structures, and the initial setup supporting authentication.
 
