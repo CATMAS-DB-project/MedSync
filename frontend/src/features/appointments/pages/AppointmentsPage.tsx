@@ -89,7 +89,7 @@ export function AppointmentsPage() {
   const isBranchManager = role === 'Branch Manager';
   const canBook = isReceptionist;
   const canOpenConsultation = role === 'Admin' || role === 'Doctor';
-  const showBranchSelect = isAdmin;
+  const showBranchSelect = isAdmin || isBranchManager || isReceptionist;
   const showDoctorSelect = isAdmin || isBranchManager || isReceptionist;
 
   // ---- URL state ----
@@ -113,11 +113,10 @@ export function AppointmentsPage() {
 
   // ---- Effective filters by role ----
   const effectiveBranchId: number | undefined = useMemo(() => {
-    if ((isDoctor || isBranchManager) && currentUser) return currentUser.branchId;
+    if (isDoctor && currentUser) return currentUser.branchId;
     if (branchParam && branchParam !== 'all') return Number(branchParam);
-    if (isReceptionist && currentUser) return currentUser.branchId;
     return undefined;
-  }, [isDoctor, isBranchManager, isReceptionist, currentUser, branchParam]);
+  }, [isDoctor, currentUser, branchParam]);
 
   const effectiveDoctorId: number | undefined = useMemo(() => {
     if (isDoctor && currentUser) return currentUser.staffId;

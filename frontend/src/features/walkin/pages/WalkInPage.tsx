@@ -415,7 +415,7 @@ export function WalkInPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <PageHeader title="Walk-in" backTo={ROUTES.APPOINTMENTS} />
 
-      <Card padding="none">
+      <Card padding="none" className="relative z-20">
         <header className="flex items-center gap-3 border-b border-outline-variant px-4 py-3 sm:px-5">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-label-md font-bold text-on-primary">
             1
@@ -433,7 +433,7 @@ export function WalkInPage() {
         </div>
       </Card>
 
-      <Card padding="none">
+      <Card padding="none" className="relative z-10">
         <header className="flex items-center gap-3 border-b border-outline-variant px-4 py-3 sm:px-5">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-label-md font-bold text-on-primary">
             2

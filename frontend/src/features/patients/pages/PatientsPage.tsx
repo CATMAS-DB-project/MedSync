@@ -34,6 +34,8 @@ export function PatientsPage() {
   const { currentUser } = useAuth();
   const isReceptionist = currentUser?.role === 'Receptionist';
   const isAdmin = currentUser?.role === 'Admin';
+  const canSeeAllBranches =
+    isAdmin || isReceptionist || currentUser?.role === 'Branch Manager';
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const { branches: branchItems, error: branchError, getBranchName } = useBranchNames();
@@ -48,7 +50,7 @@ export function PatientsPage() {
 
   const effectiveBranchId =
     selectedBranchId === null
-      ? isAdmin
+      ? canSeeAllBranches
         ? undefined
         : currentUser?.branchId
       : selectedBranchId === 'all'
@@ -56,7 +58,7 @@ export function PatientsPage() {
         : selectedBranchId;
   const branchSelectValue =
     selectedBranchId === null
-      ? isAdmin
+      ? canSeeAllBranches
         ? 'all'
         : currentUser
           ? String(currentUser.branchId)

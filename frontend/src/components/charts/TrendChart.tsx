@@ -27,6 +27,7 @@ export interface TrendChartProps {
   xKey: string;
   series: TrendSeries[];
   stacked?: boolean;
+  allowDecimals?: boolean;
   valueFormatter?: (value: number) => string;
   labelFormatter?: (label: string | number) => string;
   height?: number;
@@ -38,6 +39,7 @@ export function TrendChart({
   xKey,
   series,
   stacked = false,
+  allowDecimals = false,
   valueFormatter,
   labelFormatter,
   height = 280,
@@ -81,8 +83,8 @@ export function TrendChart({
                   x2="0"
                   y2="1"
                 >
-                  <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-                  <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+                  <stop offset="0%" stopColor={color} stopOpacity={stacked ? 0.35 : 0.12} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0.01} />
                 </linearGradient>
               );
             })}
@@ -101,9 +103,13 @@ export function TrendChart({
             tickLine={false}
             axisLine={false}
             width={44}
-            tickFormatter={(v) =>
-              valueFormatter ? valueFormatter(Number(v)) : formatCompact(Number(v))
-            }
+            allowDecimals={allowDecimals}
+            domain={[0, 'auto']}
+            tickFormatter={(v) => {
+              const num = Number(v);
+              if (!allowDecimals && !Number.isInteger(num)) return '';
+              return valueFormatter ? valueFormatter(num) : formatCompact(num);
+            }}
           />
           <Tooltip
             content={(props) => (

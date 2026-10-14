@@ -37,7 +37,22 @@ export function PatientPicker({
   const debouncedQuery = useDebouncedValue(query, 300);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isPreloading, setIsPreloading] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(true);
   const preloadRef = useRef<number | null>(null);
+  const searchContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const matches = useAsync(
     () => {
@@ -130,15 +145,23 @@ export function PatientPicker({
   }
 
   const results = matches.data?.items ?? [];
-  const showResults = debouncedQuery.trim().length > 0 && matches.data !== undefined;
+  const showResults =
+    isDropdownOpen && debouncedQuery.trim().length > 0 && matches.data !== undefined;
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative">
+      <div className="relative" ref={searchContainerRef}>
         <SearchInput
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onClear={() => setQuery('')}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setIsDropdownOpen(true);
+          }}
+          onFocus={() => setIsDropdownOpen(true)}
+          onClear={() => {
+            setQuery('');
+            setIsDropdownOpen(false);
+          }}
           placeholder="Search by name, NIC or phone"
           aria-label="Search patients"
           disabled={disabled}
@@ -149,7 +172,7 @@ export function PatientPicker({
           <div
             role="listbox"
             aria-label="Patient search results"
-            className="absolute inset-x-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-popover animate-scale-in"
+            className="absolute inset-x-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-lowest shadow-popover animate-scale-in"
           >
             {matches.error ? (
               <div className="p-3">
@@ -170,6 +193,7 @@ export function PatientPicker({
                       onClick={() => {
                         onChange(patient);
                         setQuery('');
+                        setIsDropdownOpen(false);
                       }}
                       className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-surface-container-high focus-visible:bg-surface-container-high focus-visible:outline-none"
                     >

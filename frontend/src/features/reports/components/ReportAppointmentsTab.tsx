@@ -156,7 +156,6 @@ export function ReportAppointmentsTab({
         <TrendChart
           data={trendData}
           xKey="appointmentDate"
-          stacked
           series={[
             { key: 'completed', label: 'Completed', color: CHART_COLORS.success },
             { key: 'scheduled', label: 'Scheduled', color: CHART_COLORS.primary },

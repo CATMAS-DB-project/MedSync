@@ -44,13 +44,20 @@ interface NumberedCardProps {
   number: number;
   title: string;
   disabled?: boolean;
+  className?: string;
   children: ReactNode;
 }
 
-function NumberedCard({ number, title, disabled = false, children }: NumberedCardProps) {
+function NumberedCard({
+  number,
+  title,
+  disabled = false,
+  className,
+  children,
+}: NumberedCardProps) {
   return (
-    <Card padding="none" className="overflow-hidden">
-      <header className="flex items-center gap-3 border-b border-outline-variant px-4 py-3 sm:px-5">
+    <Card padding="none" className={cn('relative', className)}>
+      <header className="flex items-center gap-3 rounded-t-2xl border-b border-outline-variant px-4 py-3 sm:px-5">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-label-md font-bold text-on-primary">
           {number}
         </span>
@@ -233,7 +240,7 @@ export function AppointmentBookingPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-5 lg:col-span-2">
-          <NumberedCard number={1} title="Patient">
+          <NumberedCard number={1} title="Patient" className="z-20">
             <PatientPicker
               value={selectedPatient}
               onChange={(next) => {
@@ -244,7 +251,7 @@ export function AppointmentBookingPage() {
             />
           </NumberedCard>
 
-          <NumberedCard number={2} title="Doctor" disabled={!isPatientComplete}>
+          <NumberedCard number={2} title="Doctor" disabled={!isPatientComplete} className="z-10">
             <div className="flex flex-col gap-4">
               <Select
                 label="Specialty"
@@ -288,6 +295,7 @@ export function AppointmentBookingPage() {
             number={3}
             title="Date & time"
             disabled={!isPatientComplete || !isDoctorComplete}
+            className="z-0"
           >
             <div className="flex flex-col gap-4">
               <DateStrip
