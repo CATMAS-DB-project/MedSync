@@ -2,6 +2,15 @@ import { apiGet, apiPatch, apiPost } from './client';
 import { rethrowUniqueViolation } from './serviceErrors';
 import type { InsurancePolicy, InsuranceStatus, PagedResult } from '../../types';
 
+export interface InsuranceOption {
+  providerName: string;
+  coverageLevel: string;
+}
+
+export async function fetchInsuranceOptions(): Promise<InsuranceOption[]> {
+  return apiGet<InsuranceOption[]>('/insurance/options');
+}
+
 export interface AddInsuranceInput {
   policyId: string;
   providerName: string;
