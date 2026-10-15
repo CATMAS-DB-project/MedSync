@@ -29,9 +29,11 @@ import type {
   Role,
   Specialty,
   Staff,
+  StaffRecord,
   UserAccount,
 } from '../../../types';
-import { formatCurrency, formatFullName } from '../../../utils/formatters';
+import { calculateAge, formatCurrency, formatDate, formatFullName } from '../../../utils/formatters';
+import { EMPLOYMENT_STATUS_TONE } from '../statusStyles';
 
 export interface StaffDetailsDrawerProps {
   staff: Staff | null;
@@ -40,7 +42,7 @@ export interface StaffDetailsDrawerProps {
   onSaved: () => void;
 }
 
-type DrawerTab = 'doctor' | 'account';
+type DrawerTab = 'details' | 'doctor' | 'account';
 
 const ROLE_OPTIONS: Array<{ label: string; value: Role }> = [
   { label: 'Receptionist', value: 'Receptionist' },
@@ -78,7 +80,8 @@ export function StaffDetailsDrawer({
   const toast = useToast();
   const isOpen = staff !== null;
 
-  const [activeTab, setActiveTab] = useState<DrawerTab>('doctor');
+  const [activeTab, setActiveTab] = useState<DrawerTab>('details');
+  const [staffRecord, setStaffRecord] = useState<StaffRecord | null>(null);
   const [isDoctor, setIsDoctor] = useState(isAlreadyDoctor);
   const [hasAccount, setHasAccount] = useState(false);
 
@@ -129,7 +132,8 @@ export function StaffDetailsDrawer({
 
   useEffect(() => {
     if (!staff) return;
-    setActiveTab('doctor');
+    setActiveTab('details');
+    setStaffRecord(null);
     setIsDoctor(isAlreadyDoctor);
     setHasAccount(false);
     setDoctorProfile(null);
@@ -152,6 +156,7 @@ export function StaffDetailsDrawer({
         const record = await fetchStaffById(staffId);
         if (cancelled) return;
 
+        setStaffRecord(record);
         const docFlag = record.isDoctor || isAlreadyDoctor;
         setIsDoctor(docFlag);
         setHasAccount(record.hasAccount);
@@ -159,7 +164,6 @@ export function StaffDetailsDrawer({
           ...prev,
           role: docFlag ? 'Doctor' : 'Receptionist',
         }));
-        if (isAdmin && !docFlag) setActiveTab('account');
 
         if (docFlag) {
           try {
@@ -369,11 +373,31 @@ export function StaffDetailsDrawer({
     }
   };
 
-  const fullName = staff ? formatFullName(staff.firstName, staff.lastName) : '';
+  const currentStaff = staffRecord ?? staff;
+  const fullName = currentStaff
+    ? formatFullName(currentStaff.firstName, currentStaff.lastName)
+    : '';
   const linkedIds = new Set(
     (doctorProfile?.specialties ?? []).map((s) => s.specialtyId),
   );
-  const effectiveTab: DrawerTab = isAdmin && !isDoctor ? 'account' : activeTab;
+
+  const tabItems: Array<{ value: DrawerTab; label: string }> = [
+    { value: 'details', label: 'Staff Details' },
+  ];
+  if (isDoctor) {
+    tabItems.push({ value: 'doctor', label: 'Doctor Profile' });
+  }
+  if (isAdmin) {
+    tabItems.push({
+      value: 'account',
+      label: hasAccount ? 'System Account' : 'Create Account',
+    });
+  }
+
+  const effectiveTab: DrawerTab =
+    (!isDoctor && activeTab === 'doctor') || (!isAdmin && activeTab === 'account')
+      ? 'details'
+      : activeTab;
 
   return (
     <Drawer
@@ -383,12 +407,16 @@ export function StaffDetailsDrawer({
       }}
       title={fullName || 'Staff Member'}
       subtitle={
-        staff
-          ? `${staff.jobTitle} · ${staff.branchName ?? `Branch #${staff.branchId}`}`
+        currentStaff
+          ? `${currentStaff.jobTitle} · ${currentStaff.branchName ?? `Branch #${currentStaff.branchId}`}`
           : undefined
       }
       footer={
-        effectiveTab === 'doctor' || !isAdmin ? (
+        effectiveTab === 'details' ? (
+          <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
+            Close
+          </Button>
+        ) : effectiveTab === 'doctor' || !isAdmin ? (
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
             Done
           </Button>
@@ -428,6 +456,17 @@ export function StaffDetailsDrawer({
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
           <div className="flex flex-wrap items-center gap-2">
+            {currentStaff?.employmentStatus && (
+              <Badge
+                tone={
+                  EMPLOYMENT_STATUS_TONE[currentStaff.employmentStatus] ??
+                  'neutral'
+                }
+                pill
+              >
+                {currentStaff.employmentStatus}
+              </Badge>
+            )}
             <Badge tone={isDoctor ? 'primary' : 'neutral'} pill>
               {isDoctor ? 'Doctor' : 'General Staff'}
             </Badge>
@@ -435,7 +474,7 @@ export function StaffDetailsDrawer({
               {hasAccount ? 'Has System Account' : 'No App Access'}
             </Badge>
           </div>
-          {isAdmin && isDoctor && (
+          {tabItems.length > 1 && (
             <Tabs<DrawerTab>
               ariaLabel="Staff actions"
               value={effectiveTab}
@@ -443,16 +482,7 @@ export function StaffDetailsDrawer({
                 setSubmitError(null);
                 setActiveTab(tab);
               }}
-              items={[
-                {
-                  value: 'doctor',
-                  label: 'Doctor Profile',
-                },
-                {
-                  value: 'account',
-                  label: hasAccount ? 'System Account' : 'Create Account',
-                },
-              ]}
+              items={tabItems}
             />
           )}
         </div>
@@ -460,8 +490,136 @@ export function StaffDetailsDrawer({
         {submitError && <ErrorBanner message={submitError} />}
       </div>
 
-      {isLoadingDetails ? (
+      {isLoadingDetails && !currentStaff ? (
         <p className="text-body-sm text-on-surface-variant">Loading staff details…</p>
+      ) : effectiveTab === 'details' ? (
+        currentStaff && (
+          <div className="flex flex-col gap-5">
+            <DrawerSection title="Personal Information" icon="badge">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="block text-label-sm uppercase text-on-surface-variant">
+                    Full Name
+                  </span>
+                  <span className="mt-1 block text-body-md font-semibold text-on-surface">
+                    {formatFullName(currentStaff.firstName, currentStaff.lastName)}
+                  </span>
+                </div>
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="block text-label-sm uppercase text-on-surface-variant">
+                    National Identity Card (NIC)
+                  </span>
+                  <span className="mt-1 block font-mono text-body-md font-semibold text-on-surface">
+                    {currentStaff.nic}
+                  </span>
+                </div>
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="block text-label-sm uppercase text-on-surface-variant">
+                    Date of Birth
+                  </span>
+                  <span className="mt-1 block text-body-md text-on-surface">
+                    {formatDate(currentStaff.dateOfBirth)}
+                    {currentStaff.dateOfBirth
+                      ? ` (${calculateAge(currentStaff.dateOfBirth)} yrs)`
+                      : ''}
+                  </span>
+                </div>
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="block text-label-sm uppercase text-on-surface-variant">
+                    Gender
+                  </span>
+                  <span className="mt-1 block text-body-md text-on-surface">
+                    {currentStaff.gender}
+                  </span>
+                </div>
+              </div>
+            </DrawerSection>
+
+            <DrawerSection title="Employment Details" icon="work">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="block text-label-sm uppercase text-on-surface-variant">
+                    Job Title
+                  </span>
+                  <span className="mt-1 block text-body-md font-semibold text-on-surface">
+                    {currentStaff.jobTitle}
+                  </span>
+                </div>
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="block text-label-sm uppercase text-on-surface-variant">
+                    Assigned Branch
+                  </span>
+                  <span className="mt-1 block text-body-md font-semibold text-on-surface">
+                    {currentStaff.branchName ?? `Branch #${currentStaff.branchId}`}
+                  </span>
+                </div>
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="block text-label-sm uppercase text-on-surface-variant">
+                    Employment Status
+                  </span>
+                  <div className="mt-1">
+                    <Badge
+                      tone={
+                        EMPLOYMENT_STATUS_TONE[currentStaff.employmentStatus] ??
+                        'neutral'
+                      }
+                      pill
+                    >
+                      {currentStaff.employmentStatus}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="block text-label-sm uppercase text-on-surface-variant">
+                    Hire Date
+                  </span>
+                  <span className="mt-1 block text-body-md text-on-surface">
+                    {formatDate(currentStaff.hireDate)}
+                  </span>
+                </div>
+              </div>
+            </DrawerSection>
+
+            <DrawerSection title="Contact Information" icon="contact_phone">
+              <div className="flex flex-col gap-3">
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="mb-2 block text-label-sm uppercase text-on-surface-variant">
+                    Phone Numbers
+                  </span>
+                  {currentStaff.phones && currentStaff.phones.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {currentStaff.phones.map((phone, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-2 rounded-lg border border-outline-variant/60 bg-surface-container-low px-2.5 py-1.5 text-body-sm"
+                        >
+                          <Badge tone="neutral" pill>
+                            {phone.phoneType}
+                          </Badge>
+                          <span className="font-mono font-medium text-on-surface">
+                            {phone.phoneNumber}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-body-sm text-on-surface-variant">
+                      No phone numbers registered
+                    </span>
+                  )}
+                </div>
+                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-3.5">
+                  <span className="block text-label-sm uppercase text-on-surface-variant">
+                    Residential / Contact Address
+                  </span>
+                  <span className="mt-1 block text-body-md text-on-surface">
+                    {currentStaff.address || 'No address registered'}
+                  </span>
+                </div>
+              </div>
+            </DrawerSection>
+          </div>
+        )
       ) : effectiveTab === 'doctor' ? (
         isDoctor && doctorProfile ? (
           <>
