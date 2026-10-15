@@ -6,7 +6,6 @@ import { Card } from '../../../components/ui/Card';
 import { Tabs } from '../../../components/ui/Tabs';
 import type { TabItem } from '../../../components/ui/Tabs';
 import { Select } from '../../../components/ui/Select';
-import { Input } from '../../../components/ui/Input';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { ErrorBanner } from '../../../components/common/ErrorBanner';
 import { useToast } from '../../../components/common/ToastProvider';
@@ -36,7 +35,7 @@ import { ReportInsuranceTab } from '../components/ReportInsuranceTab';
 import type { AppointmentSummaryReportItem, DoctorRevenueReportItem, InsuranceVsOutOfPocketReport, OutstandingBalanceReportItem, TreatmentFrequencyReportItem } from '../../../services/api/reports';
 
 type TabValue = 'appointments' | 'doctor-revenue' | 'outstanding' | 'treatments' | 'insurance';
-type PresetValue = '7d' | '30d' | '90d' | 'month' | 'custom';
+type PresetValue = '7d' | '30d' | '90d' | 'month';
 
 const TAB_ITEMS: TabItem<TabValue>[] = [
   { value: 'appointments', label: 'Appointments' },
@@ -51,7 +50,6 @@ const PRESET_ITEMS: TabItem<PresetValue>[] = [
   { value: '30d', label: '30 days' },
   { value: '90d', label: '90 days' },
   { value: 'month', label: 'This month' },
-  { value: 'custom', label: 'Custom' },
 ];
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -95,18 +93,15 @@ function presetRange(preset: PresetValue): { from: string; to: string } {
       return { from: daysAgoIso(89), to };
     case 'month':
       return { from: firstOfMonthIso(), to };
-    case 'custom':
-      return { from: daysAgoIso(29), to };
   }
 }
 
 function detectPreset(from: string, to: string): PresetValue {
-  if (to !== todayIso()) return 'custom';
-  if (from === daysAgoIso(6)) return '7d';
-  if (from === daysAgoIso(29)) return '30d';
-  if (from === daysAgoIso(89)) return '90d';
-  if (from === firstOfMonthIso()) return 'month';
-  return 'custom';
+  if (from === daysAgoIso(6) && to === todayIso()) return '7d';
+  if (from === daysAgoIso(29) && to === todayIso()) return '30d';
+  if (from === daysAgoIso(89) && to === todayIso()) return '90d';
+  if (from === firstOfMonthIso() && to === todayIso()) return 'month';
+  return '30d';
 }
 
 function saveBlob(blob: Blob, filename: string) {
@@ -325,12 +320,8 @@ export function ReportsPage() {
               items={PRESET_ITEMS}
               value={preset}
               onChange={(next) => {
-                if (next === 'custom') {
-                  updateParams({ from, to });
-                } else {
-                  const r = presetRangeFor(next);
-                  updateParams({ from: r.from, to: r.to });
-                }
+                const r = presetRangeFor(next);
+                updateParams({ from: r.from, to: r.to });
               }}
               ariaLabel="Date range"
               className="self-start"
@@ -339,28 +330,6 @@ export function ReportsPage() {
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-end sm:gap-3">
-              {showDateControls && preset === 'custom' && (
-                <>
-                  <div className="sm:w-44">
-                    <Input
-                      label="From"
-                      type="date"
-                      value={from}
-                      max={to}
-                      onChange={(e) => updateParams({ from: e.target.value })}
-                    />
-                  </div>
-                  <div className="sm:w-44">
-                    <Input
-                      label="To"
-                      type="date"
-                      value={to}
-                      min={from}
-                      onChange={(e) => updateParams({ to: e.target.value })}
-                    />
-                  </div>
-                </>
-              )}
 
               {isAdmin && (
                 <div className="sm:w-56">
